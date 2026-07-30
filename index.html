@@ -56,11 +56,13 @@
   <div class="tab" onclick="show(1,this)">🛒 Procure</div>
   <div class="tab" onclick="show(2,this)">📦 Stock</div>
   <div class="tab" onclick="show(8,this)">🔁 Transfer</div>
+  <div class="tab" onclick="show(9,this)">🚛 Fleet</div>
   <div class="tab" onclick="show(3,this)">🚚 Inbound</div>
   <div class="tab" onclick="show(4,this)">🔧 Usage</div>
   <div class="tab" onclick="show(5,this)">♻️ Scrap &amp; Refurb</div>
   <div class="tab" onclick="show(6,this)">🧮 Audit</div>
   <div class="tab" onclick="show(7,this)">📈 Planning</div>
+  <div class="tab" onclick="show(10,this)">🤖 Forecast</div>
 </div>
 
 <!-- DASHBOARD -->
@@ -92,6 +94,9 @@
       <button class="btn-sm" onclick="exp('tr')">Transfers</button>
       <button class="btn-sm" onclick="exp('aud')">Audits</button>
       <button class="btn-sm" onclick="exp('wc')">Warranty Claims</button>
+      <button class="btn-sm" onclick="exp('fleet')">Fleet</button>
+      <button class="btn-sm" onclick="exp('plan')">Expansion Plan</button>
+      <button class="btn-sm" onclick="exp('fc')">Forecast</button>
       <button class="btn-sm btn-grn" onclick="exp('all')">Export All</button>
     </div>
     <div class="note">Each register downloads as a standalone Excel-ready CSV (UTF-8) — drop straight into Tally / SAP / Zoho imports.</div>
@@ -325,6 +330,73 @@
   </div>
 </div>
 
+<!-- FLEET -->
+<div class="view" id="v9">
+  <div class="kpis" id="fleetKpis"></div>
+  <div class="grid2">
+    <div class="card">
+      <h2>Update Current Fleet Count</h2>
+      <label>Hub / Region</label>
+      <select id="fHub" onchange="fShow()"></select>
+      <label>Vehicle Model</label>
+      <select id="fModel" onchange="fShow()"></select>
+      <div class="note" id="fNow"></div>
+      <label>Vehicles Currently Deployed</label>
+      <input id="fQty" type="number" min="0" placeholder="e.g. 2100">
+      <button onclick="setFleet()">Update Count</button>
+      <div class="note" id="fMsg"></div>
+    </div>
+    <div class="card">
+      <h2>Add Expected Vehicles (Expansion Plan)</h2>
+      <label>Hub / Region</label>
+      <select id="eHub"></select>
+      <label>Vehicle Model</label>
+      <select id="eModel"></select>
+      <label>Vehicles to Add</label>
+      <input id="eQty" type="number" min="1" placeholder="e.g. 400">
+      <label>Expected By</label>
+      <input id="eDue" type="date">
+      <button class="btn-grn" onclick="addPlan()">Add to Pipeline</button>
+      <div class="note" id="eMsg"></div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Fleet Register — Current Vehicles by Hub × Model</h2>
+    <div id="fleetTbl"></div>
+  </div>
+  <div class="card">
+    <h2>Expansion Pipeline — Expected Vehicles</h2>
+    <table><thead><tr><th>Hub</th><th>Model</th><th>Vehicles</th><th>Expected By</th><th>Status</th><th></th></tr></thead>
+    <tbody id="planTbl"></tbody></table>
+    <div class="note">"Mark Deployed" moves the vehicles into the fleet register. The Forecast model counts planned vehicles from their expected date onward.</div>
+  </div>
+</div>
+
+<!-- FORECAST -->
+<div class="view" id="v10">
+  <div class="card">
+    <h2>🤖 Demand Forecast Model — How It Works</h2>
+    <div class="note" style="font-size:.8rem;line-height:1.7">
+      <b>1. Burn rate:</b> spares consumption per vehicle per day, learned from the last 90 days of usage entries per item × hub.
+      <b>2. Trend:</b> a least-squares linear regression over weekly consumption detects accelerating/decelerating usage (shown as trend factor with R² confidence).
+      <b>3. Fleet growth:</b> expected vehicles from the expansion pipeline scale demand from their expected date.
+      <b>Demand = burn rate × horizon × trend × fleet growth</b>, plus safety stock at 95% service level (1.65 × √demand). Everything runs live in this page — no server needed. More usage data → better forecasts.
+    </div>
+    <div class="note" id="fcModel"></div>
+  </div>
+  <div class="card">
+    <h2>Projected Spares Demand &amp; Procurement Plan</h2>
+    <table><thead><tr><th>Item</th><th>Hub</th><th>Stock</th><th>Incoming</th><th>30d</th><th>60d</th><th>90d</th><th>Suggested Order</th><th>Est. Value (₹)</th><th></th></tr></thead>
+    <tbody id="fcTbl"></tbody></table>
+    <div class="note" id="fcSum"></div>
+  </div>
+  <div class="card">
+    <h2>Parts Burn per 100 Vehicles / 30 Days (Item × Model)</h2>
+    <div id="burnTbl"></div>
+    <div class="note">Which fleet models eat parts fastest — multiply by incoming vehicles of that model to sanity-check the forecast.</div>
+  </div>
+</div>
+
 <script>
 const HUBS=["Hyderabad","Bangalore","Chennai","Vizag","Vijayawada","Guntur"];
 const ITEMS=[
@@ -337,6 +409,14 @@ const SEED={"Hyderabad":[42,38,9,11,6,9,120,64,22],"Bangalore":[18,22,4,6,3,5,22
 "Vizag":[3,12,5,4,2,4,48,28,8],"Guntur":[6,8,0,3,1,3,35,18,5],"Vijayawada":[9,11,4,4,2,3,40,22,7]};
 const SEED_DATE="2026-06-01";
 const MODELS=["Amo","BGauss","Ryder","Other"];
+const FLEET_SEED={"Hyderabad":{"Amo":2100,"BGauss":1400,"Ryder":1100,"Other":300},"Bangalore":{"Amo":1500,"BGauss":900,"Ryder":700,"Other":200},
+"Chennai":{"Amo":1100,"BGauss":700,"Ryder":500,"Other":150},"Vizag":{"Amo":600,"BGauss":380,"Ryder":300,"Other":80},
+"Vijayawada":{"Amo":700,"BGauss":450,"Ryder":350,"Other":100},"Guntur":{"Amo":500,"BGauss":300,"Ryder":250,"Other":60}};
+const PLAN_SEED=[
+ {id:"EX-001",hub:"Guntur",model:"Amo",qty:400,due:"2026-09-15",status:"planned"},
+ {id:"EX-002",hub:"Vizag",model:"Ryder",qty:350,due:"2026-08-20",status:"planned"},
+ {id:"EX-003",hub:"Hyderabad",model:"BGauss",qty:800,due:"2026-10-01",status:"planned"}];
+function blankFleet(){const f={};HUBS.forEach(h=>{f[h]={};MODELS.forEach(m=>f[h][m]=0);});return f;}
 function inferModel(ref){const r=(ref||"").toLowerCase();
   if(r.includes("amo"))return"Amo";if(r.includes("bgauss")||r.includes("bgs"))return"BGauss";if(r.includes("ryder")||r.includes("rsm"))return"Ryder";return"—";}
 let S=load();
@@ -348,13 +428,16 @@ function load(){
   try{const s=localStorage.getItem("scm_v3");if(s){const o=JSON.parse(s);
     o.tr=o.tr||[];o.wc=o.wc||[];o.wn=o.wn||0;
     (o.use||[]).forEach(u=>{if(!u.model)u.model=inferModel(u.ref);});
+    if(!o.fleet)o.fleet=JSON.parse(JSON.stringify(FLEET_SEED));
+    if(!o.plan){o.plan=JSON.parse(JSON.stringify(PLAN_SEED));o.pn=3;}
+    o.pn=o.pn||o.plan.length;
     return o;}}catch(e){}
   // migrate v2 if present
   try{const s2=localStorage.getItem("scm_v2");if(s2){const o=JSON.parse(s2);
     return {stock:o.stock,wip:blankWip(),lots:lotsFromStock(o.stock,SEED_DATE),pos:o.pos||[],
       grn:(o.grn||[]).map(g=>({...g,vendor:g.vendor||"—",eta:g.eta||g.d,val:g.val||0})),
       use:(o.use||[]).map(u=>({...u,val:u.val||u.qty*(COSTS[u.item]||0),model:u.model||inferModel(u.ref)})),
-      sr:[],aud:[],tr:[],wc:[],wn:0,cost:{...COSTS},n:o.n||2615};
+      sr:[],aud:[],tr:[],wc:[],wn:0,fleet:JSON.parse(JSON.stringify(FLEET_SEED)),plan:JSON.parse(JSON.stringify(PLAN_SEED)),pn:3,cost:{...COSTS},n:o.n||2615};
   }}catch(e){}
   return {stock:JSON.parse(JSON.stringify(SEED)),wip:blankWip(),lots:lotsFromStock(SEED,SEED_DATE),pos:[
     {id:"PO-2607",item:"Controller — BGauss",qty:12,vendor:"BGauss Spares",hub:"Guntur",eta:"2026-07-09",val:190000},
@@ -363,7 +446,7 @@ function load(){
     {d:"2026-07-12",item:"Brake pads",qty:2,hub:"Hyderabad",by:"Ravi K",ref:"HYD-RSM-0412",val:900,model:"Ryder"},
     {d:"2026-07-12",item:"Controller — Amo",qty:1,hub:"Bangalore",by:"Imran S",ref:"BLR-AMO-1207",val:14500,model:"Amo"},
     {d:"2026-07-11",item:"Tyre 120/70",qty:2,hub:"Chennai",by:"Kumar V",ref:"CHN-AMO-0654",val:3700,model:"Amo"}
-  ],sr:[],aud:[],tr:[],wc:[],wn:0,cost:{...COSTS},n:2615};
+  ],sr:[],aud:[],tr:[],wc:[],wn:0,fleet:JSON.parse(JSON.stringify(FLEET_SEED)),plan:JSON.parse(JSON.stringify(PLAN_SEED)),pn:3,cost:{...COSTS},n:2615};
 }
 function save(){try{localStorage.setItem("scm_v3",JSON.stringify(S));}catch(e){}}
 
@@ -386,8 +469,9 @@ function subStock(hub,i,qty){
 function fill(){
   const items=ITEMS.map(i=>`<option>${i[0]}</option>`).join(""), hubs=HUBS.map(h=>`<option>${h}</option>`).join("");
   ["pItem","uItem","sItem","aItem","tItem"].forEach(id=>document.getElementById(id).innerHTML=items);
-  ["pHub","uHub","sHub","aHub","tFrom","tTo"].forEach(id=>document.getElementById(id).innerHTML=hubs);
-  document.getElementById("uModel").innerHTML=MODELS.map(m=>`<option>${m}</option>`).join("");
+  ["pHub","uHub","sHub","aHub","tFrom","tTo","fHub","eHub"].forEach(id=>document.getElementById(id).innerHTML=hubs);
+  const models=MODELS.map(m=>`<option>${m}</option>`).join("");
+  ["uModel","fModel","eModel"].forEach(id=>document.getElementById(id).innerHTML=models);
 }
 
 /* ---------- PROCURE ---------- */
@@ -506,7 +590,90 @@ function transferStock(){
   render(); tAvail();
 }
 
-/* ---------- CSV EXPORT ---------- */
+/* ---------- FLEET ---------- */
+function fShow(){
+  const h=document.getElementById("fHub").value, m=document.getElementById("fModel").value;
+  document.getElementById("fNow").innerHTML=`Current at ${h}: <b>${S.fleet[h][m]}</b> × ${m}`;
+}
+function setFleet(){
+  const h=document.getElementById("fHub").value, m=document.getElementById("fModel").value,
+        q=parseInt(document.getElementById("fQty").value);
+  const msg=document.getElementById("fMsg");
+  if(isNaN(q)||q<0){msg.innerHTML="<span class='err'>Enter the current vehicle count.</span>";return;}
+  S.fleet[h][m]=q; save();
+  msg.innerHTML=`<span class='ok'>${h}: ${m} fleet set to ${q}.</span>`;
+  document.getElementById("fQty").value=""; render(); fShow();
+}
+function addPlan(){
+  const h=document.getElementById("eHub").value, m=document.getElementById("eModel").value,
+        q=parseInt(document.getElementById("eQty").value), due=document.getElementById("eDue").value;
+  const msg=document.getElementById("eMsg");
+  if(!q||q<1||!due){msg.innerHTML="<span class='err'>Fill vehicle count and expected date.</span>";return;}
+  S.pn++;
+  S.plan.push({id:"EX-"+String(S.pn).padStart(3,"0"),hub:h,model:m,qty:q,due,status:"planned"}); save();
+  msg.innerHTML=`<span class='ok'>Pipeline: +${q} × ${m} at ${h} by ${due}. Forecast updated.</span>`;
+  document.getElementById("eQty").value=""; render();
+}
+function deployPlan(id){
+  const p=S.plan.find(x=>x.id===id); if(!p||p.status!=="planned")return;
+  p.status="deployed"; S.fleet[p.hub][p.model]+=p.qty; save(); render();
+}
+function delPlan(id){
+  const i=S.plan.findIndex(x=>x.id===id); if(i<0)return;
+  S.plan.splice(i,1); save(); render();
+}
+
+/* ---------- FORECAST MODEL ---------- */
+function linreg(ys){ // x = 0..n-1
+  const n=ys.length; if(n<2)return null;
+  const xm=(n-1)/2, ym=ys.reduce((a,b)=>a+b,0)/n;
+  let sxy=0,sxx=0,syy=0;
+  ys.forEach((y,x)=>{sxy+=(x-xm)*(y-ym);sxx+=(x-xm)**2;syy+=(y-ym)**2;});
+  const slope=sxx?sxy/sxx:0, r2=(sxx&&syy)?(sxy*sxy)/(sxx*syy):0;
+  return {slope,mean:ym,r2,n};
+}
+function fcCompute(){
+  const t=today();
+  const W=90; // learning window (days)
+  // observed window = span of usage data, min 14d so early data doesn't panic-inflate rates
+  let span=14;
+  S.use.forEach(u=>{const a=days(u.d,t);if(a>=0&&a<=W)span=Math.max(span,a+1);});
+  // usage qty per item×hub and per item weekly series
+  const uq={}, wk={};
+  S.use.forEach(u=>{const a=days(u.d,t);if(a<0||a>W)return;
+    uq[u.item]=uq[u.item]||{};uq[u.item][u.hub]=(uq[u.item][u.hub]||0)+u.qty;
+    const w=Math.min(Math.floor(a/7),12);wk[u.item]=wk[u.item]||{};wk[u.item][w]=(wk[u.item][w]||0)+u.qty;});
+  // trend factor per item (weekly regression, oldest→newest)
+  const trend={};
+  Object.keys(wk).forEach(item=>{
+    const maxW=Math.min(Math.floor((span-1)/7),12);
+    const ys=[];for(let w=maxW;w>=0;w--)ys.push(wk[item][w]||0);
+    const r=linreg(ys);
+    if(r&&r.n>=4&&r.mean>0){
+      const f=Math.min(1.6,Math.max(.6,1+(r.slope*2)/r.mean)); // project ~2 weeks ahead of window centre
+      trend[item]={f,r2:r.r2};
+    }else trend[item]={f:1,r2:0};
+  });
+  const fleetNow=h=>MODELS.reduce((a,m)=>a+S.fleet[h][m],0);
+  const growth=(h,horizon)=>{
+    const now=fleetNow(h); if(!now)return 1;
+    const lim=new Date(Date.now()+horizon*864e5).toISOString().slice(0,10);
+    const add=S.plan.filter(p=>p.status==="planned"&&p.hub===h&&p.due<=lim).reduce((a,p)=>a+p.qty,0);
+    return (now+add/2)/now; // added vehicles run ~half the horizon on average
+  };
+  const rows=[];
+  ITEMS.forEach((it,idx)=>HUBS.forEach(h=>{
+    const used=(uq[it[0]]&&uq[it[0]][h])||0; if(!used)return;
+    const rate=used/span, tf=trend[it[0]].f;
+    const d=[30,60,90].map(hz=>Math.ceil(rate*hz*tf*growth(h,hz)));
+    const safety=Math.ceil(1.65*Math.sqrt(Math.max(d[0],1)));
+    const stock=S.stock[h][idx], inc=S.pos.filter(p=>p.hub===h&&p.item===it[0]).reduce((a,p)=>a+p.qty,0);
+    const order=Math.max(0,d[0]+safety-stock-inc);
+    rows.push({item:it[0],hub:h,stock,inc,d30:d[0],d60:d[1],d90:d[2],order,val:order*costOf(it[0]),r2:trend[it[0]].r2,tf});
+  }));
+  rows.sort((a,b)=>b.val-a.val);
+  return {rows,span,trend};
+}
 function csvStr(rows){return rows.map(r=>r.map(c=>`"${String(c??"").replace(/"/g,'""')}"`).join(",")).join("\r\n");}
 function dlCSV(name,rows){
   const b=new Blob(["﻿"+csvStr(rows)],{type:"text/csv;charset=utf-8"});
@@ -523,10 +690,18 @@ function expRows(k){
   if(k==="tr")return [["Date","Item","Qty","From","To","Authorised By","Reason"],...S.tr.map(e=>[e.d,e.item,e.qty,e.from,e.to,e.by,e.ref||""])];
   if(k==="aud")return [["Date","Hub","Item","System Qty","Counted Qty","Variance","Value (INR)","Counted By","Correction Applied"],...S.aud.map(a=>[a.d,a.hub,a.item,a.sys,a.cnt,a.vr,a.val,a.by,a.applied?"yes":"no"])];
   if(k==="wc")return [["Claim","Date","Item","Qty","Vendor","Hub","Issue","Value (INR)","Status","Resolved On"],...S.wc.map(c=>[c.id,c.d,c.item,c.qty,c.vendor,c.hub,c.issue,c.val,c.status,c.resd||""])];
+  if(k==="fleet"){const r=[["Hub",...MODELS,"Total","Pipeline"]];
+    HUBS.forEach(h=>{const tot=MODELS.reduce((a,m)=>a+S.fleet[h][m],0);
+      const inc=S.plan.filter(p=>p.status==="planned"&&p.hub===h).reduce((a,p)=>a+p.qty,0);
+      r.push([h,...MODELS.map(m=>S.fleet[h][m]),tot,inc]);});return r;}
+  if(k==="plan")return [["ID","Hub","Model","Vehicles","Expected By","Status"],...S.plan.map(p=>[p.id,p.hub,p.model,p.qty,p.due,p.status])];
+  if(k==="fc"){const fc=fcCompute();
+    return [["Item","Hub","Stock","Incoming","Demand 30d","Demand 60d","Demand 90d","Suggested Order","Est Value (INR)"],
+    ...fc.rows.map(r=>[r.item,r.hub,r.stock,r.inc,r.d30,r.d60,r.d90,r.order,r.val])];}
   return null;
 }
 function exp(k){
-  const t=today(), keys=["stock","pos","grn","use","sr","tr","aud","wc"];
+  const t=today(), keys=["stock","pos","grn","use","sr","tr","aud","wc","fleet","plan","fc"];
   if(k==="all"){keys.forEach((x,i)=>setTimeout(()=>dlCSV(`hala_${x}_${t}.csv`,expRows(x)),i*300));return;}
   dlCSV(`hala_${k}_${t}.csv`,expRows(k));
 }
@@ -711,7 +886,8 @@ function render(){
     <div class="kpi"><div class="l">Shrinkage (Audits)</div><div class="v" style="color:var(--red)">${INR(Math.abs(shrink))}</div><div class="s">negative variance</div></div>
     <div class="kpi"><div class="l">Vendor On-Time</div><div class="v">${grnN?Math.round(otN/grnN*100)+"%":"—"}</div><div class="s">${grnN} POs received</div></div>
     <div class="kpi"><div class="l">Warranty Recovered</div><div class="v" style="color:var(--grn)">${INR(S.wc.filter(c=>c.status==="replaced"||c.status==="credited").reduce((a,c)=>a+c.val,0))}</div><div class="s">${S.wc.filter(c=>c.status==="open").length} claims open</div></div>
-    <div class="kpi"><div class="l">Alerts</div><div class="v"><span class="err">${out}</span> / <span class="warn">${low}</span></div><div class="s">stockouts / low stock</div></div>`;
+    <div class="kpi"><div class="l">Alerts</div><div class="v"><span class="err">${out}</span> / <span class="warn">${low}</span></div><div class="s">stockouts / low stock</div></div>
+    <div class="kpi"><div class="l">Fleet</div><div class="v">${HUBS.reduce((a,h)=>a+MODELS.reduce((x,m)=>x+S.fleet[h][m],0),0).toLocaleString("en-IN")}</div><div class="s">+${S.plan.filter(p=>p.status==="planned").reduce((a,p)=>a+p.qty,0).toLocaleString("en-IN")} expected</div></div>`;
   /* dashboard consumption bars */
   const cs={};
   S.use.filter(u=>u.d>=d30).forEach(u=>{cs[u.item]=(cs[u.item]||0)+(u.val||u.qty*costOf(u.item));});
@@ -738,8 +914,61 @@ function render(){
   document.getElementById("dashAlerts").innerHTML=al?
     `<table><thead><tr><th>Item</th><th>Hub</th><th>Status</th><th>Reorder Pt</th></tr></thead><tbody>${al}</tbody></table>`
     :"<div class='note'>No alerts — all hubs healthy.</div>";
+  renderFleet(); renderForecast();
 }
 
+function renderFleet(){
+  const totNow=HUBS.reduce((a,h)=>a+MODELS.reduce((x,m)=>x+S.fleet[h][m],0),0);
+  const totPlan=S.plan.filter(p=>p.status==="planned").reduce((a,p)=>a+p.qty,0);
+  document.getElementById("fleetKpis").innerHTML=
+   `<div class="kpi"><div class="l">Current Fleet</div><div class="v">${totNow.toLocaleString("en-IN")}</div><div class="s">across ${HUBS.length} hubs</div></div>
+    <div class="kpi"><div class="l">Expected Additions</div><div class="v" style="color:var(--acc)">+${totPlan.toLocaleString("en-IN")}</div><div class="s">${S.plan.filter(p=>p.status==="planned").length} pipeline entries</div></div>
+    <div class="kpi"><div class="l">Fleet After Expansion</div><div class="v">${(totNow+totPlan).toLocaleString("en-IN")}</div><div class="s">projected</div></div>
+    <div class="kpi"><div class="l">Spares Value / Vehicle</div><div class="v">${totNow?INR(HUBS.reduce((a,h)=>a+ITEMS.reduce((x,it,i)=>x+S.stock[h][i]*costOf(it[0]),0),0)/totNow):"—"}</div><div class="s">stock coverage ratio</div></div>`;
+  let f="<table><thead><tr><th>Hub</th>"+MODELS.map(m=>`<th>${m}</th>`).join("")+"<th>Total</th><th>Incoming (Pipeline)</th></tr></thead><tbody>";
+  HUBS.forEach(h=>{
+    const tot=MODELS.reduce((a,m)=>a+S.fleet[h][m],0);
+    const inc=S.plan.filter(p=>p.status==="planned"&&p.hub===h).reduce((a,p)=>a+p.qty,0);
+    f+=`<tr><td><b>${h}</b></td>`+MODELS.map(m=>`<td>${S.fleet[h][m]||"—"}</td>`).join("")+
+       `<td><b>${tot}</b></td><td>${inc?`<span class="pill p-info">+${inc}</span>`:"—"}</td></tr>`;
+  });
+  document.getElementById("fleetTbl").innerHTML=f+"</tbody></table>";
+  const t=today();
+  document.getElementById("planTbl").innerHTML=S.plan.map(p=>{
+    const late=p.status==="planned"&&p.due<t;
+    return `<tr><td>${p.hub}</td><td>${p.model}</td><td>+${p.qty}</td><td>${p.due}${late?' <span class="pill p-out">DUE</span>':''}</td>
+    <td><span class="pill ${p.status==="deployed"?"p-ok":"p-info"}">${p.status.toUpperCase()}</span></td>
+    <td>${p.status==="planned"?`<button class="btn-sm btn-grn" onclick="deployPlan('${p.id}')">Mark Deployed</button>
+    <button class="btn-sm btn-red" onclick="delPlan('${p.id}')">Remove</button>`:""}</td></tr>`;
+  }).join("")||"<tr><td colspan=6 style='color:var(--mut)'>No expansion entries yet.</td></tr>";
+}
+function renderForecast(){
+  const fc=fcCompute();
+  document.getElementById("fcModel").innerHTML=`Model state: learning from <b>${fc.span}</b> days of usage data · ${S.use.length} consumption entries · ${S.plan.filter(p=>p.status==="planned").length} pipeline entries feeding growth. Trend factors: `+
+    (Object.keys(fc.trend).map(i=>`${i} ×${fc.trend[i].f.toFixed(2)} (R² ${fc.trend[i].r2.toFixed(2)})`).join(" · ")||"—");
+  document.getElementById("fcTbl").innerHTML=fc.rows.map(r=>
+    `<tr><td>${r.item}</td><td>${r.hub}</td><td>${r.stock}</td><td>${r.inc||"—"}</td>
+    <td>${r.d30}</td><td>${r.d60}</td><td>${r.d90}</td>
+    <td class="${r.order?'lowcell':''}">${r.order||"—"}</td><td>${r.order?INR(r.val):"—"}</td>
+    <td>${r.order?`<button class="btn-sm" onclick="draftPO('${r.item.replace(/'/g,"\\'")}','${r.hub}',${r.order})">Draft PO</button>`:""}</td></tr>`).join("")||
+    "<tr><td colspan=10 style='color:var(--mut)'>No consumption history yet — the model needs usage entries to learn burn rates.</td></tr>";
+  const budget=fc.rows.reduce((a,r)=>a+r.val,0);
+  document.getElementById("fcSum").innerHTML=fc.rows.length?
+    `Suggested procurement to cover the next 30 days at 95% service level: <b>${INR(budget)}</b>. Horizons include trend and expansion-pipeline growth.`:"";
+  // burn per 100 vehicles/30d by model
+  const t=today(), bm={};
+  S.use.forEach(u=>{const a=days(u.d,t);if(a<0||a>90)return;const mo=u.model||"—";
+    bm[u.item]=bm[u.item]||{};bm[u.item][mo]=(bm[u.item][mo]||0)+u.qty;});
+  const mTot={};MODELS.forEach(m=>mTot[m]=HUBS.reduce((a,h)=>a+S.fleet[h][m],0));
+  let b="<table><thead><tr><th>Item</th>"+MODELS.map(m=>`<th>${m} (${mTot[m]} veh)</th>`).join("")+"</tr></thead><tbody>";
+  Object.keys(bm).forEach(item=>{
+    b+=`<tr><td>${item}</td>`+MODELS.map(m=>{
+      const q=bm[item][m]||0;
+      const rate=(q&&mTot[m])?(q/mTot[m]*100*(30/fc.span)).toFixed(2):null;
+      return `<td>${rate?rate:"—"}</td>`;}).join("")+"</tr>";
+  });
+  document.getElementById("burnTbl").innerHTML=Object.keys(bm).length?b+"</tbody></table>":"<div class='note'>No model-tagged consumption yet.</div>";
+}
 function draftPO(item,hub,qty){
   document.getElementById("pItem").value=item;
   document.getElementById("pHub").value=hub;
@@ -752,7 +981,7 @@ function show(i,el){
   document.querySelectorAll(".view").forEach((v,k)=>v.classList.toggle("on",k===i));
   document.querySelectorAll(".tab").forEach(t=>t.classList.remove("on"));
   el.classList.add("on");
-  if(i===4)uAvail(); if(i===5)srAvail(); if(i===6)aAvail(); if(i===8)tAvail();
+  if(i===4)uAvail(); if(i===5)srAvail(); if(i===6)aAvail(); if(i===8)tAvail(); if(i===9)fShow();
 }
 fill();render();
 </script>
