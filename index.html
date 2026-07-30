@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hala Mobility — SCM Command Centre</title>
+<style>
+  :root{--bg:#0f1420;--card:#1a2233;--line:#28324a;--txt:#e8edf7;--mut:#8fa0bf;--grn:#2ecc71;--amb:#f39c12;--red:#e74c3c;--acc:#4da3ff;}
+  *{margin:0;box-sizing:border-box;font-family:'Segoe UI',system-ui,sans-serif}
+  body{background:var(--bg);color:var(--txt);padding:16px;max-width:1280px;margin:0 auto}
+  header{display:flex;justify-content:center;align-items:baseline;flex-wrap:wrap;gap:8px;margin:10px 0 18px}
+  h1{font-size:1.45rem;text-align:center} h1 span{color:var(--acc)}
+  .tag{font-size:.72rem;color:var(--mut);border:1px solid var(--line);padding:3px 10px;border-radius:20px}
+  .tabs{display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap;justify-content:center}
+  .tab{padding:9px 18px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--mut);font-size:.85rem;cursor:pointer;font-weight:600}
+  .tab.on{background:var(--acc);color:#08101f;border-color:var(--acc)}
+  .view{display:none}.view.on{display:block}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+  @media(max-width:820px){.grid2{grid-template-columns:1fr}}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:12px}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+  .kpi .v{font-size:1.25rem;font-weight:700;margin-top:4px;font-variant-numeric:tabular-nums}
+  .kpi .l{font-size:.66rem;color:var(--mut);text-transform:uppercase;letter-spacing:.05em}
+  .kpi .s{font-size:.68rem;color:var(--mut);margin-top:3px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;overflow-x:auto;margin-bottom:12px;box-shadow:0 6px 24px rgba(0,0,0,.25)}
+  .card h2{font-size:.85rem;color:var(--mut);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px}
+  label{display:block;font-size:.7rem;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;margin:10px 0 4px}
+  input,select{width:100%;background:#101828;color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-size:.85rem}
+  button{margin-top:14px;width:100%;background:var(--acc);color:#08101f;border:none;border-radius:8px;padding:11px;font-weight:700;font-size:.9rem;cursor:pointer}
+  button:hover{filter:brightness(1.1)}
+  .btn-sm{width:auto;margin:0;padding:5px 12px;font-size:.72rem;border-radius:6px}
+  .btn-grn{background:var(--grn)}
+  .btn-amb{background:var(--amb)}
+  .btn-red{background:var(--red);color:#fff}
+  table{width:100%;border-collapse:collapse;font-size:.78rem;min-width:540px}
+  th{color:var(--mut);text-transform:uppercase;font-size:.65rem;letter-spacing:.05em;text-align:left;padding:8px 6px;border-bottom:1px solid var(--line)}
+  td{padding:8px 6px;border-bottom:1px solid #1c2438;font-variant-numeric:tabular-nums}
+  .pill{padding:2px 9px;border-radius:12px;font-size:.68rem;font-weight:600;white-space:nowrap}
+  .p-ok{background:#123524;color:var(--grn)} .p-low{background:#3a2a10;color:var(--amb)} .p-out{background:#3a1512;color:var(--red)} .p-info{background:#1c2a44;color:var(--acc)}
+  td.lowcell{color:var(--amb);font-weight:700} td.outcell{color:var(--red);font-weight:700}
+  .note{font-size:.72rem;color:var(--mut);margin-top:8px}
+  .err{color:var(--red)} .ok{color:var(--grn)} .warn{color:var(--amb)}
+  .bar{height:10px;background:#101828;border-radius:5px;overflow:hidden;min-width:120px}
+  .bar i{display:block;height:100%;background:var(--acc)}
+  footer{margin-top:16px;font-size:.7rem;color:var(--mut);text-align:center}
+</style>
+</head>
+<body>
+<header>
+  <h1>⚡ Hala Mobility — SCM <span>Command Centre</span></h1>
+  <span class="tag">Requirement → Consumption → Scrap / Refurb · rupee-level traceability</span>
+</header>
+
+<div class="tabs">
+  <div class="tab on" onclick="show(0,this)">📊 Dashboard</div>
+  <div class="tab" onclick="show(1,this)">🛒 Procure</div>
+  <div class="tab" onclick="show(2,this)">📦 Stock</div>
+  <div class="tab" onclick="show(8,this)">🔁 Transfer</div>
+  <div class="tab" onclick="show(3,this)">🚚 Inbound</div>
+  <div class="tab" onclick="show(4,this)">🔧 Usage</div>
+  <div class="tab" onclick="show(5,this)">♻️ Scrap &amp; Refurb</div>
+  <div class="tab" onclick="show(6,this)">🧮 Audit</div>
+  <div class="tab" onclick="show(7,this)">📈 Planning</div>
+</div>
+
+<!-- DASHBOARD -->
+<div class="view on" id="v0">
+  <div class="kpis" id="kpis"></div>
+  <div class="grid2">
+    <div class="card">
+      <h2>Consumption Value — Last 30 Days, by Item</h2>
+      <div id="dashCons"></div>
+    </div>
+    <div class="card">
+      <h2>Stock Ageing — Value by Bucket</h2>
+      <div id="dashAge"></div>
+      <div class="note">Ageing runs on FIFO lots: every receipt creates a dated lot; every issue consumes the oldest lot first.</div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Alerts — Stockouts &amp; Below Reorder Point</h2>
+    <div id="dashAlerts"></div>
+  </div>
+  <div class="card">
+    <h2>Exports — CSV for Finance / ERP</h2>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn-sm" onclick="exp('stock')">Stock</button>
+      <button class="btn-sm" onclick="exp('pos')">Open POs</button>
+      <button class="btn-sm" onclick="exp('grn')">GRN Log</button>
+      <button class="btn-sm" onclick="exp('use')">Consumption</button>
+      <button class="btn-sm" onclick="exp('sr')">Scrap/Refurb</button>
+      <button class="btn-sm" onclick="exp('tr')">Transfers</button>
+      <button class="btn-sm" onclick="exp('aud')">Audits</button>
+      <button class="btn-sm" onclick="exp('wc')">Warranty Claims</button>
+      <button class="btn-sm btn-grn" onclick="exp('all')">Export All</button>
+    </div>
+    <div class="note">Each register downloads as a standalone Excel-ready CSV (UTF-8) — drop straight into Tally / SAP / Zoho imports.</div>
+  </div>
+</div>
+
+<!-- PROCURE -->
+<div class="view" id="v1">
+  <div style="max-width:620px;margin:0 auto">
+    <div class="card">
+      <h2>New Procurement Entry</h2>
+      <label>Item</label>
+      <select id="pItem"></select>
+      <label>Vendor</label>
+      <input id="pVendor" placeholder="e.g. BGauss Spares Pvt Ltd">
+      <label>Quantity</label>
+      <input id="pQty" type="number" min="1" placeholder="e.g. 12">
+      <label>Value (₹)</label>
+      <input id="pVal" type="number" min="0" placeholder="e.g. 190000">
+      <label>Ship To (Hub)</label>
+      <select id="pHub"></select>
+      <label>Expected Delivery</label>
+      <input id="pEta" type="date">
+      <button onclick="addPO()">Create PO</button>
+      <div class="note" id="msg"></div>
+    </div>
+  </div>
+</div>
+
+<!-- STOCK -->
+<div class="view" id="v2">
+  <div class="card">
+    <h2>Spares on Hand — Every Hub × Every Item</h2>
+    <div id="matrix"></div>
+    <div class="note">Amber = at/below half of reorder point · Red = stockout. Receipts add stock; usage, scrap and refurb-outs subtract it — live.</div>
+  </div>
+  <div class="card">
+    <h2>Stock Value by Hub (₹, at moving-average cost)</h2>
+    <div id="valMatrix"></div>
+  </div>
+</div>
+
+<!-- INBOUND -->
+<div class="view" id="v3">
+  <div class="card">
+    <h2>Open POs — Where Everything Is Headed</h2>
+    <table><thead><tr><th>PO</th><th>Item</th><th>Qty</th><th>Vendor</th><th>Value (₹)</th><th>Ship To</th><th>ETA</th><th>Status</th><th></th></tr></thead>
+    <tbody id="poTbl"></tbody></table>
+    <div class="note">"Mark Received" books the goods into the destination hub's stock (GRN), updates the item's moving-average cost, and moves the PO to history.</div>
+  </div>
+  <div class="card">
+    <h2>Receipt History (GRN Log)</h2>
+    <table><thead><tr><th>Date</th><th>PO</th><th>Item</th><th>Qty</th><th>Vendor</th><th>Value (₹)</th><th>Received At</th><th>Vs ETA</th></tr></thead>
+    <tbody id="grnTbl"></tbody></table>
+  </div>
+</div>
+
+<!-- USAGE -->
+<div class="view" id="v4">
+  <div class="grid2">
+    <div class="card">
+      <h2>Issue a Part (Usage Entry)</h2>
+      <label>Hub</label>
+      <select id="uHub" onchange="uAvail()"></select>
+      <label>Item</label>
+      <select id="uItem" onchange="uAvail()"></select>
+      <div class="note" id="uStock"></div>
+      <label>Vehicle Model</label>
+      <select id="uModel"></select>
+      <label>Quantity Used</label>
+      <input id="uQty" type="number" min="1" placeholder="e.g. 1">
+      <label>Used By (Mechanic / Technician)</label>
+      <input id="uBy" placeholder="e.g. Ravi K">
+      <label>Vehicle / Job Reference</label>
+      <input id="uRef" placeholder="e.g. HYD-RSM-0412 or Job #4471">
+      <button class="btn-amb" onclick="usePart()">Issue &amp; Deduct Stock</button>
+      <div class="note" id="uMsg"></div>
+    </div>
+    <div class="card">
+      <h2>Consumption — Last Entries First</h2>
+      <table><thead><tr><th>Date</th><th>Item</th><th>Qty</th><th>Value (₹)</th><th>Hub</th><th>Model</th><th>By</th><th>Vehicle/Job</th></tr></thead>
+      <tbody id="useTbl"></tbody></table>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Vehicle / Job History — Search by Reference</h2>
+    <input id="vehQ" placeholder="Type a vehicle or job reference, e.g. HYD-RSM-0412" onkeyup="render()">
+    <div id="vehTbl" style="margin-top:10px"></div>
+  </div>
+  <div class="card">
+    <h2>Consumption Summary (Total Used, by Item × Hub)</h2>
+    <div id="useSum"></div>
+    <div class="note">This table is where forecasting starts: consumption rate per hub drives reorder points.</div>
+  </div>
+  <div class="card">
+    <h2>Consumption by Vehicle Model (Qty · Value)</h2>
+    <div id="modelSum"></div>
+    <div class="note">Exposes which fleet models burn parts fastest — feeds per-model maintenance cost and procurement planning.</div>
+  </div>
+</div>
+
+<!-- SCRAP & REFURB -->
+<div class="view" id="v5">
+  <div class="grid2">
+    <div class="card">
+      <h2>Scrap / Refurbishment Entry</h2>
+      <label>Action</label>
+      <select id="sType" onchange="srAvail()">
+        <option value="scrap">Scrap (write-off from stock)</option>
+        <option value="toref">Send to Refurbishment (stock → WIP)</option>
+        <option value="refdone">Refurb Complete (WIP → back to stock)</option>
+        <option value="claim">Warranty Claim (send to vendor)</option>
+      </select>
+      <label>Hub</label>
+      <select id="sHub" onchange="srAvail()"></select>
+      <label>Item</label>
+      <select id="sItem" onchange="srAvail()"></select>
+      <div class="note" id="sStock"></div>
+      <label>Quantity</label>
+      <input id="sQty" type="number" min="1" placeholder="e.g. 1">
+      <label>Reason / Condition</label>
+      <input id="sReason" placeholder="e.g. Cell swelling, controller burn-out, accident damage">
+      <label>Vendor (required for warranty claim)</label>
+      <input id="sVendor" placeholder="e.g. BGauss Spares Pvt Ltd">
+      <label>Authorised By</label>
+      <input id="sBy" placeholder="e.g. Hub Manager — Srinivas">
+      <button class="btn-red" onclick="scrapEntry()">Record Entry</button>
+      <div class="note" id="sMsg"></div>
+    </div>
+    <div class="card">
+      <h2>Refurb WIP — Currently Under Refurbishment</h2>
+      <div id="wipTbl"></div>
+      <div class="note">Failed parts recovered from vehicles can be booked straight in with "Refurb Complete" once repaired — they re-enter stock as a fresh dated lot.</div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Warranty Claims</h2>
+    <table><thead><tr><th>Claim</th><th>Date</th><th>Item</th><th>Qty</th><th>Vendor</th><th>Hub</th><th>Issue</th><th>Value (₹)</th><th>Status</th><th></th></tr></thead>
+    <tbody id="wcTbl"></tbody></table>
+    <div class="note">Replaced → parts return to stock as a fresh dated lot. Credited → rupee recovery booked against the vendor. Rejected → the loss stays visible here and on the dashboard.</div>
+  </div>
+  <div class="card">
+    <h2>Scrap &amp; Refurb Log</h2>
+    <table><thead><tr><th>Date</th><th>Action</th><th>Item</th><th>Qty</th><th>Value (₹)</th><th>Hub</th><th>Reason</th><th>Authorised By</th></tr></thead>
+    <tbody id="srTbl"></tbody></table>
+  </div>
+</div>
+
+<!-- AUDIT -->
+<div class="view" id="v6">
+  <div class="grid2">
+    <div class="card">
+      <h2>Cycle Count / Reconciliation Entry</h2>
+      <label>Hub</label>
+      <select id="aHub" onchange="aAvail()"></select>
+      <label>Item</label>
+      <select id="aItem" onchange="aAvail()"></select>
+      <div class="note" id="aStock"></div>
+      <label>Physically Counted Quantity</label>
+      <input id="aQty" type="number" min="0" placeholder="e.g. 40">
+      <label>Counted By</label>
+      <input id="aBy" placeholder="e.g. Auditor — Lakshmi">
+      <label>Apply Correction to System Stock?</label>
+      <select id="aApply"><option value="yes">Yes — adjust stock to counted qty</option><option value="no">No — record variance only</option></select>
+      <button onclick="auditEntry()">Record Count</button>
+      <div class="note" id="aMsg"></div>
+    </div>
+    <div class="card">
+      <h2>Why This Matters</h2>
+      <div class="note" style="font-size:.8rem;line-height:1.6">Negative variance that repeats at the same hub is a pilferage signal. Every count is logged with the auditor's name, the system quantity at the moment of counting, and the rupee value of the gap — so shrinkage is visible per hub, per item, per person accountable.</div>
+      <div id="aSummary" style="margin-top:12px"></div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Variance Log (Audit Trail)</h2>
+    <table><thead><tr><th>Date</th><th>Hub</th><th>Item</th><th>System</th><th>Counted</th><th>Variance</th><th>Value (₹)</th><th>By</th><th>Applied</th></tr></thead>
+    <tbody id="audTbl"></tbody></table>
+  </div>
+</div>
+
+<!-- PLANNING -->
+<div class="view" id="v7">
+  <div class="card">
+    <h2>Reorder Planning — Below Reorder Point</h2>
+    <table><thead><tr><th>Item</th><th>Hub</th><th>On Hand</th><th>Reorder Pt</th><th>Incoming (Open PO)</th><th>Suggested Qty</th><th>Est. Value (₹)</th><th></th></tr></thead>
+    <tbody id="ropTbl"></tbody></table>
+    <div class="note">Suggested qty tops the hub back up to 2× reorder point after netting off stock already in transit. "Draft PO" pre-fills the Procure form.</div>
+  </div>
+  <div class="card">
+    <h2>Vendor Performance (from GRN history)</h2>
+    <table><thead><tr><th>Vendor</th><th>POs Received</th><th>On-Time</th><th>On-Time %</th><th>Avg Delay (days)</th><th>Total Value (₹)</th><th>Warranty Claims</th></tr></thead>
+    <tbody id="venTbl"></tbody></table>
+  </div>
+  <div class="card">
+    <h2>Stock Ageing Detail — Qty by Age Bucket (Item × Hub)</h2>
+    <table><thead><tr><th>Item</th><th>Hub</th><th>0–30 d</th><th>31–60 d</th><th>61–90 d</th><th>90+ d</th><th>Value 90+ (₹)</th></tr></thead>
+    <tbody id="ageTbl"></tbody></table>
+  </div>
+</div>
+
+<!-- TRANSFER -->
+<div class="view" id="v8">
+  <div class="grid2">
+    <div class="card">
+      <h2>Inter-Hub Stock Transfer</h2>
+      <label>From Hub</label>
+      <select id="tFrom" onchange="tAvail()"></select>
+      <label>Item</label>
+      <select id="tItem" onchange="tAvail()"></select>
+      <div class="note" id="tStock"></div>
+      <label>To Hub</label>
+      <select id="tTo"></select>
+      <label>Quantity</label>
+      <input id="tQty" type="number" min="1" placeholder="e.g. 5">
+      <label>Authorised By</label>
+      <input id="tBy" placeholder="e.g. Hub Manager — Srinivas">
+      <label>Reason</label>
+      <input id="tRef" placeholder="e.g. Stockout cover for Guntur controllers">
+      <button onclick="transferStock()">Transfer Stock</button>
+      <div class="note" id="tMsg"></div>
+    </div>
+    <div class="card">
+      <h2>How Transfers Work</h2>
+      <div class="note" style="font-size:.8rem;line-height:1.6">Stock moves instantly from source to destination hub. FIFO lot dates travel with the parts, so ageing stays honest — a 70-day-old controller is still 70 days old after it lands in Guntur. Every movement is logged with the authorising person for accountability.</div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Transfer Log</h2>
+    <table><thead><tr><th>Date</th><th>Item</th><th>Qty</th><th>From</th><th>To</th><th>By</th><th>Reason</th></tr></thead>
+    <tbody id="trTbl"></tbody></table>
+  </div>
+</div>
+
+<script>
+const HUBS=["Hyderabad","Bangalore","Chennai","Vizag","Vijayawada","Guntur"];
+const ITEMS=[
+ ["Battery 48V (Amo)",10],["Battery 60V (Ryder)",10],["Controller — BGauss",6],["Controller — Amo",6],
+ ["Motor assembly",4],["Fast charger",8],["Brake pads",40],["Tyre 120/70",30],["Wiring harness",10]
+];
+const COSTS={"Battery 48V (Amo)":29000,"Battery 60V (Ryder)":36000,"Controller — BGauss":15800,"Controller — Amo":14500,
+"Motor assembly":22000,"Fast charger":9500,"Brake pads":450,"Tyre 120/70":1850,"Wiring harness":3200};
+const SEED={"Hyderabad":[42,38,9,11,6,9,120,64,22],"Bangalore":[18,22,4,6,3,5,22,41,12],"Chennai":[15,19,6,5,4,6,55,34,9],
+"Vizag":[3,12,5,4,2,4,48,28,8],"Guntur":[6,8,0,3,1,3,35,18,5],"Vijayawada":[9,11,4,4,2,3,40,22,7]};
+const SEED_DATE="2026-06-01";
+const MODELS=["Amo","BGauss","Ryder","Other"];
+function inferModel(ref){const r=(ref||"").toLowerCase();
+  if(r.includes("amo"))return"Amo";if(r.includes("bgauss")||r.includes("bgs"))return"BGauss";if(r.includes("ryder")||r.includes("rsm"))return"Ryder";return"—";}
+let S=load();
+
+function blankWip(){const w={};HUBS.forEach(h=>w[h]=ITEMS.map(()=>0));return w;}
+function lotsFromStock(st,d){const l=[];HUBS.forEach(h=>ITEMS.forEach((it,i)=>{if(st[h][i]>0)l.push({h,i,q:st[h][i],d});}));return l;}
+
+function load(){
+  try{const s=localStorage.getItem("scm_v3");if(s){const o=JSON.parse(s);
+    o.tr=o.tr||[];o.wc=o.wc||[];o.wn=o.wn||0;
+    (o.use||[]).forEach(u=>{if(!u.model)u.model=inferModel(u.ref);});
+    return o;}}catch(e){}
+  // migrate v2 if present
+  try{const s2=localStorage.getItem("scm_v2");if(s2){const o=JSON.parse(s2);
+    return {stock:o.stock,wip:blankWip(),lots:lotsFromStock(o.stock,SEED_DATE),pos:o.pos||[],
+      grn:(o.grn||[]).map(g=>({...g,vendor:g.vendor||"—",eta:g.eta||g.d,val:g.val||0})),
+      use:(o.use||[]).map(u=>({...u,val:u.val||u.qty*(COSTS[u.item]||0),model:u.model||inferModel(u.ref)})),
+      sr:[],aud:[],tr:[],wc:[],wn:0,cost:{...COSTS},n:o.n||2615};
+  }}catch(e){}
+  return {stock:JSON.parse(JSON.stringify(SEED)),wip:blankWip(),lots:lotsFromStock(SEED,SEED_DATE),pos:[
+    {id:"PO-2607",item:"Controller — BGauss",qty:12,vendor:"BGauss Spares",hub:"Guntur",eta:"2026-07-09",val:190000},
+    {id:"PO-2611",item:"Battery 48V (Amo)",qty:30,vendor:"AmpVolt Cells",hub:"Vizag",eta:"2026-07-22",val:870000}
+  ],grn:[],use:[
+    {d:"2026-07-12",item:"Brake pads",qty:2,hub:"Hyderabad",by:"Ravi K",ref:"HYD-RSM-0412",val:900,model:"Ryder"},
+    {d:"2026-07-12",item:"Controller — Amo",qty:1,hub:"Bangalore",by:"Imran S",ref:"BLR-AMO-1207",val:14500,model:"Amo"},
+    {d:"2026-07-11",item:"Tyre 120/70",qty:2,hub:"Chennai",by:"Kumar V",ref:"CHN-AMO-0654",val:3700,model:"Amo"}
+  ],sr:[],aud:[],tr:[],wc:[],wn:0,cost:{...COSTS},n:2615};
+}
+function save(){try{localStorage.setItem("scm_v3",JSON.stringify(S));}catch(e){}}
+
+const idxOf=item=>ITEMS.findIndex(x=>x[0]===item);
+const costOf=item=>S.cost[item]||COSTS[item]||0;
+const INR=n=>"₹"+Math.round(n).toLocaleString("en-IN");
+const today=()=>new Date().toISOString().slice(0,10);
+const days=(a,b)=>Math.round((new Date(b)-new Date(a))/864e5);
+
+function addStock(hub,i,qty,d){S.stock[hub][i]+=qty;S.lots.push({h:hub,i,q:qty,d:d||today()});}
+function subStock(hub,i,qty){
+  S.stock[hub][i]-=qty;
+  let left=qty; const taken=[];
+  const lots=S.lots.filter(l=>l.h===hub&&l.i===i&&l.q>0).sort((a,b)=>a.d<b.d?-1:1);
+  for(const l of lots){if(left<=0)break;const t=Math.min(l.q,left);l.q-=t;left-=t;if(t>0)taken.push({q:t,d:l.d});}
+  if(left>0)taken.push({q:left,d:today()});
+  return taken;
+}
+
+function fill(){
+  const items=ITEMS.map(i=>`<option>${i[0]}</option>`).join(""), hubs=HUBS.map(h=>`<option>${h}</option>`).join("");
+  ["pItem","uItem","sItem","aItem","tItem"].forEach(id=>document.getElementById(id).innerHTML=items);
+  ["pHub","uHub","sHub","aHub","tFrom","tTo"].forEach(id=>document.getElementById(id).innerHTML=hubs);
+  document.getElementById("uModel").innerHTML=MODELS.map(m=>`<option>${m}</option>`).join("");
+}
+
+/* ---------- PROCURE ---------- */
+function addPO(){
+  const item=document.getElementById("pItem").value, vendor=document.getElementById("pVendor").value.trim(),
+        qty=parseInt(document.getElementById("pQty").value), val=parseInt(document.getElementById("pVal").value)||0,
+        hub=document.getElementById("pHub").value, eta=document.getElementById("pEta").value;
+  if(!vendor||!qty||qty<1||!eta){document.getElementById("msg").textContent="Fill vendor, quantity and expected delivery.";return;}
+  S.n++; S.pos.push({id:"PO-"+S.n,item,qty,vendor,hub,eta,val}); save();
+  document.getElementById("msg").textContent=`PO-${S.n} created → ${qty} × ${item} shipping to ${hub}, due ${eta}.`;
+  document.getElementById("pVendor").value="";document.getElementById("pQty").value="";document.getElementById("pVal").value="";
+  render();
+}
+function receive(id){
+  const i=S.pos.findIndex(p=>p.id===id); if(i<0)return;
+  const p=S.pos[i]; const idx=idxOf(p.item);
+  // moving-average cost update
+  if(p.val>0&&p.qty>0){
+    const onHand=HUBS.reduce((a,h)=>a+S.stock[h][idx],0), oldC=costOf(p.item), newC=p.val/p.qty;
+    S.cost[p.item]=Math.round((onHand*oldC+p.qty*newC)/(onHand+p.qty));
+  }
+  addStock(p.hub,idx,p.qty);
+  S.grn.unshift({d:today(),id:p.id,item:p.item,qty:p.qty,hub:p.hub,vendor:p.vendor,eta:p.eta,val:p.val||0});
+  S.pos.splice(i,1); save(); render();
+}
+
+/* ---------- USAGE ---------- */
+function uAvail(){
+  const hub=document.getElementById("uHub").value, idx=idxOf(document.getElementById("uItem").value);
+  const q=S.stock[hub][idx];
+  document.getElementById("uStock").innerHTML=`Available at ${hub}: <b class="${q===0?'err':q<=ITEMS[idx][1]/2?'warn':'ok'}">${q}</b> · unit cost ${INR(costOf(ITEMS[idx][0]))}`;
+}
+function usePart(){
+  const hub=document.getElementById("uHub").value, item=document.getElementById("uItem").value,
+        qty=parseInt(document.getElementById("uQty").value), by=document.getElementById("uBy").value.trim(),
+        ref=document.getElementById("uRef").value.trim();
+  const m=document.getElementById("uMsg");
+  if(!qty||qty<1||!by||!ref){m.innerHTML="<span class='err'>Fill quantity, mechanic name and vehicle/job reference — no issue without a reference (that's the audit rule).</span>";return;}
+  const idx=idxOf(item);
+  if(S.stock[hub][idx]<qty){m.innerHTML=`<span class='err'>Blocked: only ${S.stock[hub][idx]} in stock at ${hub}. Raise a transfer or PO instead.</span>`;return;}
+  subStock(hub,idx,qty);
+  const val=qty*costOf(item), model=document.getElementById("uModel").value;
+  S.use.unshift({d:today(),item,qty,hub,by,ref,val,model});
+  save();
+  m.innerHTML=`<span class='ok'>Issued ${qty} × ${item} (${INR(val)}) at ${hub} → ${ref}. Stock updated.</span>`;
+  document.getElementById("uQty").value="";document.getElementById("uRef").value="";
+  render(); uAvail();
+}
+
+/* ---------- SCRAP / REFURB ---------- */
+function srAvail(){
+  const hub=document.getElementById("sHub").value, idx=idxOf(document.getElementById("sItem").value);
+  document.getElementById("sStock").innerHTML=`At ${hub}: <b>${S.stock[hub][idx]}</b> in stock · <b>${S.wip[hub][idx]}</b> in refurb WIP`;
+}
+function scrapEntry(){
+  const type=document.getElementById("sType").value, hub=document.getElementById("sHub").value,
+        item=document.getElementById("sItem").value, qty=parseInt(document.getElementById("sQty").value),
+        reason=document.getElementById("sReason").value.trim(), by=document.getElementById("sBy").value.trim();
+  const m=document.getElementById("sMsg"), idx=idxOf(item);
+  if(!qty||qty<1||!reason||!by){m.innerHTML="<span class='err'>Fill quantity, reason and authorising person — write-offs need accountability.</span>";return;}
+  const val=qty*costOf(item);
+  if(type==="claim"){
+    const vendor=document.getElementById("sVendor").value.trim();
+    if(!vendor){m.innerHTML="<span class='err'>Warranty claims need the vendor's name.</span>";return;}
+    if(S.stock[hub][idx]<qty){m.innerHTML=`<span class='err'>Blocked: only ${S.stock[hub][idx]} in stock at ${hub}.</span>`;return;}
+    subStock(hub,idx,qty);
+    S.wn++;
+    S.wc.unshift({id:"WC-"+String(S.wn).padStart(3,"0"),d:today(),item,qty,vendor,hub,issue:reason,by,val,status:"open",resd:""});
+    save();
+    m.innerHTML=`<span class='ok'>Claim WC-${String(S.wn).padStart(3,"0")}: ${qty} × ${item} (${INR(val)}) sent to ${vendor}.</span>`;
+    document.getElementById("sQty").value="";document.getElementById("sReason").value="";
+    render(); srAvail(); return;
+  }
+  if(type==="scrap"||type==="toref"){
+    if(S.stock[hub][idx]<qty){m.innerHTML=`<span class='err'>Blocked: only ${S.stock[hub][idx]} in stock at ${hub}.</span>`;return;}
+    subStock(hub,idx,qty);
+    if(type==="toref")S.wip[hub][idx]+=qty;
+  }else{ // refurb complete
+    if(S.wip[hub][idx]<qty){m.innerHTML=`<span class='err'>Blocked: only ${S.wip[hub][idx]} in refurb WIP at ${hub}. (Recovered cores from vehicles can still be booked in — set WIP first with "Send to Refurbishment" or reduce qty.)</span>`;return;}
+    S.wip[hub][idx]-=qty; addStock(hub,idx,qty);
+  }
+  const label={scrap:"SCRAP",toref:"TO REFURB",refdone:"REFURB DONE"}[type];
+  S.sr.unshift({d:today(),type,item,qty,hub,reason,by,val});
+  save();
+  m.innerHTML=`<span class='ok'>${label}: ${qty} × ${item} (${INR(val)}) at ${hub} recorded.</span>`;
+  document.getElementById("sQty").value="";document.getElementById("sReason").value="";
+  render(); srAvail();
+}
+
+function resolveWC(id,how){
+  const c=S.wc.find(x=>x.id===id); if(!c||c.status!=="open")return;
+  c.status=how; c.resd=today();
+  if(how==="replaced")addStock(c.hub,idxOf(c.item),c.qty);
+  save(); render();
+}
+
+/* ---------- TRANSFER ---------- */
+function tAvail(){
+  const hub=document.getElementById("tFrom").value, idx=idxOf(document.getElementById("tItem").value);
+  document.getElementById("tStock").innerHTML=`Available at ${hub}: <b>${S.stock[hub][idx]}</b>`;
+}
+function transferStock(){
+  const from=document.getElementById("tFrom").value, to=document.getElementById("tTo").value,
+        item=document.getElementById("tItem").value, qty=parseInt(document.getElementById("tQty").value),
+        by=document.getElementById("tBy").value.trim(), ref=document.getElementById("tRef").value.trim();
+  const m=document.getElementById("tMsg"), idx=idxOf(item);
+  if(!qty||qty<1||!by){m.innerHTML="<span class='err'>Fill quantity and authorising person.</span>";return;}
+  if(from===to){m.innerHTML="<span class='err'>Source and destination hub are the same.</span>";return;}
+  if(S.stock[from][idx]<qty){m.innerHTML=`<span class='err'>Blocked: only ${S.stock[from][idx]} in stock at ${from}.</span>`;return;}
+  const taken=subStock(from,idx,qty);
+  taken.forEach(t=>{S.stock[to][idx]+=t.q;S.lots.push({h:to,i:idx,q:t.q,d:t.d});});
+  S.tr.unshift({d:today(),item,qty,from,to,by,ref});
+  save();
+  m.innerHTML=`<span class='ok'>Moved ${qty} × ${item}: ${from} → ${to}. Lot ages preserved.</span>`;
+  document.getElementById("tQty").value="";document.getElementById("tRef").value="";
+  render(); tAvail();
+}
+
+/* ---------- CSV EXPORT ---------- */
+function csvStr(rows){return rows.map(r=>r.map(c=>`"${String(c??"").replace(/"/g,'""')}"`).join(",")).join("\r\n");}
+function dlCSV(name,rows){
+  const b=new Blob(["﻿"+csvStr(rows)],{type:"text/csv;charset=utf-8"});
+  const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=name;document.body.appendChild(a);a.click();a.remove();
+}
+function expRows(k){
+  const t=today();
+  if(k==="stock"){const r=[["Item",...HUBS,"Total Qty","Unit Cost (INR)","Total Value (INR)"]];
+    ITEMS.forEach((it,i)=>{let tot=0;const row=[it[0]];HUBS.forEach(h=>{tot+=S.stock[h][i];row.push(S.stock[h][i]);});row.push(tot,costOf(it[0]),tot*costOf(it[0]));r.push(row);});return r;}
+  if(k==="pos")return [["PO","Item","Qty","Vendor","Value (INR)","Ship To","ETA"],...S.pos.map(p=>[p.id,p.item,p.qty,p.vendor,p.val||0,p.hub,p.eta])];
+  if(k==="grn")return [["Date","PO","Item","Qty","Vendor","Value (INR)","Received At","ETA"],...S.grn.map(g=>[g.d,g.id,g.item,g.qty,g.vendor||"",g.val||0,g.hub,g.eta||""])];
+  if(k==="use")return [["Date","Item","Qty","Value (INR)","Hub","Model","Used By","Vehicle/Job"],...S.use.map(u=>[u.d,u.item,u.qty,u.val||0,u.hub,u.model||"",u.by,u.ref])];
+  if(k==="sr")return [["Date","Action","Item","Qty","Value (INR)","Hub","Reason","Authorised By"],...S.sr.map(e=>[e.d,e.type,e.item,e.qty,e.val,e.hub,e.reason,e.by])];
+  if(k==="tr")return [["Date","Item","Qty","From","To","Authorised By","Reason"],...S.tr.map(e=>[e.d,e.item,e.qty,e.from,e.to,e.by,e.ref||""])];
+  if(k==="aud")return [["Date","Hub","Item","System Qty","Counted Qty","Variance","Value (INR)","Counted By","Correction Applied"],...S.aud.map(a=>[a.d,a.hub,a.item,a.sys,a.cnt,a.vr,a.val,a.by,a.applied?"yes":"no"])];
+  if(k==="wc")return [["Claim","Date","Item","Qty","Vendor","Hub","Issue","Value (INR)","Status","Resolved On"],...S.wc.map(c=>[c.id,c.d,c.item,c.qty,c.vendor,c.hub,c.issue,c.val,c.status,c.resd||""])];
+  return null;
+}
+function exp(k){
+  const t=today(), keys=["stock","pos","grn","use","sr","tr","aud","wc"];
+  if(k==="all"){keys.forEach((x,i)=>setTimeout(()=>dlCSV(`hala_${x}_${t}.csv`,expRows(x)),i*300));return;}
+  dlCSV(`hala_${k}_${t}.csv`,expRows(k));
+}
+
+/* ---------- AUDIT ---------- */
+function aAvail(){
+  const hub=document.getElementById("aHub").value, idx=idxOf(document.getElementById("aItem").value);
+  document.getElementById("aStock").innerHTML=`System stock at ${hub}: <b>${S.stock[hub][idx]}</b>`;
+}
+function auditEntry(){
+  const hub=document.getElementById("aHub").value, item=document.getElementById("aItem").value,
+        cnt=parseInt(document.getElementById("aQty").value), by=document.getElementById("aBy").value.trim(),
+        apply=document.getElementById("aApply").value==="yes";
+  const m=document.getElementById("aMsg"), idx=idxOf(item);
+  if(isNaN(cnt)||cnt<0||!by){m.innerHTML="<span class='err'>Fill counted quantity and auditor name.</span>";return;}
+  const sys=S.stock[hub][idx], vr=cnt-sys, val=vr*costOf(item);
+  if(apply&&vr!==0){ if(vr>0)addStock(hub,idx,vr); else subStock(hub,idx,-vr); }
+  S.aud.unshift({d:today(),hub,item,sys,cnt,vr,val,by,applied:apply&&vr!==0});
+  save();
+  m.innerHTML=vr===0?`<span class='ok'>Count matches system (${sys}). Clean audit logged.</span>`
+    :`<span class='${vr<0?"err":"warn"}'>Variance ${vr>0?"+":""}${vr} (${INR(val)}) logged${apply?" and stock corrected":""}.</span>`;
+  document.getElementById("aQty").value="";
+  render(); aAvail();
+}
+
+/* ---------- RENDER ---------- */
+function render(){
+  const t=today();
+  /* stock matrix */
+  let h="<table><thead><tr><th>Item</th>"+HUBS.map(x=>`<th>${x.slice(0,3).toUpperCase()}</th>`).join("")+"<th>Total</th><th>Reorder Pt</th></tr></thead><tbody>";
+  ITEMS.forEach((it,r)=>{
+    let tot=0; h+=`<tr><td>${it[0]}</td>`;
+    HUBS.forEach(hb=>{const q=S.stock[hb][r];tot+=q;h+=`<td class="${q===0?'outcell':q<=it[1]/2?'lowcell':''}">${q}</td>`;});
+    h+=`<td><b>${tot}</b></td><td style="color:var(--mut)">${it[1]}/hub</td></tr>`;
+  });
+  document.getElementById("matrix").innerHTML=h+"</tbody></table>";
+  /* stock value matrix */
+  let v="<table><thead><tr><th>Hub</th><th>Stock Value</th><th>Refurb WIP Value</th><th>Total</th></tr></thead><tbody>", gv=0,gw=0;
+  HUBS.forEach(hb=>{
+    let sv=0,wv=0;
+    ITEMS.forEach((it,i)=>{sv+=S.stock[hb][i]*costOf(it[0]);wv+=S.wip[hb][i]*costOf(it[0]);});
+    gv+=sv;gw+=wv;
+    v+=`<tr><td>${hb}</td><td>${INR(sv)}</td><td>${wv?INR(wv):"—"}</td><td><b>${INR(sv+wv)}</b></td></tr>`;
+  });
+  v+=`<tr><td><b>All hubs</b></td><td><b>${INR(gv)}</b></td><td><b>${gw?INR(gw):"—"}</b></td><td><b>${INR(gv+gw)}</b></td></tr>`;
+  document.getElementById("valMatrix").innerHTML=v+"</tbody></table>";
+  /* open POs */
+  document.getElementById("poTbl").innerHTML=S.pos.map(p=>{
+    const late=p.eta<t;
+    return `<tr><td>${p.id}</td><td>${p.item}</td><td>${p.qty}</td><td>${p.vendor}</td><td>${p.val?INR(p.val):"—"}</td><td><b>${p.hub}</b></td><td>${p.eta}</td>
+    <td><span class="pill ${late?'p-out':'p-info'}">${late?'OVERDUE':'IN TRANSIT'}</span></td>
+    <td><button class="btn-sm btn-grn" onclick="receive('${p.id}')">Mark Received</button></td></tr>`;
+  }).join("")||"<tr><td colspan=9 style='color:var(--mut)'>No open POs — create one on the Procure tab.</td></tr>";
+  /* GRN log */
+  document.getElementById("grnTbl").innerHTML=S.grn.map(g=>{
+    const dl=g.eta?days(g.eta,g.d):0;
+    return `<tr><td>${g.d}</td><td>${g.id}</td><td>${g.item}</td><td>${g.qty}</td><td>${g.vendor||"—"}</td><td>${g.val?INR(g.val):"—"}</td><td>${g.hub}</td>
+    <td>${dl>0?`<span class="pill p-out">+${dl}d late</span>`:`<span class="pill p-ok">on time</span>`}</td></tr>`;
+  }).join("")||"<tr><td colspan=8 style='color:var(--mut)'>No receipts yet.</td></tr>";
+  /* usage */
+  document.getElementById("useTbl").innerHTML=S.use.map(u=>
+    `<tr><td>${u.d}</td><td>${u.item}</td><td>${u.qty}</td><td>${INR(u.val||u.qty*costOf(u.item))}</td><td>${u.hub}</td><td>${u.model||"—"}</td><td>${u.by}</td><td>${u.ref}</td></tr>`).join("")||
+    "<tr><td colspan=8 style='color:var(--mut)'>No usage recorded yet.</td></tr>";
+  /* vehicle history */
+  const q=(document.getElementById("vehQ").value||"").trim().toLowerCase();
+  if(q){
+    const rows=S.use.filter(u=>u.ref.toLowerCase().includes(q));
+    const tv=rows.reduce((a,u)=>a+(u.val||u.qty*costOf(u.item)),0);
+    document.getElementById("vehTbl").innerHTML=rows.length?
+      `<table><thead><tr><th>Date</th><th>Item</th><th>Qty</th><th>Value</th><th>Hub</th><th>By</th><th>Ref</th></tr></thead><tbody>`+
+      rows.map(u=>`<tr><td>${u.d}</td><td>${u.item}</td><td>${u.qty}</td><td>${INR(u.val||u.qty*costOf(u.item))}</td><td>${u.hub}</td><td>${u.by}</td><td>${u.ref}</td></tr>`).join("")+
+      `<tr><td colspan=3><b>Total parts cost</b></td><td colspan=4><b>${INR(tv)}</b></td></tr></tbody></table>`
+      :"<div class='note'>No entries match that reference.</div>";
+  }else document.getElementById("vehTbl").innerHTML="<div class='note'>Type a reference above to see every part ever issued to that vehicle or job, with total rupee cost.</div>";
+  /* usage summary */
+  const sum={};
+  S.use.forEach(u=>{sum[u.item]=sum[u.item]||{};sum[u.item][u.hub]=(sum[u.item][u.hub]||0)+u.qty;});
+  let s="<table><thead><tr><th>Item</th>"+HUBS.map(x=>`<th>${x.slice(0,3).toUpperCase()}</th>`).join("")+"<th>Total Used</th><th>Value</th></tr></thead><tbody>";
+  Object.keys(sum).forEach(item=>{
+    let tot=0; s+=`<tr><td>${item}</td>`;
+    HUBS.forEach(hb=>{const n=sum[item][hb]||0;tot+=n;s+=`<td>${n||"—"}</td>`;});
+    s+=`<td><b>${tot}</b></td><td>${INR(tot*costOf(item))}</td></tr>`;
+  });
+  document.getElementById("useSum").innerHTML=Object.keys(sum).length?s+"</tbody></table>":"<div class='note'>No consumption yet.</div>";
+  /* model summary */
+  const ms={};
+  S.use.forEach(u=>{const mo=u.model||"—";ms[mo]=ms[mo]||{q:0,v:0,items:{}};ms[mo].q+=u.qty;ms[mo].v+=(u.val||u.qty*costOf(u.item));
+    ms[mo].items[u.item]=(ms[mo].items[u.item]||0)+u.qty;});
+  document.getElementById("modelSum").innerHTML=Object.keys(ms).length?
+    "<table><thead><tr><th>Model</th><th>Parts Used</th><th>Value</th><th>Top Items</th></tr></thead><tbody>"+
+    Object.keys(ms).sort((a,b)=>ms[b].v-ms[a].v).map(mo=>{
+      const top=Object.entries(ms[mo].items).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k,q])=>`${k} ×${q}`).join(" · ");
+      return `<tr><td><b>${mo}</b></td><td>${ms[mo].q}</td><td>${INR(ms[mo].v)}</td><td style="color:var(--mut)">${top}</td></tr>`;}).join("")+
+    "</tbody></table>":"<div class='note'>No consumption yet.</div>";
+  /* transfers */
+  document.getElementById("trTbl").innerHTML=S.tr.map(e=>
+    `<tr><td>${e.d}</td><td>${e.item}</td><td>${e.qty}</td><td>${e.from}</td><td><b>${e.to}</b></td><td>${e.by}</td><td>${e.ref||"—"}</td></tr>`).join("")||
+    "<tr><td colspan=7 style='color:var(--mut)'>No transfers yet.</td></tr>";
+  /* warranty claims */
+  const wlbl={open:["OPEN","p-low"],replaced:["REPLACED","p-ok"],credited:["CREDITED","p-ok"],rejected:["REJECTED","p-out"]};
+  document.getElementById("wcTbl").innerHTML=S.wc.map(c=>
+    `<tr><td>${c.id}</td><td>${c.d}</td><td>${c.item}</td><td>${c.qty}</td><td>${c.vendor}</td><td>${c.hub}</td><td>${c.issue}</td><td>${INR(c.val)}</td>
+    <td><span class="pill ${wlbl[c.status][1]}">${wlbl[c.status][0]}</span>${c.resd?`<div class="note" style="margin:2px 0 0">${c.resd}</div>`:""}</td>
+    <td>${c.status==="open"?`<button class="btn-sm btn-grn" onclick="resolveWC('${c.id}','replaced')">Replaced</button>
+    <button class="btn-sm" onclick="resolveWC('${c.id}','credited')">Credited</button>
+    <button class="btn-sm btn-red" onclick="resolveWC('${c.id}','rejected')">Rejected</button>`:""}</td></tr>`).join("")||
+    "<tr><td colspan=10 style='color:var(--mut)'>No warranty claims yet — raise one from the entry form (action: Warranty Claim).</td></tr>";
+  /* scrap & refurb */
+  const lbl={scrap:["SCRAP","p-out"],toref:["TO REFURB","p-low"],refdone:["REFURB DONE","p-ok"]};
+  document.getElementById("srTbl").innerHTML=S.sr.map(e=>
+    `<tr><td>${e.d}</td><td><span class="pill ${lbl[e.type][1]}">${lbl[e.type][0]}</span></td><td>${e.item}</td><td>${e.qty}</td><td>${INR(e.val)}</td><td>${e.hub}</td><td>${e.reason}</td><td>${e.by}</td></tr>`).join("")||
+    "<tr><td colspan=8 style='color:var(--mut)'>No scrap or refurb entries yet.</td></tr>";
+  let wipRows="";
+  HUBS.forEach(hb=>ITEMS.forEach((it,i)=>{if(S.wip[hb][i]>0)wipRows+=`<tr><td>${it[0]}</td><td>${hb}</td><td>${S.wip[hb][i]}</td><td>${INR(S.wip[hb][i]*costOf(it[0]))}</td></tr>`;}));
+  document.getElementById("wipTbl").innerHTML=wipRows?
+    `<table><thead><tr><th>Item</th><th>Hub</th><th>Qty in WIP</th><th>Value</th></tr></thead><tbody>${wipRows}</tbody></table>`
+    :"<div class='note'>Nothing under refurbishment right now.</div>";
+  /* audit */
+  document.getElementById("audTbl").innerHTML=S.aud.map(a=>
+    `<tr><td>${a.d}</td><td>${a.hub}</td><td>${a.item}</td><td>${a.sys}</td><td>${a.cnt}</td>
+    <td class="${a.vr<0?'outcell':a.vr>0?'lowcell':''}">${a.vr>0?"+":""}${a.vr}</td><td>${INR(a.val)}</td><td>${a.by}</td>
+    <td>${a.applied?'<span class="pill p-ok">CORRECTED</span>':'<span class="pill p-info">LOGGED</span>'}</td></tr>`).join("")||
+    "<tr><td colspan=9 style='color:var(--mut)'>No counts recorded yet.</td></tr>";
+  const shrink=S.aud.filter(a=>a.vr<0).reduce((x,a)=>x+a.val,0);
+  document.getElementById("aSummary").innerHTML=S.aud.length?
+    `<div class="note">Counts logged: <b>${S.aud.length}</b> · Cumulative negative variance (shrinkage): <b class="err">${INR(shrink)}</b></div>`:"";
+  /* reorder planning */
+  let rp="";
+  ITEMS.forEach((it,i)=>HUBS.forEach(hb=>{
+    const onh=S.stock[hb][i], rop=it[1];
+    if(onh<=rop){
+      const inc=S.pos.filter(p=>p.hub===hb&&p.item===it[0]).reduce((a,p)=>a+p.qty,0);
+      const sug=Math.max(rop*2-onh-inc,0);
+      if(sug>0)rp+=`<tr><td>${it[0]}</td><td>${hb}</td><td class="${onh===0?'outcell':'lowcell'}">${onh}</td><td>${rop}</td><td>${inc||"—"}</td><td><b>${sug}</b></td><td>${INR(sug*costOf(it[0]))}</td>
+      <td><button class="btn-sm" onclick="draftPO('${it[0].replace(/'/g,"\\'")}','${hb}',${sug})">Draft PO</button></td></tr>`;
+    }
+  }));
+  document.getElementById("ropTbl").innerHTML=rp||"<tr><td colspan=8 style='color:var(--mut)'>Everything is above reorder point. 👌</td></tr>";
+  /* vendor performance */
+  const ven={};
+  S.grn.forEach(g=>{if(!g.vendor||g.vendor==="—")return;
+    ven[g.vendor]=ven[g.vendor]||{n:0,ot:0,dl:0,val:0};
+    const d=ven[g.vendor]; d.n++; d.val+=g.val||0;
+    const delay=g.eta?Math.max(days(g.eta,g.d),0):0;
+    if(delay<=0)d.ot++; d.dl+=delay;
+  });
+  S.wc.forEach(c=>{ven[c.vendor]=ven[c.vendor]||{n:0,ot:0,dl:0,val:0};});
+  document.getElementById("venTbl").innerHTML=Object.keys(ven).map(k=>{const d=ven[k];
+    const pct=d.n?Math.round(d.ot/d.n*100):0;
+    const cl=S.wc.filter(c=>c.vendor===k), clOpen=cl.filter(c=>c.status==="open").length;
+    const clTxt=cl.length?`${cl.length} (${clOpen} open)`:"—";
+    return `<tr><td>${k}</td><td>${d.n||"—"}</td><td>${d.n?d.ot:"—"}</td>
+    <td>${d.n?`<span class="pill ${pct>=90?'p-ok':pct>=60?'p-low':'p-out'}">${pct}%</span>`:"—"}</td>
+    <td>${d.n?(d.dl/d.n).toFixed(1):"—"}</td><td>${d.val?INR(d.val):"—"}</td><td>${clTxt}</td></tr>`;}).join("")||
+    "<tr><td colspan=7 style='color:var(--mut)'>No receipts yet — vendor scores build automatically as POs are received.</td></tr>";
+  /* ageing */
+  const buckets=l=>{const a=days(l.d,t);return a<=30?0:a<=60?1:a<=90?2:3;};
+  const ageMap={};
+  S.lots.forEach(l=>{if(l.q<=0)return;const k=l.i+"|"+l.h;ageMap[k]=ageMap[k]||[0,0,0,0];ageMap[k][buckets(l)]+=l.q;});
+  let ag="", agTot=[0,0,0,0], agVal=[0,0,0,0];
+  ITEMS.forEach((it,i)=>HUBS.forEach(hb=>{
+    const b=ageMap[i+"|"+hb]; if(!b)return;
+    b.forEach((q,k)=>{agTot[k]+=q;agVal[k]+=q*costOf(it[0]);});
+    ag+=`<tr><td>${it[0]}</td><td>${hb}</td><td>${b[0]||"—"}</td><td>${b[1]||"—"}</td><td>${b[2]||"—"}</td>
+    <td class="${b[3]?'lowcell':''}">${b[3]||"—"}</td><td>${b[3]?INR(b[3]*costOf(it[0])):"—"}</td></tr>`;
+  }));
+  document.getElementById("ageTbl").innerHTML=ag||"<tr><td colspan=7 style='color:var(--mut)'>No stock lots yet.</td></tr>";
+  /* dashboard */
+  const d30=new Date(Date.now()-30*864e5).toISOString().slice(0,10);
+  const consV=S.use.filter(u=>u.d>=d30).reduce((a,u)=>a+(u.val||u.qty*costOf(u.item)),0);
+  const scrapV=S.sr.filter(e=>e.type==="scrap").reduce((a,e)=>a+e.val,0);
+  const poV=S.pos.reduce((a,p)=>a+(p.val||0),0);
+  let low=0,out=0;
+  ITEMS.forEach((it,i)=>HUBS.forEach(hb=>{const n=S.stock[hb][i];if(n===0)out++;else if(n<=it[1]/2)low++;}));
+  const grnN=S.grn.length, otN=S.grn.filter(g=>!g.eta||g.d<=g.eta).length;
+  document.getElementById("kpis").innerHTML=
+   `<div class="kpi"><div class="l">Stock Value</div><div class="v">${INR(gv)}</div><div class="s">across ${HUBS.length} hubs</div></div>
+    <div class="kpi"><div class="l">Refurb WIP</div><div class="v">${INR(gw)}</div><div class="s">under repair</div></div>
+    <div class="kpi"><div class="l">In Transit (Open POs)</div><div class="v">${INR(poV)}</div><div class="s">${S.pos.length} open POs</div></div>
+    <div class="kpi"><div class="l">Consumption (30d)</div><div class="v">${INR(consV)}</div><div class="s">${S.use.filter(u=>u.d>=d30).length} issues</div></div>
+    <div class="kpi"><div class="l">Scrap Loss (Total)</div><div class="v" style="color:var(--red)">${INR(scrapV)}</div><div class="s">written off</div></div>
+    <div class="kpi"><div class="l">Shrinkage (Audits)</div><div class="v" style="color:var(--red)">${INR(Math.abs(shrink))}</div><div class="s">negative variance</div></div>
+    <div class="kpi"><div class="l">Vendor On-Time</div><div class="v">${grnN?Math.round(otN/grnN*100)+"%":"—"}</div><div class="s">${grnN} POs received</div></div>
+    <div class="kpi"><div class="l">Warranty Recovered</div><div class="v" style="color:var(--grn)">${INR(S.wc.filter(c=>c.status==="replaced"||c.status==="credited").reduce((a,c)=>a+c.val,0))}</div><div class="s">${S.wc.filter(c=>c.status==="open").length} claims open</div></div>
+    <div class="kpi"><div class="l">Alerts</div><div class="v"><span class="err">${out}</span> / <span class="warn">${low}</span></div><div class="s">stockouts / low stock</div></div>`;
+  /* dashboard consumption bars */
+  const cs={};
+  S.use.filter(u=>u.d>=d30).forEach(u=>{cs[u.item]=(cs[u.item]||0)+(u.val||u.qty*costOf(u.item));});
+  const mx=Math.max(...Object.values(cs),1);
+  document.getElementById("dashCons").innerHTML=Object.keys(cs).sort((a,b)=>cs[b]-cs[a]).map(k=>
+    `<table style="min-width:0;margin-bottom:2px"><tr><td style="width:190px;border:none">${k}</td>
+     <td style="border:none"><div class="bar"><i style="width:${Math.round(cs[k]/mx*100)}%"></i></div></td>
+     <td style="border:none;width:90px;text-align:right">${INR(cs[k])}</td></tr></table>`).join("")||
+    "<div class='note'>No consumption in the last 30 days.</div>";
+  /* dashboard ageing */
+  const anames=["0–30 days","31–60 days","61–90 days","90+ days"];
+  const amx=Math.max(...agVal,1);
+  document.getElementById("dashAge").innerHTML=anames.map((n,k)=>
+    `<table style="min-width:0;margin-bottom:2px"><tr><td style="width:110px;border:none">${n}</td>
+     <td style="border:none"><div class="bar"><i style="width:${Math.round(agVal[k]/amx*100)}%;background:${k===3?'var(--red)':k===2?'var(--amb)':'var(--acc)'}"></i></div></td>
+     <td style="border:none;width:100px;text-align:right">${INR(agVal[k])} <span style="color:var(--mut)">(${agTot[k]})</span></td></tr></table>`).join("");
+  /* dashboard alerts */
+  let al="";
+  ITEMS.forEach((it,i)=>HUBS.forEach(hb=>{
+    const n=S.stock[hb][i];
+    if(n===0)al+=`<tr><td>${it[0]}</td><td>${hb}</td><td><span class="pill p-out">STOCKOUT</span></td><td>${it[1]}</td></tr>`;
+    else if(n<=it[1]/2)al+=`<tr><td>${it[0]}</td><td>${hb}</td><td><span class="pill p-low">LOW — ${n} left</span></td><td>${it[1]}</td></tr>`;
+  }));
+  document.getElementById("dashAlerts").innerHTML=al?
+    `<table><thead><tr><th>Item</th><th>Hub</th><th>Status</th><th>Reorder Pt</th></tr></thead><tbody>${al}</tbody></table>`
+    :"<div class='note'>No alerts — all hubs healthy.</div>";
+}
+
+function draftPO(item,hub,qty){
+  document.getElementById("pItem").value=item;
+  document.getElementById("pHub").value=hub;
+  document.getElementById("pQty").value=qty;
+  document.getElementById("pVal").value=qty*costOf(item);
+  show(1,document.querySelectorAll(".tab")[1]);
+  document.getElementById("msg").textContent=`Draft loaded: ${qty} × ${item} → ${hub}. Add vendor and ETA, then create.`;
+}
+function show(i,el){
+  document.querySelectorAll(".view").forEach((v,k)=>v.classList.toggle("on",k===i));
+  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("on"));
+  el.classList.add("on");
+  if(i===4)uAvail(); if(i===5)srAvail(); if(i===6)aAvail(); if(i===8)tAvail();
+}
+fill();render();
+</script>
+<footer>Single-file app · data lives in this browser (localStorage) · v3 — full traceability build</footer>
+</body>
+</html>
