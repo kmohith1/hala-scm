@@ -99,7 +99,6 @@
       <button class="btn-sm" onclick="exp('fc')">Forecast</button>
       <button class="btn-sm btn-grn" onclick="exp('all')">Export All</button>
     </div>
-    <div class="note">Each register downloads as a standalone Excel-ready CSV (UTF-8) — drop straight into Tally / SAP / Zoho imports.</div>
   </div>
 </div>
 
@@ -406,12 +405,12 @@
 <!-- FORECAST -->
 <div class="view" id="v10">
   <div class="card">
-    <h2>🤖 Demand Forecast Model — How It Works</h2>
+    <h2>Forecast Method</h2>
     <div class="note" style="font-size:.8rem;line-height:1.7">
-      <b>1. Burn rate:</b> spares consumption per vehicle per day, learned from the last 90 days of usage entries per item × hub.
-      <b>2. Trend:</b> a least-squares linear regression over weekly consumption detects accelerating/decelerating usage (shown as trend factor with R² confidence).
-      <b>3. Fleet growth:</b> expected vehicles from the expansion pipeline scale demand from their expected date.
-      <b>Demand = burn rate × horizon × trend × fleet growth</b>, plus safety stock at 95% service level (1.65 × √demand). Everything runs live in this page — no server needed. More usage data → better forecasts.
+      Demand = burn rate × horizon × trend × fleet growth, plus safety stock at 95% service level.
+      Burn rate is consumption per vehicle per day from the last 90 days of usage entries per item and hub.
+      Trend comes from a least-squares regression over weekly consumption (R² shown alongside).
+      Vehicles in the expansion pipeline scale demand from their expected date.
     </div>
     <div class="note" id="fcModel"></div>
   </div>
@@ -893,7 +892,7 @@ function render(){
       <td><button class="btn-sm" onclick="draftPO('${it[0].replace(/'/g,"\\'")}','${hb}',${sug})">Draft PO</button></td></tr>`;
     }
   }));
-  document.getElementById("ropTbl").innerHTML=rp||"<tr><td colspan=8 style='color:var(--mut)'>Everything is above reorder point. 👌</td></tr>";
+  document.getElementById("ropTbl").innerHTML=rp||"<tr><td colspan=8 style='color:var(--mut)'>Everything is above reorder point.</td></tr>";
   /* vendor performance */
   const ven={};
   S.grn.forEach(g=>{if(!g.vendor||g.vendor==="—")return;
@@ -1042,6 +1041,5 @@ function show(i,el){
 }
 fill();render();
 </script>
-<footer>Single-file app · data lives in this browser (localStorage) · v3 — full traceability build</footer>
 </body>
 </html>
