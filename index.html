@@ -96,6 +96,7 @@
       <button class="btn-sm" onclick="exp('wc')">Warranty Claims</button>
       <button class="btn-sm" onclick="exp('fleet')">Fleet</button>
       <button class="btn-sm" onclick="exp('plan')">Expansion Plan</button>
+      <button class="btn-sm" onclick="exp('dec')">Fleet Removals</button>
       <button class="btn-sm" onclick="exp('fc')">Forecast</button>
       <button class="btn-sm btn-grn" onclick="exp('all')">Export All</button>
     </div>
@@ -360,6 +361,37 @@
       <div class="note" id="eMsg"></div>
     </div>
   </div>
+  <div class="grid2">
+    <div class="card">
+      <h2>Remove Vehicles (Decommission / Sale / Shift-Out)</h2>
+      <label>Hub / Region</label>
+      <select id="rHub" onchange="rShow()"></select>
+      <label>Vehicle Model</label>
+      <select id="rModel" onchange="rShow()"></select>
+      <div class="note" id="rNow"></div>
+      <label>Vehicles to Remove</label>
+      <input id="rQty" type="number" min="1" placeholder="e.g. 25">
+      <label>Reason</label>
+      <select id="rReason">
+        <option>End of life / Scrapped</option>
+        <option>Sold</option>
+        <option>Accident write-off</option>
+        <option>Returned to lessor</option>
+        <option>Moved out of region</option>
+        <option>Other</option>
+      </select>
+      <label>Authorised By</label>
+      <input id="rBy" placeholder="e.g. Fleet Head — Srinivas">
+      <button class="btn-red" onclick="removeFleet()">Remove from Fleet</button>
+      <div class="note" id="rMsg"></div>
+    </div>
+    <div class="card">
+      <h2>Fleet Removal Log</h2>
+      <table><thead><tr><th>Date</th><th>Hub</th><th>Model</th><th>Qty</th><th>Reason</th><th>By</th></tr></thead>
+      <tbody id="decTbl"></tbody></table>
+      <div class="note">Removals shrink the hub's fleet immediately, so burn rates and the demand forecast adjust in the same click.</div>
+    </div>
+  </div>
   <div class="card">
     <h2>Fleet Register — Current Vehicles by Hub × Model</h2>
     <div id="fleetTbl"></div>
@@ -408,16 +440,17 @@ const COSTS={"Battery 48V (Amo)":29000,"Battery 60V (Ryder)":36000,"Controller �
 const SEED={"Hyderabad":[42,38,9,11,6,9,120,64,22],"Bangalore":[18,22,4,6,3,5,22,41,12],"Chennai":[15,19,6,5,4,6,55,34,9],
 "Vizag":[3,12,5,4,2,4,48,28,8],"Guntur":[6,8,0,3,1,3,35,18,5],"Vijayawada":[9,11,4,4,2,3,40,22,7]};
 const SEED_DATE="2026-06-01";
-const MODELS=["Amo","BGauss","Ryder","Other"];
-const FLEET_SEED={"Hyderabad":{"Amo":2100,"BGauss":1400,"Ryder":1100,"Other":300},"Bangalore":{"Amo":1500,"BGauss":900,"Ryder":700,"Other":200},
-"Chennai":{"Amo":1100,"BGauss":700,"Ryder":500,"Other":150},"Vizag":{"Amo":600,"BGauss":380,"Ryder":300,"Other":80},
-"Vijayawada":{"Amo":700,"BGauss":450,"Ryder":350,"Other":100},"Guntur":{"Amo":500,"BGauss":300,"Ryder":250,"Other":60}};
+const MODELS=["E Sprinto","Amo","BGauss","Ryder","Other"];
+const FLEET_SEED={"Hyderabad":{"E Sprinto":2600,"Amo":2100,"BGauss":1400,"Ryder":1100,"Other":300},"Bangalore":{"E Sprinto":1900,"Amo":1500,"BGauss":900,"Ryder":700,"Other":200},
+"Chennai":{"E Sprinto":1400,"Amo":1100,"BGauss":700,"Ryder":500,"Other":150},"Vizag":{"E Sprinto":800,"Amo":600,"BGauss":380,"Ryder":300,"Other":80},
+"Vijayawada":{"E Sprinto":900,"Amo":700,"BGauss":450,"Ryder":350,"Other":100},"Guntur":{"E Sprinto":650,"Amo":500,"BGauss":300,"Ryder":250,"Other":60}};
 const PLAN_SEED=[
  {id:"EX-001",hub:"Guntur",model:"Amo",qty:400,due:"2026-09-15",status:"planned"},
  {id:"EX-002",hub:"Vizag",model:"Ryder",qty:350,due:"2026-08-20",status:"planned"},
  {id:"EX-003",hub:"Hyderabad",model:"BGauss",qty:800,due:"2026-10-01",status:"planned"}];
 function blankFleet(){const f={};HUBS.forEach(h=>{f[h]={};MODELS.forEach(m=>f[h][m]=0);});return f;}
 function inferModel(ref){const r=(ref||"").toLowerCase();
+  if(r.includes("sprinto")||r.includes("esp"))return"E Sprinto";
   if(r.includes("amo"))return"Amo";if(r.includes("bgauss")||r.includes("bgs"))return"BGauss";if(r.includes("ryder")||r.includes("rsm"))return"Ryder";return"—";}
 let S=load();
 
@@ -431,13 +464,17 @@ function load(){
     if(!o.fleet)o.fleet=JSON.parse(JSON.stringify(FLEET_SEED));
     if(!o.plan){o.plan=JSON.parse(JSON.stringify(PLAN_SEED));o.pn=3;}
     o.pn=o.pn||o.plan.length;
+    // ensure every hub has every model (e.g. E Sprinto added later) — seed E Sprinto since it's the workhorse
+    HUBS.forEach(h=>{o.fleet[h]=o.fleet[h]||{};MODELS.forEach(m=>{
+      if(o.fleet[h][m]==null)o.fleet[h][m]=(FLEET_SEED[h]&&FLEET_SEED[h][m])||0;});});
+    o.dec=o.dec||[];
     return o;}}catch(e){}
   // migrate v2 if present
   try{const s2=localStorage.getItem("scm_v2");if(s2){const o=JSON.parse(s2);
     return {stock:o.stock,wip:blankWip(),lots:lotsFromStock(o.stock,SEED_DATE),pos:o.pos||[],
       grn:(o.grn||[]).map(g=>({...g,vendor:g.vendor||"—",eta:g.eta||g.d,val:g.val||0})),
       use:(o.use||[]).map(u=>({...u,val:u.val||u.qty*(COSTS[u.item]||0),model:u.model||inferModel(u.ref)})),
-      sr:[],aud:[],tr:[],wc:[],wn:0,fleet:JSON.parse(JSON.stringify(FLEET_SEED)),plan:JSON.parse(JSON.stringify(PLAN_SEED)),pn:3,cost:{...COSTS},n:o.n||2615};
+      sr:[],aud:[],tr:[],wc:[],wn:0,fleet:JSON.parse(JSON.stringify(FLEET_SEED)),plan:JSON.parse(JSON.stringify(PLAN_SEED)),pn:3,dec:[],cost:{...COSTS},n:o.n||2615};
   }}catch(e){}
   return {stock:JSON.parse(JSON.stringify(SEED)),wip:blankWip(),lots:lotsFromStock(SEED,SEED_DATE),pos:[
     {id:"PO-2607",item:"Controller — BGauss",qty:12,vendor:"BGauss Spares",hub:"Guntur",eta:"2026-07-09",val:190000},
@@ -446,7 +483,7 @@ function load(){
     {d:"2026-07-12",item:"Brake pads",qty:2,hub:"Hyderabad",by:"Ravi K",ref:"HYD-RSM-0412",val:900,model:"Ryder"},
     {d:"2026-07-12",item:"Controller — Amo",qty:1,hub:"Bangalore",by:"Imran S",ref:"BLR-AMO-1207",val:14500,model:"Amo"},
     {d:"2026-07-11",item:"Tyre 120/70",qty:2,hub:"Chennai",by:"Kumar V",ref:"CHN-AMO-0654",val:3700,model:"Amo"}
-  ],sr:[],aud:[],tr:[],wc:[],wn:0,fleet:JSON.parse(JSON.stringify(FLEET_SEED)),plan:JSON.parse(JSON.stringify(PLAN_SEED)),pn:3,cost:{...COSTS},n:2615};
+  ],sr:[],aud:[],tr:[],wc:[],wn:0,fleet:JSON.parse(JSON.stringify(FLEET_SEED)),plan:JSON.parse(JSON.stringify(PLAN_SEED)),pn:3,dec:[],cost:{...COSTS},n:2615};
 }
 function save(){try{localStorage.setItem("scm_v3",JSON.stringify(S));}catch(e){}}
 
@@ -469,9 +506,9 @@ function subStock(hub,i,qty){
 function fill(){
   const items=ITEMS.map(i=>`<option>${i[0]}</option>`).join(""), hubs=HUBS.map(h=>`<option>${h}</option>`).join("");
   ["pItem","uItem","sItem","aItem","tItem"].forEach(id=>document.getElementById(id).innerHTML=items);
-  ["pHub","uHub","sHub","aHub","tFrom","tTo","fHub","eHub"].forEach(id=>document.getElementById(id).innerHTML=hubs);
+  ["pHub","uHub","sHub","aHub","tFrom","tTo","fHub","eHub","rHub"].forEach(id=>document.getElementById(id).innerHTML=hubs);
   const models=MODELS.map(m=>`<option>${m}</option>`).join("");
-  ["uModel","fModel","eModel"].forEach(id=>document.getElementById(id).innerHTML=models);
+  ["uModel","fModel","eModel","rModel"].forEach(id=>document.getElementById(id).innerHTML=models);
 }
 
 /* ---------- PROCURE ---------- */
@@ -604,6 +641,23 @@ function setFleet(){
   msg.innerHTML=`<span class='ok'>${h}: ${m} fleet set to ${q}.</span>`;
   document.getElementById("fQty").value=""; render(); fShow();
 }
+function rShow(){
+  const h=document.getElementById("rHub").value, m=document.getElementById("rModel").value;
+  document.getElementById("rNow").innerHTML=`Current at ${h}: <b>${S.fleet[h][m]}</b> × ${m}`;
+}
+function removeFleet(){
+  const h=document.getElementById("rHub").value, m=document.getElementById("rModel").value,
+        q=parseInt(document.getElementById("rQty").value), reason=document.getElementById("rReason").value,
+        by=document.getElementById("rBy").value.trim();
+  const msg=document.getElementById("rMsg");
+  if(!q||q<1||!by){msg.innerHTML="<span class='err'>Fill quantity and authorising person — fleet write-offs need accountability.</span>";return;}
+  if(S.fleet[h][m]<q){msg.innerHTML=`<span class='err'>Blocked: only ${S.fleet[h][m]} × ${m} at ${h}.</span>`;return;}
+  S.fleet[h][m]-=q;
+  S.dec.unshift({d:today(),hub:h,model:m,qty:q,reason,by});
+  save();
+  msg.innerHTML=`<span class='ok'>Removed ${q} × ${m} from ${h} (${reason}). Fleet and forecast updated.</span>`;
+  document.getElementById("rQty").value=""; render(); rShow(); fShow();
+}
 function addPlan(){
   const h=document.getElementById("eHub").value, m=document.getElementById("eModel").value,
         q=parseInt(document.getElementById("eQty").value), due=document.getElementById("eDue").value;
@@ -695,13 +749,14 @@ function expRows(k){
       const inc=S.plan.filter(p=>p.status==="planned"&&p.hub===h).reduce((a,p)=>a+p.qty,0);
       r.push([h,...MODELS.map(m=>S.fleet[h][m]),tot,inc]);});return r;}
   if(k==="plan")return [["ID","Hub","Model","Vehicles","Expected By","Status"],...S.plan.map(p=>[p.id,p.hub,p.model,p.qty,p.due,p.status])];
+  if(k==="dec")return [["Date","Hub","Model","Qty Removed","Reason","Authorised By"],...S.dec.map(e=>[e.d,e.hub,e.model,e.qty,e.reason,e.by])];
   if(k==="fc"){const fc=fcCompute();
     return [["Item","Hub","Stock","Incoming","Demand 30d","Demand 60d","Demand 90d","Suggested Order","Est Value (INR)"],
     ...fc.rows.map(r=>[r.item,r.hub,r.stock,r.inc,r.d30,r.d60,r.d90,r.order,r.val])];}
   return null;
 }
 function exp(k){
-  const t=today(), keys=["stock","pos","grn","use","sr","tr","aud","wc","fleet","plan","fc"];
+  const t=today(), keys=["stock","pos","grn","use","sr","tr","aud","wc","fleet","plan","dec","fc"];
   if(k==="all"){keys.forEach((x,i)=>setTimeout(()=>dlCSV(`hala_${x}_${t}.csv`,expRows(x)),i*300));return;}
   dlCSV(`hala_${k}_${t}.csv`,expRows(k));
 }
@@ -941,6 +996,9 @@ function renderFleet(){
     <td>${p.status==="planned"?`<button class="btn-sm btn-grn" onclick="deployPlan('${p.id}')">Mark Deployed</button>
     <button class="btn-sm btn-red" onclick="delPlan('${p.id}')">Remove</button>`:""}</td></tr>`;
   }).join("")||"<tr><td colspan=6 style='color:var(--mut)'>No expansion entries yet.</td></tr>";
+  document.getElementById("decTbl").innerHTML=S.dec.map(e=>
+    `<tr><td>${e.d}</td><td>${e.hub}</td><td>${e.model}</td><td>−${e.qty}</td><td>${e.reason}</td><td>${e.by}</td></tr>`).join("")||
+    "<tr><td colspan=6 style='color:var(--mut)'>No removals yet.</td></tr>";
 }
 function renderForecast(){
   const fc=fcCompute();
