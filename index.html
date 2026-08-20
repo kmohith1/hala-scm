@@ -2329,6 +2329,23 @@ const SHEETS = {
   claims: ["id","d","p","qty","vendor","hub","issue","by","st","resd","_m"],
 };
 const KEYOF = {parts:"c", hubs:"n", models:"n", svcs:"c", pos:"id", claims:"id"};
+// Excel stores an ISO date string as a real date, so it comes back as a serial
+// number (2026-08-20 reads as 46254). Every date field has to be normalised on
+// the way in, or ageing, the 30/90-day windows and ledger ordering all break.
+const DATE_COLS = {txns:["d"], pos:["eta","d"], claims:["d","resd"]};
+function isoDate(v){
+  if(v == null || v === "") return "";
+  if(typeof v === "number" && v > 20000 && v < 80000){
+    // Excel day 1 is 1900-01-01 and it wrongly treats 1900 as a leap year,
+    // which puts the practical epoch for modern dates at 1899-12-30.
+    return new Date(Date.UTC(1899,11,30) + v*86400000).toISOString().slice(0,10);
+  }
+  const s = String(v);
+  if(/^\d+(\.\d+)?$/.test(s)) return isoDate(Number(s));
+  const d = new Date(s);
+  if(!isNaN(d) && s.length > 8) return d.toISOString().slice(0,10);
+  return s.slice(0,10);
+}
 const MASTER_SETS = ["parts","hubs","models","svcs","pos","claims"];
 
 const SYNC = {busy:false, timer:null, poll:null, state:"off", msg:""};
@@ -2576,9 +2593,11 @@ async function readRows(name, from, to){
   const r = await graph("GET", wbPath() + "/worksheets/" + name +
     "/range(address='A" + (from+2) + ":" + last + (to+2) + "')?$select=values");
   const vals = (r && r.values) || [];
+  const dcols = DATE_COLS[name] || [];
   return vals.map(row=>{
     const o = {};
     cols.forEach((c,i)=> o[c] = row[i]);
+    dcols.forEach(c=>{ if(o[c] !== undefined) o[c] = isoDate(o[c]); });
     return o;
   }).filter(o => Object.keys(o).some(k => o[k] !== "" && o[k] != null));
 }
@@ -2630,7 +2649,7 @@ function mergeDown(data){
       try{ t.meta = JSON.parse(t.meta); }catch(e){ t.meta = {}; }
     }
     t.q = Number(t.q)||0; t.id = Number(t.id)||0; t.ts = Number(t.ts)||0;
-    t.d = String(t.d||"").slice(0,10);
+    t.d = isoDate(t.d);
     S.txns.push(t); S.sync.pushed[t.u] = 1; have.add(t.u);
     newTx++;
   });
