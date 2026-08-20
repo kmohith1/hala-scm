@@ -721,6 +721,7 @@ td.nm{font-variant-numeric:normal;max-width:280px}
           stays inside Hala's own Microsoft tenant.
         </div>
         <div class="msg inf on" id="msStatus" style="margin:0 0 12px"></div>
+        <div class="msg" id="msErr" style="margin:0 0 12px"></div>
         <div class="bar" id="msButtons" style="margin-bottom:6px"></div>
         <div class="sep"></div>
         <details>
@@ -2765,6 +2766,7 @@ function rackWalk(){
       deliberately not what the ledger uses.
    ============================================================ */
 
+const SCHEMA_V = 2;      // bump whenever a worksheet is added to SHEETS
 const MS = {
   authority: "https://login.microsoftonline.com",
   graph: "https://graph.microsoft.com/v1.0",
@@ -2997,22 +2999,37 @@ function blankXlsx(){ return $("blankXlsx").textContent.replace(/\s+/g, ""); }
 
 async function ensureWorkbook(){
   if(cfg().fileId){
-    try{ await graph("GET", "/me/drive/items/" + cfg().fileId + "?$select=id"); return cfg().fileId; }
+    try{
+      await graph("GET", "/me/drive/items/" + cfg().fileId + "?$select=id");
+      await ensureSchema();
+      return cfg().fileId;
+    }
     catch(e){ if(e.status !== 404) throw e; cfg().fileId = ""; }
   }
   const path = "/me/drive/root:/" + encodeURIComponent(MS.folder) + "/" + encodeURIComponent(MS.file);
   try{                                     // already created by another device?
     const f = await graph("GET", path + "?$select=id");
     cfg().fileId = f.id; save();
+    await ensureSchema();
     return f.id;
   }catch(e){ if(e.status !== 404) throw e; }
 
   const b64 = blankXlsx();
   const bin = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
   const f = await graph("PUT", path + ":/content", bin, {raw:true});
-  cfg().fileId = f.id; save();
-  for(const name of Object.keys(SHEETS)) await ensureSheet(name);
+  cfg().fileId = f.id; cfg().schema = 0; save();
+  await ensureSchema();
   return f.id;
+}
+
+/* A workbook created by an older build is missing any worksheet added since.
+   Writing to a sheet that does not exist 404s on every sync, forever, so the
+   schema is reconciled once per version rather than only at creation. */
+async function ensureSchema(){
+  if(cfg().schema === SCHEMA_V) return;
+  for(const name of Object.keys(SHEETS)) await ensureSheet(name);
+  cfg().schema = SCHEMA_V;
+  save();
 }
 const wbPath = () => "/me/drive/items/" + cfg().fileId + "/workbook";
 
@@ -3209,9 +3226,14 @@ async function syncRun(opts){
     if(VIEW === "settings") rSettings();
     return true;
   }catch(e){
-    if(/not signed in/i.test(e.message) || e.status === 401){
-      clearAuth();
+    // graph() already retries a 401 once behind a token refresh, and clears the
+    // session only if that refresh itself fails. So reaching here with no
+    // refresh token is the only genuine "signed out" case — anything else is a
+    // server-side or file-state problem and must not cost the user their session.
+    if(!AUTH.refresh){
       setSyncState("signin", "Session expired — sign in again.");
+    } else if(e.status === 423 || e.status === 409 || /locked|in use by/i.test(e.message||"")){
+      setSyncState("error", "The workbook is open in Excel — close it and sync again.");
     } else {
       setSyncState("error", e.message);
     }
@@ -3259,8 +3281,14 @@ async function writeBlock(name, fromIdx, values, last){
     const part = values.slice(i, i + CHUNK);
     const r1 = fromIdx + i + 2;                      // +2: 1-indexed sheet, plus header
     const r2 = r1 + part.length - 1;
-    await graph("PATCH", wbPath() + "/worksheets/" + name +
-      "/range(address='A" + r1 + ":" + last + r2 + "')", {values: part});
+    const addr = "/range(address='A" + r1 + ":" + last + r2 + "')";
+    try{
+      await graph("PATCH", wbPath() + "/worksheets/" + name + addr, {values: part});
+    }catch(e){
+      if(e.status !== 404) throw e;
+      await ensureSheet(name);                       // sheet was missing — make it and retry
+      await graph("PATCH", wbPath() + "/worksheets/" + name + addr, {values: part});
+    }
   }
 }
 
@@ -3313,10 +3341,18 @@ function rSettings(){
         " · ledger row " + nf(S.sync.cursor||0) + " in the workbook" +
         " · this device is <span class='mono'>" + esc(S.sync.dev) + "</span></div>";
 
+  $("msErr").innerHTML = (SYNC.state === "error" && SYNC.msg)
+    ? "<b>Last sync failed.</b> " + esc(SYNC.msg) +
+      "<div class='hint' style='margin-top:6px'>Nothing is lost — entries stay on this device and upload once this clears. " +
+      "If it persists, try <b>Repair workbook</b> below.</div>"
+    : "";
+  $("msErr").className = (SYNC.state === "error" && SYNC.msg) ? "msg err on" : "msg";
+
   $("msButtons").innerHTML = !configured() ? "" : (!AUTH.refresh
     ? "<button class='btn sm' onclick='signIn()'>Sign in with Microsoft</button>"
     : "<button class='btn sm ghost' onclick='syncNow()'>Sync now</button>" +
       "<button class='btn sm ghost' onclick='openWorkbook()'>Open the workbook</button>" +
+      "<button class='btn sm ghost' onclick='repairWorkbook()'>Repair workbook</button>" +
       "<button class='btn sm ghost' onclick='resyncAll()'>Re-download everything</button>" +
       "<button class='btn sm ghost' onclick='signOut()'>Sign out</button>");
 
@@ -3350,6 +3386,24 @@ async function openWorkbook(){
     const f = await graph("GET", "/me/drive/items/" + cfg().fileId + "?$select=webUrl");
     window.open(f.webUrl, "_blank");
   }catch(e){ toast("Could not open the workbook: " + e.message, true); }
+}
+/* Recreate any worksheet the workbook is missing, then sync. This is the
+   escape hatch when an older workbook predates a newer version of the app. */
+async function repairWorkbook(){
+  if(!AUTH.refresh){ toast("Sign in first.", true); return; }
+  setSyncState("syncing", "repairing");
+  try{
+    await ensureWorkbook();
+    cfg().schema = 0; save();
+    await ensureSchema();
+    const names = [];
+    for(const n of Object.keys(SHEETS)) names.push(n);
+    toast("Workbook repaired — " + names.length + " sheets present.");
+    await syncRun();
+  }catch(e){
+    setSyncState("error", e.message);
+    toast("Repair failed: " + e.message, true);
+  }
 }
 function resyncAll(){
   if(!confirm("Re-download the whole workbook?\n\nUse this if entries look missing. Nothing is deleted — anything already here is kept.")) return;
