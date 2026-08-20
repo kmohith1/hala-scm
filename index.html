@@ -683,39 +683,33 @@ td.nm{font-variant-numeric:normal;max-width:280px}
   <div class="view" id="v-settings">
     <div class="g2">
       <div class="card">
-        <h2>Shared Data (Google Sheets)</h2>
+        <h2>Shared Data (Microsoft 365)</h2>
         <div class="desc">
-          Connect a Google Sheet and every entry is written to it as it happens — so the data survives
-          this browser, and everyone opening the page sees the same numbers.
-          <b>Setup takes about five minutes, once.</b>
+          Sign in with your Hala account and every entry is written to an Excel workbook in your
+          OneDrive as it happens. The data survives this browser, follows you to any device, and
+          stays inside Hala's own Microsoft tenant.
         </div>
-        <div class="msg inf on" style="margin:0 0 14px">
-          <b>1.</b> Create a Google Sheet &nbsp;·&nbsp;
-          <b>2.</b> Extensions → Apps Script &nbsp;·&nbsp;
-          <b>3.</b> Paste the code (button below) &nbsp;·&nbsp;
-          <b>4.</b> Set your own <span class="mono">SHARED_KEY</span> &nbsp;·&nbsp;
-          <b>5.</b> Deploy → Web app, <b>Execute as: Me</b>, <b>Access: Anyone</b> &nbsp;·&nbsp;
-          <b>6.</b> Paste the <span class="mono">/exec</span> URL here
-          <div style="margin-top:9px"><button class="btn sm" style="margin:0" onclick="showScript()">Show me the code to paste</button></div>
-        </div>
-        <label>Apps Script Web App URL</label>
-        <input id="setUrl" placeholder="https://script.google.com/macros/s/…/exec">
-        <div class="row">
-          <div><label>Shared Key</label><input id="setKey" placeholder="Any password you set in the script"></div>
-          <div><label>Auto-sync</label><select id="setAuto"><option value="1">On — sync after each entry</option><option value="0">Off — sync manually</option></select></div>
-        </div>
-        <button class="btn" onclick="saveSettings()">Save &amp; Test Connection</button>
-        <div class="msg" id="setMsg"></div>
+        <div class="msg inf on" id="msStatus" style="margin:0 0 12px"></div>
+        <div class="bar" id="msButtons" style="margin-bottom:6px"></div>
         <div class="sep"></div>
-        <div class="bar">
-          <button class="btn sm ghost" onclick="syncNow()">Sync now</button>
-          <button class="btn sm ghost" onclick="showScript()">View Apps Script code</button>
-          <button class="btn sm ghost" onclick="resetSyncCursor()">Re-download everything</button>
-        </div>
-        <div class="hint" id="syncInfo" style="margin-top:10px"></div>
-        <div class="hint" style="margin-top:8px">
-          Entries are queued locally if the connection drops and upload on their own once it returns —
-          nothing is lost by working offline. The page also checks for other people's entries every 45 seconds.
+        <details>
+          <summary style="cursor:pointer;font-size:12px;color:var(--ink-2);font-weight:600">App registration details</summary>
+          <div class="row" style="margin-top:10px">
+            <div><label>Client ID</label><input id="setClient" placeholder="00000000-0000-0000-0000-000000000000"></div>
+            <div><label>Tenant ID</label><input id="setTenant" placeholder="00000000-0000-0000-0000-000000000000"></div>
+          </div>
+          <button class="btn sm" style="margin-top:12px" onclick="saveMsSettings()">Save</button>
+          <div class="msg" id="setMsg"></div>
+          <div class="hint" style="margin-top:10px">
+            From <b>Entra admin center → App registrations → Hala SCM Command Centre → Overview</b>.
+            The registration needs this page's address
+            (<span class="mono" id="curRedirect"></span>) listed under the
+            <b>Single-page application</b> platform.
+          </div>
+        </details>
+        <div class="hint" style="margin-top:12px">
+          Entries are queued on this device if you go offline and upload on their own once you are back.
+          The page also checks for entries made elsewhere every minute.
         </div>
       </div>
       <div>
@@ -749,225 +743,7 @@ td.nm{font-variant-numeric:normal;max-width:280px}
 
 <div class="modal" id="modal"><div class="box" id="modalBox"></div></div>
 <div class="toast" id="toast"></div>
-<script type="text/plain" id="gsCode">
-/************************************************************
- *  HALA MOBILITY — SCM Command Centre
- *  Google Sheets backend
- *
- *  SETUP
- *  1.  Create a new Google Sheet (name it anything).
- *  2.  Extensions &gt; Apps Script. Delete whatever is there.
- *  3.  Paste this whole file in.
- *  4.  Change SHARED_KEY below to a password of your choosing.
- *  5.  Deploy &gt; New deployment &gt; (gear) Web app
- *          Description        : Hala SCM
- *          Execute as         : Me
- *          Who has access     : Anyone
- *      Authorise when prompted (the "unsafe" warning is expected for
- *      your own script — click Advanced &gt; Go to project).
- *  6.  Copy the Web app URL. It must end in /exec
- *  7.  Paste it into the app under Settings, with the same key.
- *
- *  The sheets below are created automatically on first sync.
- *  Do not rename or reorder their columns — the app reads them by header.
- ************************************************************/
-
-var SHARED_KEY = 'change-me';
-
-var SCHEMA = {
-  txns:   ['u','id','ts','d','t','p','q','h','h2','ref','by','note','meta'],
-  parts:  ['c','n','g','r','p','m','a','_m'],
-  hubs:   ['n','city','t','a','_m'],
-  models: ['n','a','_m'],
-  svcs:   ['c','n','p','_m'],
-  pos:    ['id','p','qty','rec','vendor','hub','eta','val','by','d','st','_m'],
-  claims: ['id','d','p','qty','vendor','hub','issue','by','st','resd','_m']
-};
-var KEYOF = { parts:'c', hubs:'n', models:'n', svcs:'c', pos:'id', claims:'id' };
-
-/* ---------------------------------------------------------- */
-
-function doPost(e) {
-  var lock = LockService.getScriptLock();
-  try {
-    // Serialised: two people posting at the same instant queue instead of
-    // overwriting each other.
-    lock.waitLock(25000);
-  } catch (err) {
-    return out({ ok: false, error: 'server busy, try again' });
-  }
-  try {
-    var req = JSON.parse(e.postData.contents);
-    if (req.key !== SHARED_KEY) return out({ ok: false, error: 'shared key does not match' });
-
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var push = req.push || {};
-    var wrote = 0;
-
-    // ---- 1. append new ledger rows, skipping any we already hold ----
-    if (push.txns &amp;&amp; push.txns.length) {
-      wrote += appendTxns(ss, push.txns);
-    }
-
-    // ---- 2. upsert mutable records, newest edit wins ----
-    var mTouched = false;
-    if (push.masters) {
-      Object.keys(push.masters).forEach(function (k) {
-        if (SCHEMA[k]) { upsert(ss, k, push.masters[k]); mTouched = true; }
-      });
-    }
-    // A revision stamp is what tells other devices a master changed. Without
-    // it, an edit that adds no ledger row would never reach anyone.
-    var props = PropertiesService.getScriptProperties();
-    var mRev = Number(props.getProperty('mRev')) || 0;
-    if (mTouched) { mRev = Date.now(); props.setProperty('mRev', String(mRev)); }
-
-    // ---- 3. hand back everything the caller has not seen ----
-    var cursor = Number(req.cursor) || 0;
-    var sh = sheet(ss, 'txns');
-    var total = Math.max(sh.getLastRow() - 1, 0);
-    var data = { txns: readFrom(ss, 'txns', cursor) };
-
-    // Masters go down only when this caller is actually behind on them —
-    // otherwise every ledger poll would drag 700 parts across the wire.
-    var mSeen = Number(req.mSeen) || 0;
-    if (cursor === 0 || mRev &gt; mSeen) {
-      ['parts', 'hubs', 'models', 'svcs', 'pos', 'claims'].forEach(function (k) {
-        data[k] = readAll(ss, k);
-      });
-    }
-
-    stampMeta(ss, total);
-    return out({ ok: true, cursor: total, mRev: mRev, wrote: wrote, data: data });
-
-  } catch (err) {
-    return out({ ok: false, error: String(err &amp;&amp; err.message || err) });
-  } finally {
-    lock.releaseLock();
-  }
-}
-
-function doGet() {
-  return out({ ok: true, msg: 'Hala SCM endpoint is live. Paste this URL into the app under Settings.' });
-}
-
-/* ---------------------------------------------------------- */
-
-function appendTxns(ss, rows) {
-  var sh = sheet(ss, 'txns');
-  var cols = SCHEMA.txns;
-
-  // existing unique ids, so a retry never double-books stock
-  var seen = {};
-  if (sh.getLastRow() &gt; 1) {
-    var us = sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues();
-    for (var i = 0; i &lt; us.length; i++) seen[String(us[i][0])] = 1;
-  }
-
-  var fresh = [];
-  for (var j = 0; j &lt; rows.length; j++) {
-    var r = rows[j];
-    if (!r || !r.u || seen[String(r.u)]) continue;
-    seen[String(r.u)] = 1;
-    fresh.push(cols.map(function (c) { return flat(r[c]); }));
-  }
-  if (!fresh.length) return 0;
-  sh.getRange(sh.getLastRow() + 1, 1, fresh.length, cols.length).setValues(fresh);
-  return fresh.length;
-}
-
-function upsert(ss, name, rows) {
-  var sh = sheet(ss, name);
-  var cols = SCHEMA[name], key = KEYOF[name];
-  var keyCol = cols.indexOf(key) + 1;
-  var mCol = cols.indexOf('_m') + 1;
-
-  var last = sh.getLastRow();
-  var index = {};
-  if (last &gt; 1) {
-    var keys = sh.getRange(2, keyCol, last - 1, 1).getValues();
-    for (var i = 0; i &lt; keys.length; i++) index[String(keys[i][0])] = i + 2;
-  }
-
-  var adds = [];
-  for (var j = 0; j &lt; rows.length; j++) {
-    var r = rows[j];
-    if (!r || r[key] === undefined || r[key] === '') continue;
-    var vals = cols.map(function (c) { return flat(r[c]); });
-    var row = index[String(r[key])];
-    if (row &gt; 1) {   // &gt; 1 because row 1 is the header, and -1 means "queued below"
-      // only overwrite if the incoming edit is newer
-      var existing = Number(sh.getRange(row, mCol).getValue()) || 0;
-      if ((Number(r._m) || 0) &gt;= existing) {
-        sh.getRange(row, 1, 1, cols.length).setValues([vals]);
-      }
-    } else {
-      index[String(r[key])] = -1;   // reserve so a duplicate in the same batch does not add twice
-      adds.push(vals);
-    }
-  }
-  if (adds.length) {
-    sh.getRange(sh.getLastRow() + 1, 1, adds.length, cols.length).setValues(adds);
-  }
-}
-
-function readFrom(ss, name, cursor) {
-  var sh = sheet(ss, name), cols = SCHEMA[name];
-  var last = sh.getLastRow();
-  var start = 2 + cursor;
-  if (last &lt; start) return [];
-  var vals = sh.getRange(start, 1, last - start + 1, cols.length).getValues();
-  return vals.map(function (row) { return obj(cols, row); }).filter(function (o) { return o.u || o.id || o.n || o.c; });
-}
-
-function readAll(ss, name) {
-  var sh = sheet(ss, name), cols = SCHEMA[name];
-  if (sh.getLastRow() &lt; 2) return [];
-  var vals = sh.getRange(2, 1, sh.getLastRow() - 1, cols.length).getValues();
-  return vals.map(function (row) { return obj(cols, row); }).filter(function (o) { return o[KEYOF[name] || 'u']; });
-}
-
-function obj(cols, row) {
-  var o = {};
-  for (var i = 0; i &lt; cols.length; i++) {
-    var v = row[i];
-    if (v instanceof Date) v = Utilities.formatDate(v, Session.getScriptTimeZone(), 'yyyy-MM-dd');
-    o[cols[i]] = v;
-  }
-  return o;
-}
-
-function flat(v) {
-  if (v === undefined || v === null) return '';
-  if (typeof v === 'object') return JSON.stringify(v);
-  return v;
-}
-
-function sheet(ss, name) {
-  var sh = ss.getSheetByName(name);
-  if (!sh) {
-    sh = ss.insertSheet(name);
-    sh.getRange(1, 1, 1, SCHEMA[name].length).setValues([SCHEMA[name]])
-      .setFontWeight('bold').setBackground('#1f3864').setFontColor('#ffffff');
-    sh.setFrozenRows(1);
-  } else if (sh.getLastRow() === 0) {
-    sh.getRange(1, 1, 1, SCHEMA[name].length).setValues([SCHEMA[name]]);
-    sh.setFrozenRows(1);
-  }
-  return sh;
-}
-
-function stampMeta(ss, total) {
-  var sh = ss.getSheetByName('_meta') || ss.insertSheet('_meta');
-  sh.getRange('A1:B4').setValues([
-    ['Last sync', new Date()],
-    ['Ledger entries', total],
-    ['Note', 'Written by the Hala SCM app. Read freely; avoid editing by hand.'],
-    ['Ledger is', 'append-only — deleting rows will change historic stock figures']
-  ]);
-}
-
-</script>
+<script type="text/plain" id="blankXlsx">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</script>
 <script>
 const DATA={"HUBS":[{"n":"HALA JEEDIMETLA","city":"Hyderabad","t":"WH"},{"n":"BALNAGAR PARKING","city":"Hyderabad","t":"HUB"},{"n":"MOOSAPET HUB","city":"Hyderabad","t":"HUB"},{"n":"NACHARAM CP HUB","city":"Hyderabad","t":"HUB"},{"n":"GANDHI NAGAR PARKING","city":"Hyderabad","t":"HUB"},{"n":"HALA EXPERIENCE CENTER","city":"Hyderabad","t":"HUB"},{"n":"S3-BEGUMPET","city":"Hyderabad","t":"S3"},{"n":"S3-TELLAPUR","city":"Hyderabad","t":"S3"},{"n":"S3-TARANAGAR","city":"Hyderabad","t":"S3"},{"n":"HALA BOMMANHALLI BANGLORE","city":"Bangalore","t":"HUB"},{"n":"HALA KANNURU BANGLORE","city":"Bangalore","t":"HUB"},{"n":"HALA WHITEFIELD HUB","city":"Bangalore","t":"HUB"},{"n":"HALA DELHI-TIKRI","city":"Delhi","t":"HUB"},{"n":"HALA GOREGAON EAST HUB","city":"Mumbai","t":"HUB"},{"n":"3PL - VIJAYAWADA AUTONAGAR BB","city":"Vijayawada","t":"3PL"}],"MODELS":["3-AUTO","AMO","AMO SUN","ASTRID","BAJAJ GO GO","BAJAJ MAXIMA 12 48VOLTS","BATTRE ONE","BGAUSS D15 PRO","CLASSIC","ESPRINTO ENERGIX BATTERY POOL","ESPRINTO SUN","EULER-HIGH LOAD","EULER-TURBO EV 1000","EVTRIC","GRAND ZOR","HALA CKD","HALA GEMOPAI NEW","HALA GEMOPAI RYDER","KOMAKI-CAT","LECTRIX BANGLORE","LOG 9 BZNESS LITE","M5","MISO","MONTRA ELECTRIC EQX D PLUS","NYX 500","ODYSSE HYFY SUN","ODYSSE SNAP SUN","PIAGGIO APE","QUANTUM","RETROSA","RILOX SPARK","RYDER","RYDER PRO","RYDER SUPERMAX","RYDER SUPERMAX PRO","SPRINTO HS","SPRINTO HS SUN","TATA ACE","VARCAS FALCON","WARRIOR","WHITE CARBON - O3","WINDY","YATRI-E LOADER","COMMON"],"CATS":["Accessories & Tools","Battery & Charging","Body & Panels","Brakes","Electricals & Lights","Hardware & Fasteners","Motor & Drivetrain","Other","Suspension & Frame","Wheels & Tyres"],"PARTS":[{"c":"PN-0001","n":"Hala_Helmet_BLR","g":"Accessories & Tools","m":[43],"r":0,"p":0},{"c":"PN-0002","n":"Hala_Helmet_DEL","g":"Accessories & Tools","m":[43],"r":0,"p":0},{"c":"PN-0003","n":"Hala_Helmet_HYD","g":"Accessories & Tools","m":[43],"r":0,"p":0},{"c":"PN-0004","n":"JUNCTION BOX SET","g":"Accessories & Tools","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0005","n":"LEFT TOOL BOX","g":"Accessories & Tools","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0006","n":"MIRROR","g":"Accessories & Tools","m":[43],"r":0,"p":0},{"c":"PN-0007","n":"MIRROR LEFT","g":"Accessories & Tools","m":[43],"r":0,"p":0},{"c":"PN-0008","n":"MIRROR LEFT (BOM)","g":"Accessories & Tools","m":[43],"r":0,"p":0},{"c":"PN-0009","n":"MIRROR RIGHT","g":"Accessories & Tools","m":[43],"r":0,"p":0},{"c":"PN-0010","n":"MIRROR RIGHT (BOM)","g":"Accessories & Tools","m":[43],"r":0,"p":0},{"c":"PN-0011","n":"MOBILE TOOLBOX POCKET","g":"Accessories & Tools","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0012","n":"RIGHT TOOL BOX","g":"Accessories & Tools","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0013","n":"Rear Carrier","g":"Accessories & Tools","m":[43],"r":0,"p":0},{"c":"PN-0014","n":"Rear Carrier (BOM)","g":"Accessories & Tools","m":[43],"r":0,"p":0},{"c":"PN-0015","n":"Rear Carrier(BLR)","g":"Accessories & Tools","m":[43],"r":0,"p":0},{"c":"PN-0016","n":"Rear Carrier(DEL)","g":"Accessories & Tools","m":[43],"r":0,"p":0},{"c":"PN-0017","n":"TOOL BOX","g":"Accessories & Tools","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0018","n":"TOOL BOX HOOK","g":"Accessories & Tools","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0019","n":"TOOL BOX INNER","g":"Accessories & Tools","m":[43],"r":0,"p":0},{"c":"PN-0020","n":"TOOL BOX OUTER","g":"Accessories & Tools","m":[43],"r":0,"p":0},{"c":"PN-0021","n":"TOOL BOX(BLR)","g":"Accessories & Tools","m":[43],"r":0,"p":0},{"c":"PN-0022","n":"TOOL BOX(DEL)","g":"Accessories & Tools","m":[43],"r":0,"p":0},{"c":"PN-0023","n":"Tool Box Pocket (BOM)","g":"Accessories & Tools","m":[43],"r":0,"p":0},{"c":"PN-0024","n":"Tool Box Pocket(DEL)","g":"Accessories & Tools","m":[43],"r":0,"p":0},{"c":"PN-0025","n":"Toolbox-Evtric","g":"Accessories & Tools","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0026","n":"12V BATTERY HBG","g":"Battery & Charging","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0027","n":"12V BATTERY HBG OLD","g":"Battery & Charging","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0028","n":"3 Wheeler charger","g":"Battery & Charging","m":[43],"r":0,"p":0},{"c":"PN-0029","n":"ANDERSON CONNECT","g":"Battery & Charging","m":[43],"r":0,"p":0},{"c":"PN-0030","n":"ANDERSON CONNECTER WITH PIN","g":"Battery & Charging","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0031","n":"ANDERSON CONNECTOR","g":"Battery & Charging","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0032","n":"AXILARY BATTERY 12V","g":"Battery & Charging","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0033","n":"BATTERY BIN","g":"Battery & Charging","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0034","n":"Battery Dock Diu","g":"Battery & Charging","m":[43],"r":0,"p":0},{"c":"PN-0035","n":"Battery Sun MOBILITY","g":"Battery & Charging","m":[43],"r":0,"p":0},{"c":"PN-0036","n":"Battery button-Sunmobility","g":"Battery & Charging","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0037","n":"Battery damage-Sunmobility","g":"Battery & Charging","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0038","n":"CHARGER DAMAGE","g":"Battery & Charging","m":[43],"r":0,"p":0},{"c":"PN-0039","n":"CHARGER FLAP COVER","g":"Battery & Charging","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0040","n":"CHARGER FLAP COVER HINGE","g":"Battery & Charging","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0041","n":"CHARGING PANEL COVER","g":"Battery & Charging","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0042","n":"Charging Panel Decorative","g":"Battery & Charging","m":[43],"r":0,"p":0},{"c":"PN-0043","n":"DB-14 connector","g":"Battery & Charging","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0044","n":"DTAP CONNECTOR FEMALE","g":"Battery & Charging","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0045","n":"DTAP CONNECTOR MALE","g":"Battery & Charging","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0046","n":"ENERGIX BATTERY 51V45AH","g":"Battery & Charging","m":[43],"r":0,"p":0},{"c":"PN-0047","n":"ENERGIX BATTERY 72vV30AH","g":"Battery & Charging","m":[43],"r":0,"p":0},{"c":"PN-0048","n":"FRONT MIDDILE CONNECTOR","g":"Battery & Charging","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0049","n":"IBC BATTERY 51V50AH","g":"Battery & Charging","m":[43],"r":0,"p":0},{"c":"PN-0050","n":"IBC CHARGER 48V12AH","g":"Battery & Charging","m":[43],"r":0,"p":0},{"c":"PN-0051","n":"IEC CORD","g":"Battery & Charging","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0052","n":"MNC/LFP BATTERY","g":"Battery & Charging","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0053","n":"SBX 75 CONNECTOR","g":"Battery & Charging","m":[43],"r":0,"p":0},{"c":"PN-0054","n":"SBX 75 CONNECTOR WITH PIN","g":"Battery & Charging","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0055","n":"SBX 75 CONNECTOR-BATTERY","g":"Battery & Charging","m":[43],"r":0,"p":0},{"c":"PN-0056","n":"SUN Battery BOX CAP","g":"Battery & Charging","m":[43],"r":0,"p":0},{"c":"PN-0057","n":"VOLTRON 57V10A","g":"Battery & Charging","m":[43],"r":0,"p":0},{"c":"PN-0058","n":"VOLTRON 58V10A","g":"Battery & Charging","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0059","n":"battery bolt","g":"Battery & Charging","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0060","n":"battery bolt nuts","g":"Battery & Charging","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0061","n":"BODY CONNECTION","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0062","n":"BODY CONNECTION(DEL)","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0063","n":"BODY LOWER PANEL","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0064","n":"BODY REAR CENTER COVER","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0065","n":"Body center cover","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0066","n":"Branding Stricker Set","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0067","n":"CENTER COVER","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0068","n":"E Rickshaw Deffender L3 (YATRI)","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0069","n":"FLOOR PANEL","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0070","n":"FLOOR SIDE PANEL","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0071","n":"FOOT BOARD LOWER COVER","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0072","n":"FRAME FENDER","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0073","n":"FRAME FENDER (BOM)","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0074","n":"FRONT CENTER COVER","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0075","n":"FRONT CENTER MIDDLE COVER","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0076","n":"FRONT FENDER","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0077","n":"FRONT FENDER - EULER","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0078","n":"FRONT FENDER OLD","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0079","n":"FRONT FENDER OLD DAMAGE","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0080","n":"FRONT FRAME FENDER","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0081","n":"FRONT FRAME FENDER(DEL)","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0082","n":"FRONT INNER MUDGUARD","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0083","n":"FRONT INNER MUDGUARD (BOM)","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0084","n":"FRONT PANEL","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0085","n":"FRONT PANEL OLD","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0086","n":"FRONT PANEL-ESPRINTO HS(BLR)","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0087","n":"FRONT SEAT","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0088","n":"FRONT SIDE PANEL LEFT","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0089","n":"FRONT SIDE PANEL LEFT(BLR)","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0090","n":"FRONT SIDE PANEL RIGHT","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0091","n":"FRONT SIDE PANEL RIGHT(BLR)","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0092","n":"Floor Mat","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0093","n":"Floor Mat (BOM)","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0094","n":"Foot Board Center Cover","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0095","n":"Front Fender (BLR)","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0096","n":"Front Fender (BOM)","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0097","n":"Front Fender(DEL)","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0098","n":"Front Panel (BLR)","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0099","n":"Front Panel (BOM)","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0100","n":"Front Panel (DEL)","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0101","n":"Front Panel (ENLITE)","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0102","n":"Front Panel- ROAMY SUN/RILOX","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0103","n":"Front panel REF","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0104","n":"Front panel-evtric","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0105","n":"HEAD COVER","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0106","n":"HEAD COVER (BLR)","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0107","n":"HEAD COVER (DEL)","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0108","n":"HEAD COVER OLD","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0109","n":"HEAD COVER- ROAMY SUN/RILOX","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0110","n":"HEAD COVER- ROAMY SUN/RILOX(BLR)","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0111","n":"HEAD LIGHT COVER","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0112","n":"Head Cover (BOM)","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0113","n":"Head Cover Mesh","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0114","n":"INDICATOR COVER","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0115","n":"INNER FENDER","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0116","n":"INNER FENDER(DEL)","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0117","n":"INNER PANEL","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0118","n":"LEFT FOOT SIDE PANEL","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0119","n":"LEFT FOOT SIDE PANEL (BLR)","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0120","n":"LEFT FOOT SIDE PANEL OLD","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0121","n":"LEFT FOOT SIDE PANEL-ROAMY SUN/RILOX","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0122","n":"LEFT SIDE GUARD","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0123","n":"LEFT SIDE PANEL LEFT","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0124","n":"LEFT SIDE PANEL(DEL)","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0125","n":"LETTER STICKER HALA","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0126","n":"Lower cover Left-Evtric","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0127","n":"Lower cover Right-Evtric","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0128","n":"NOSE CLIP","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0129","n":"NOSE CLIP(DEL)","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0130","n":"NOSE COVER","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0131","n":"NOSE COVER OLD","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0132","n":"NOSE DECORATIVE","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0133","n":"Nose Cover (BLR)","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0134","n":"Nose Cover (BOM)","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0135","n":"Nose Cover (DEL)","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0136","n":"Nose Decorative MESH","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0137","n":"Nose cover REF","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0138","n":"Nose cover- ROAMY SUN/RILOX","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0139","n":"REAR DECORATIVE PART FENDER","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0140","n":"REAR FENDER","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0141","n":"REAR FENDER INNER COVER","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0142","n":"REAR FENDER NUMBER PLATE (BLR)","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0143","n":"REAR FENDER number plate","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0144","n":"REAR INNER FENDER","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0145","n":"REAR INNER MUDGUARD","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0146","n":"REAR MUDGUARD","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0147","n":"REAR MUDGUARD (BLR)","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0148","n":"REAR MUDGUARD (BOM)","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0149","n":"REAR MUDGUARD INNER COVER","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0150","n":"REAR MUDGUARD(DEL)","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0151","n":"REAR SIDE PANEL left","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0152","n":"REAR SIDE PANEL left (BOM)","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0153","n":"REAR SIDE PANEL right","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0154","n":"REAR SIDE PANEL right (BOM)","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0155","n":"RIGHT FOOT SIDE PANEL","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0156","n":"RIGHT FOOT SIDE PANEL (BLR)","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0157","n":"RIGHT FOOT SIDE PANEL OLD","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0158","n":"RIGHT FOOT SIDE PANEL-ROAMY SUN/RILOX","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0159","n":"RIGHT SIDE GUARD","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0160","n":"RIGHT SIDE PANEL","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0161","n":"RIGHT SIDE PANEL LEFT","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0162","n":"RIGHT SIDE PANEL(DEL)","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0163","n":"Rear Side Panel-LH","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0164","n":"Rear Side Panel-RH","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0165","n":"Rear Upper Mudguard","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0166","n":"Rear fender Sm","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0167","n":"SEAT","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0168","n":"SEAT ASSY","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0169","n":"SEAT ASSY REF","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0170","n":"SEAT ASSY(DEL)","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0171","n":"SEAT BUCKET","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0172","n":"SEAT BUCKET CAP","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0173","n":"SEAT BUCKET OLD","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0174","n":"SEAT BUCKET(DEL)","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0175","n":"SEAT COVER","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0176","n":"SEAT COVER (DEL)","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0177","n":"SEAT LATCH","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0178","n":"SEAT LATCH ASSY","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0179","n":"SEAT LOCK CABLE","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0180","n":"SEAT LOCK CABLE (BLR)","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0181","n":"SEAT LOCK CABLE(DEL)","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0182","n":"SEAT LOCK HOOK","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0183","n":"SEAT LOCK HOOK(DEL)","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0184","n":"SEAT OLD","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0185","n":"SEAT RING","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0186","n":"SEAT RING OLD","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0187","n":"SEAT RING(DEL)","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0188","n":"SIDE PANEL","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0189","n":"SIDE PANEL R&H","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0190","n":"SPEEDOMETER COVER","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0191","n":"SPEEDOMETER COVER (BLR)","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0192","n":"SPEEDOMETER COVER (DEL)","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0193","n":"Seat Bucket REF","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0194","n":"Side Guard LH- ROAMY SUN/RILOX","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0195","n":"Side Guard rH- ROAMY SUN/RILOX","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0196","n":"Speedometer Cover (BOM)","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0197","n":"Speedometer Cover- ROAMY SUN/RILOX","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0198","n":"Speedometer Decorative Cover","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0199","n":"Speedometer Decorative Cover (BLR)","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0200","n":"Speedometer Decorative Cover (BOM)","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0201","n":"Speedometer cover-Evtric","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0202","n":"TAIL LIGHT COVER","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0203","n":"TAIL LIGHT LOWER COVER","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0204","n":"TAIL LIGHT UPPER COVER","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0205","n":"VIN GUARD","g":"Body & Panels","m":[43],"r":0,"p":0},{"c":"PN-0206","n":"seat lock astrid","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0207","n":"seat lock ryder","g":"Body & Panels","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0208","n":"85 Inch Brake Cable","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0209","n":"BGUASS BRAKE LEVER LEFT","g":"Brakes","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0210","n":"BGUASS BRAKE LEVER RIGHT","g":"Brakes","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0211","n":"BGUASS brake sensor","g":"Brakes","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0212","n":"BRAKE CABLE ASSEMBLY LEFT","g":"Brakes","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0213","n":"BRAKE LEVER","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0214","n":"BRAKE LEVER ASSY LH BG","g":"Brakes","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0215","n":"BRAKE LEVER ASSY RH BG","g":"Brakes","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0216","n":"BRAKE LEVER LEFT(BLR)","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0217","n":"BRAKE LEVER RIGHT(BLR)","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0218","n":"BRAKE LEVER RIGHT(DEL)","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0219","n":"BRAKE LIGHT SWITCH","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0220","n":"BRAKE LIGHT SWITCH LEFT","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0221","n":"BRAKE LIGHT SWITCH RIGHT","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0222","n":"BRAKE SHOE 110MM WITH SPRINGS","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0223","n":"BRAKE SHOE 110MM WITH SPRINGS (BLR)","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0224","n":"BRAKE SHOE 110MM WITH SPRINGS (BOM)","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0225","n":"BRAKE SHOE 110MM WITH SPRINGS(DEL)","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0226","n":"BRAKE SHOE 130MM WITH SPRINGS","g":"Brakes","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0227","n":"Brake Cable L3 (YATRI)","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0228","n":"Brake Lever Left(DEL)","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0229","n":"Brake Paddle L3 (YATRI)","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0230","n":"Brake Shoes 160MM (YATRI)","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0231","n":"Brake shoe only spring","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0232","n":"CALIPER BOLT","g":"Brakes","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0233","n":"CALIPER BUSH -NYX","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0234","n":"CALIPER PLATE -5 BIG HOLES","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0235","n":"CALIPER PLATE 4 HOLES","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0236","n":"DISC BRAKE LEFT LEVER","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0237","n":"DISC BRAKE LEFT LEVER (BLR)","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0238","n":"DISC BRAKE RIGHT LEVER","g":"Brakes","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0239","n":"DISC BRAKE RIGHT LEVER(BLR)","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0240","n":"DISC CALIPER","g":"Brakes","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0241","n":"DISC CALIPER Rear","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0242","n":"DISC OIL","g":"Brakes","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0243","n":"DISC PADS","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0244","n":"DISC PADS (BLR)","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0245","n":"DISC PADS (BOM)","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0246","n":"DISC PADS Universal","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0247","n":"DISC PADS(DEL)","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0248","n":"DISC PLATE","g":"Brakes","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0249","n":"DISC PLATE (ENLITE)","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0250","n":"DRUM PLATE ASSEMBLY With shoe","g":"Brakes","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0251","n":"DRUM PLATE ASSEMBLY With shoe (BLR)","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0252","n":"DRUM PLATE ASSEMBLY With shoe (BOM)","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0253","n":"DRUM PLATE ASSEMBLY With shoe REF","g":"Brakes","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0254","n":"DRUM PLATE ASSEMBLY With shoe(DEL)","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0255","n":"Disc Caliper Bolt (BOM)","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0256","n":"Disc Caliper(DEL)","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0257","n":"FRONT BRAKE CABLE 52 INCH","g":"Brakes","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0258","n":"FRONT BRAKE SYSTEM","g":"Brakes","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0259","n":"FRONT BRAKE SYSTEM CABLE","g":"Brakes","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0260","n":"FRONT DISC PLATE","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0261","n":"FRONT DISC PLATE(DEL)","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0262","n":"Front Disc plate-Evtric","g":"Brakes","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0263","n":"Front disc brake-evtric","g":"Brakes","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0264","n":"LEFT BRAKE LEVER","g":"Brakes","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0265","n":"LEFT BRAKE LEVER (BLR)","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0266","n":"LEFT BRAKE LEVER (BOM)","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0267","n":"LEFT BRAKE SENSOR","g":"Brakes","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0268","n":"MESHO BRAKE CABLE 52INCH","g":"Brakes","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0269","n":"Master Cylinder(DEL)","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0270","n":"REAR BRAKE ASSEMBLY","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0271","n":"REAR BRAKE CABLE","g":"Brakes","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0272","n":"REAR BRAKE CABLE 82 inch","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0273","n":"REAR BRAKE CABLE 82 inch (BLR)","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0274","n":"REAR BRAKE CABLE 82 inch (BOM)","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0275","n":"REAR BRAKE CABLE 82 inch(DEL)","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0276","n":"REAR BRAKE PLATE COMPLEATE ASSY","g":"Brakes","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0277","n":"REAR CALIPER","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0278","n":"REAR DISC PLATE","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0279","n":"RIGHT BRAKE LEVER","g":"Brakes","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0280","n":"RIGHT BRAKE LEVER (BOM)","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0281","n":"RIGHT BRAKE LEVER(BLR)","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0282","n":"RIGHT BRAKE SENSOR","g":"Brakes","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0283","n":"RIGHT BRAKE SENSOR(BLR)","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0284","n":"Rear Disc Brake-Evtric","g":"Brakes","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0285","n":"Rear Disc plate-Evtric","g":"Brakes","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0286","n":"brake lever bolt","g":"Brakes","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0287","n":"brake lever spring","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0288","n":"brake lever spring right","g":"Brakes","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0289","n":"brake oil DOT 4 200ML","g":"Brakes","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0290","n":"brake shoe spring","g":"Brakes","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0291","n":"brake shoe spring(DEL)","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0292","n":"disc pad patti","g":"Brakes","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0293","n":"disc pad patti REF","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0294","n":"disc pad patti(DEL)","g":"Brakes","m":[43],"r":0,"p":0},{"c":"PN-0295","n":"5mm allenkey bolts","g":"Electricals & Lights","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0296","n":"DIPPER SWITCH","g":"Electricals & Lights","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0297","n":"DIPPER SWITCH (BLR)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0298","n":"Decorative Light Bulb-HYFY","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0299","n":"Decorative Light Bulb-HYFY (BOM)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0300","n":"E - S SWITCH","g":"Electricals & Lights","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0301","n":"FUSE 15 AMPS","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0302","n":"HEAD LIGHT ASSEMBLY","g":"Electricals & Lights","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0303","n":"HEAD LIGHT ASSEMBLY (BLR)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0304","n":"HEAD LIGHT ASSEMBLY (BOM)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0305","n":"HEAD LIGHT ASSEMBLY (DEL)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0306","n":"HEAD LIGHT BULB ASSEMBLY","g":"Electricals & Lights","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0307","n":"HEAD LIGHT DECORATIVE","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0308","n":"HEAD LIGHT DECORATIVE(BLR)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0309","n":"HEAD LIGHT DECORATIVE(DEL)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0310","n":"HEAD LIGHT HOLDER ASSY","g":"Electricals & Lights","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0311","n":"HEAD LIGHT HOLDER ASSY (BLR)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0312","n":"HEAD LIGHT HOLDER ASSY OLD","g":"Electricals & Lights","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0313","n":"HEAD LIGHT HOLDER ASSY(DEL)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0314","n":"HEAD LIGHT LED BULB","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0315","n":"HEAD LIGHT LED BULB (BOM)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0316","n":"HEAD LIGHT LED BULB(BLR)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0317","n":"HEAD LIGHT LED BULB(DEL)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0318","n":"HEAD LIGHT LED BULB-ROUND","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0319","n":"HEAD LIGHT ON/OFF SWITCH","g":"Electricals & Lights","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0320","n":"HEAD LIGHT SWITCH","g":"Electricals & Lights","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0321","n":"HEAD LIGHT SWITCH (BLR)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0322","n":"HEAD LIGHT SWITCH (BOM)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0323","n":"HEAD LIGHT SWITCH (DEL)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0324","n":"HORN","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0325","n":"HORN (DEL)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0326","n":"HORN CLIPS","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0327","n":"HORN OLD","g":"Electricals & Lights","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0328","n":"HORN SWITCH","g":"Electricals & Lights","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0329","n":"HORN SWITCH (BLR)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0330","n":"HORN SWITCH (BOM)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0331","n":"HORN SWITCH (DEL)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0332","n":"HORN SWITCH LEFT","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0333","n":"HORN SWITCH RIGHT","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0334","n":"Head Light Assy(DEL)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0335","n":"Head Light Decorative Mesh","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0336","n":"Head light Assembly-evtric","g":"Electricals & Lights","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0337","n":"Horn (BLR)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0338","n":"Horn (BOM)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0339","n":"INDICATOR ASSEMBLY","g":"Electricals & Lights","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0340","n":"INDICATOR ASSEMBLY (BOM)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0341","n":"INDICATOR ASSEMBLY OLD","g":"Electricals & Lights","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0342","n":"INDICATOR BULB","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0343","n":"INDICATOR BULB(DEL)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0344","n":"INDICATOR HOLDER ASSY","g":"Electricals & Lights","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0345","n":"INDICATOR HOLDER ASSY LH","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0346","n":"INDICATOR HOLDER ASSY LH (BLR)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0347","n":"INDICATOR HOLDER ASSY RH","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0348","n":"INDICATOR HOLDER ASSY RH (BLR)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0349","n":"INDICATOR HOLDER(DEL)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0350","n":"INDICATOR SWITCH","g":"Electricals & Lights","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0351","n":"Ignition Switch","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0352","n":"Ignition Switch (BOM)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0353","n":"Indicator Switch (BLR)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0354","n":"Indicator Switch (DEL)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0355","n":"Indicator left Switch-Evtric","g":"Electricals & Lights","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0356","n":"KEYFOB SUN MOBILITY","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0357","n":"KEYFOB SUN MOBILITY (DEL)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0358","n":"LEFT INDICATOR ASSEMBLY","g":"Electricals & Lights","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0359","n":"LEFT INDICATOR ASSEMBLY(BLR)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0360","n":"LEFT INDICATOR ASSEMLY (BOM)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0361","n":"LEFT INDICATOR ASSEMLY(DEL)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0362","n":"LEFT SWITCH","g":"Electricals & Lights","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0363","n":"LOCKSET","g":"Electricals & Lights","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0364","n":"LOCKSET-ASTRID","g":"Electricals & Lights","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0365","n":"Lockset (BLR)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0366","n":"Lockset (BOM)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0367","n":"Lockset (DEL)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0368","n":"Lockset (ENLITE)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0369","n":"Lockset 37mm","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0370","n":"Lockset-47 MM","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0371","n":"METER BULB","g":"Electricals & Lights","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0372","n":"Meter Chrom","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0373","n":"Meter Decorative","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0374","n":"Meter L3 (YATRI)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0375","n":"NUMBER PLATE LIGHT","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0376","n":"RIGHT INDICATOR ASSEMBLY(BLR)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0377","n":"RIGHT INDICATOR ASSEMLY","g":"Electricals & Lights","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0378","n":"RIGHT INDICATOR ASSEMLY (BOM)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0379","n":"RIGHT INDICATOR ASSEMLY(DEL)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0380","n":"RIGHT SWITCH","g":"Electricals & Lights","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0381","n":"SELF START SWITCH","g":"Electricals & Lights","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0382","n":"SELF START SWITCH(BLR)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0383","n":"SOC METER","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0384","n":"SOLDERING WIRE","g":"Electricals & Lights","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0385","n":"SPEED MODE SWITCH","g":"Electricals & Lights","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0386","n":"SPEED MODE SWITCH(BLR)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0387","n":"SPEEDOMETER","g":"Electricals & Lights","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0388","n":"SPEEDOMETER -ROAMYSUN/ESPRINTO","g":"Electricals & Lights","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0389","n":"SPEEDOMETER ASSEMBLY","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0390","n":"SPEEDOMETER ASSEMBLY (BLR)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0391","n":"SPEEDOMETER CROME","g":"Electricals & Lights","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0392","n":"SPEEDOMETER GLASS","g":"Electricals & Lights","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0393","n":"SPEEDOMETER GLASS (BLR)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0394","n":"SPEEDOMETER GLASS(DEL)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0395","n":"SPEEDOMETER GLASS-OVAL","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0396","n":"SPEEDOMETER PLASTIC","g":"Electricals & Lights","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0397","n":"SPEEDOMETER REF","g":"Electricals & Lights","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0398","n":"Speedometer (BLR)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0399","n":"Speedometer (BOM)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0400","n":"Speedometer (DEL)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0401","n":"Speedometer chrome- ROAMY SUN/RILOX","g":"Electricals & Lights","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0402","n":"Speedometer-evtric","g":"Electricals & Lights","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0403","n":"Sprinto Hs meter Glass(BLR)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0404","n":"Switch Universal","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0405","n":"Switch Universal (BOM)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0406","n":"Switch-Universal(BLR)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0407","n":"TAIL LIGHT ASSEMBLY","g":"Electricals & Lights","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0408","n":"TAIL LIGHT ASSEMBLY (BLR)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0409","n":"TAIL LIGHT ASSEMBLY (DEL)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0410","n":"TAIL LIGHT BULB","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0411","n":"TAIL LIGHT BULB (BLR)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0412","n":"TAIL LIGHT BULB (BOM)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0413","n":"TAIL LIGHT BULB (DEL)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0414","n":"TAIL LIGHT BULB HOLDER(DEL)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0415","n":"TAIL LIGHT GLASS(DEL)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0416","n":"TAIL LIGHT HOLDER ASSY","g":"Electricals & Lights","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0417","n":"TAIL LIGHT HOLDER ASSY OLD","g":"Electricals & Lights","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0418","n":"Tail Light Decorative","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0419","n":"Tail Light Decorative (BLR)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0420","n":"Upper Dipper Switch","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0421","n":"Upper Dipper Switch (BOM)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0422","n":"Upper Dipper Switch (DEL)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0423","n":"WIRE HARNESHH","g":"Electricals & Lights","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0424","n":"WIRE HARNESS","g":"Electricals & Lights","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0425","n":"WIRE HARNESS (BOM)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0426","n":"WIRING HARNESS","g":"Electricals & Lights","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0427","n":"WIRING HARNESS (BLR)","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0428","n":"WIRING HARNESS -RYDER/SUPERMAX","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0429","n":"Wiring Harness-Evtric","g":"Electricals & Lights","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0430","n":"fuse","g":"Electricals & Lights","m":[43],"r":0,"p":0},{"c":"PN-0431","n":"relay","g":"Electricals & Lights","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0432","n":"BOLT-ALLEN BOLT M8*30","g":"Hardware & Fasteners","m":[43],"r":0,"p":0},{"c":"PN-0433","n":"BOLT-FLANGE BOLT M8*40","g":"Hardware & Fasteners","m":[43],"r":0,"p":0},{"c":"PN-0434","n":"BOLT-FLANGE BOLT M8*40(BLR)","g":"Hardware & Fasteners","m":[43],"r":0,"p":0},{"c":"PN-0435","n":"BOLT-HEX-FLANGE M 10*40","g":"Hardware & Fasteners","m":[43],"r":0,"p":0},{"c":"PN-0436","n":"BOLT-HEX-FLANGE M 10*40(DEL)","g":"Hardware & Fasteners","m":[43],"r":0,"p":0},{"c":"PN-0437","n":"Bolt 10No (DEL)","g":"Hardware & Fasteners","m":[43],"r":0,"p":0},{"c":"PN-0438","n":"Bolt 8 No(DEL)","g":"Hardware & Fasteners","m":[43],"r":0,"p":0},{"c":"PN-0439","n":"China Screw (DEL)","g":"Hardware & Fasteners","m":[43],"r":0,"p":0},{"c":"PN-0440","n":"HANDLE NUT BOLT","g":"Hardware & Fasteners","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0441","n":"HANDLE WASHER","g":"Hardware & Fasteners","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0442","n":"Junction Box Clip","g":"Hardware & Fasteners","m":[43],"r":0,"p":0},{"c":"PN-0443","n":"M4 CLIPS","g":"Hardware & Fasteners","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0444","n":"M4 CLIPS(DEL)","g":"Hardware & Fasteners","m":[43],"r":0,"p":0},{"c":"PN-0445","n":"NUT M8*40(BLR)","g":"Hardware & Fasteners","m":[43],"r":0,"p":0},{"c":"PN-0446","n":"Nut 10 MM(DEL)","g":"Hardware & Fasteners","m":[43],"r":0,"p":0},{"c":"PN-0447","n":"Rear Carrier Nut (DEL)","g":"Hardware & Fasteners","m":[43],"r":0,"p":0},{"c":"PN-0448","n":"SELF TAPPING -THREADED CLIP","g":"Hardware & Fasteners","m":[43],"r":0,"p":0},{"c":"PN-0449","n":"SELF TAPPING -THREADED CLIP COMMON(BLR)","g":"Hardware & Fasteners","m":[43],"r":0,"p":0},{"c":"PN-0450","n":"SELF TAPPING SCREWS","g":"Hardware & Fasteners","m":[43],"r":0,"p":0},{"c":"PN-0451","n":"Screws","g":"Hardware & Fasteners","m":[43],"r":0,"p":0},{"c":"PN-0452","n":"AXCEL ROD WITH BUSH","g":"Motor & Drivetrain","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0453","n":"CONTROLLER","g":"Motor & Drivetrain","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0454","n":"CONTROLLER -ROAMYSUN/ESPRINTO","g":"Motor & Drivetrain","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0455","n":"CONTROLLER -RYDER/SUPERMAX","g":"Motor & Drivetrain","m":[43],"r":0,"p":0},{"c":"PN-0456","n":"CONTROLLER 48V/60V","g":"Motor & Drivetrain","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0457","n":"CONTROLLER 48V60V OLD","g":"Motor & Drivetrain","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0458","n":"CONTROLLER 72V","g":"Motor & Drivetrain","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0459","n":"CONTROLLER COVER","g":"Motor & Drivetrain","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0460","n":"CONTROLLER WIRE HARNESS","g":"Motor & Drivetrain","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0461","n":"CONTROLLER WIRE HARNESS (BOM)","g":"Motor & Drivetrain","m":[43],"r":0,"p":0},{"c":"PN-0462","n":"CONTROLLER-UNIVERSAL","g":"Motor & Drivetrain","m":[43],"r":0,"p":0},{"c":"PN-0463","n":"Controller L3 (YATRI)","g":"Motor & Drivetrain","m":[43],"r":0,"p":0},{"c":"PN-0464","n":"Controller-Evtric","g":"Motor & Drivetrain","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0465","n":"MOTOR","g":"Motor & Drivetrain","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0466","n":"MOTOR -ROAMYSUN/ESPRINTO","g":"Motor & Drivetrain","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0467","n":"MOTOR -RYDER/SUPERMAX","g":"Motor & Drivetrain","m":[43],"r":0,"p":0},{"c":"PN-0468","n":"MOTOR BEARINGS 6005","g":"Motor & Drivetrain","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0469","n":"MOTOR BEND","g":"Motor & Drivetrain","m":[43],"r":0,"p":0},{"c":"PN-0470","n":"MOTOR CABLE","g":"Motor & Drivetrain","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0471","n":"MOTOR OLD","g":"Motor & Drivetrain","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0472","n":"MOTOR SENSOR","g":"Motor & Drivetrain","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0473","n":"Motor Cable Damage","g":"Motor & Drivetrain","m":[43],"r":0,"p":0},{"c":"PN-0474","n":"Motor Drum Cover","g":"Motor & Drivetrain","m":[43],"r":0,"p":0},{"c":"PN-0475","n":"Motor L3 (YATRI)","g":"Motor & Drivetrain","m":[43],"r":0,"p":0},{"c":"PN-0476","n":"Motor Refurb Wiring","g":"Motor & Drivetrain","m":[43],"r":0,"p":0},{"c":"PN-0477","n":"Motor-Evtric","g":"Motor & Drivetrain","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0478","n":"THROTTLE","g":"Motor & Drivetrain","m":[43],"r":0,"p":0},{"c":"PN-0479","n":"THROTTLE (BLR)","g":"Motor & Drivetrain","m":[43],"r":0,"p":0},{"c":"PN-0480","n":"THROTTLE (BOM)","g":"Motor & Drivetrain","m":[43],"r":0,"p":0},{"c":"PN-0481","n":"THROTTLE (DEL)","g":"Motor & Drivetrain","m":[43],"r":0,"p":0},{"c":"PN-0482","n":"THROTTLE (ENLITE)","g":"Motor & Drivetrain","m":[43],"r":0,"p":0},{"c":"PN-0483","n":"THROTTLE -ROAMYSUN/ESPRINTO","g":"Motor & Drivetrain","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0484","n":"THROTTLE BG","g":"Motor & Drivetrain","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0485","n":"Throttle L3 (YATRI)","g":"Motor & Drivetrain","m":[43],"r":0,"p":0},{"c":"PN-0486","n":"Backrest","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0487","n":"Balance Rod L3 (YATRI)","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0488","n":"CABLE TAG 12 INCH","g":"Other","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0489","n":"CABLE TAG 6 INCH","g":"Other","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0490","n":"CABLE TAG 6 INCH(BLR)","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0491","n":"CHARGE HOUSE 72V10AH","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0492","n":"CONE KIT","g":"Other","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0493","n":"CONE KIT (BLR)","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0494","n":"CONE KIT (BOM)","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0495","n":"CONE KIT -(DEL)","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0496","n":"CONVERTER (DEL)","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0497","n":"Cable Tie (Black)","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0498","n":"Cable Tie (Black) (DEL)","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0499","n":"China","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0500","n":"China (DEL)","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0501","n":"DC CONVERTER","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0502","n":"DC CONVERTER (BOM)","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0503","n":"DC CONVERTER -ROAMYSUN/ESPRINTO","g":"Other","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0504","n":"DC CONVERTER(DEL)","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0505","n":"DC CONVERTOR","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0506","n":"DC CONVERTOR (BLR)","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0507","n":"DC Converter 48-85 VDC (YATRI)","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0508","n":"DC-DC CONVERTOR","g":"Other","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0509","n":"DRUM PLATE ASSEMBLY","g":"Other","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0510","n":"Disply - PCB Board","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0511","n":"Dock Sun Mobility","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0512","n":"Drum Plate L3 (YATRI)","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0513","n":"E Rickshaw Butterfly L3 (YATRI)","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0514","n":"EVTRIC 3 LEG BULB","g":"Other","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0515","n":"FEMALE THIMBLE PINS","g":"Other","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0516","n":"FLASHER","g":"Other","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0517","n":"FLASHER (BOM)","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0518","n":"FLASHER 2 PIN","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0519","n":"FLASHER 2 PIN (BLR)","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0520","n":"FLASHER OLD","g":"Other","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0521","n":"FLASHER(DEL)","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0522","n":"FOOT BOARD CAP","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0523","n":"FOOT BOARD CAP (BLR)","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0524","n":"FOOT PLATE","g":"Other","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0525","n":"FOOT PLATE (BLR)","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0526","n":"FOOT REST PEDAL","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0527","n":"FOOTREST(DEL)","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0528","n":"FRONT INNER MUDGAURD","g":"Other","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0529","n":"FRONT INNER MUDGAURD(BLR)","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0530","n":"Flesher L3 (YATRI)","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0531","n":"Foot Board","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0532","n":"Foot Board (BOM)","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0533","n":"Foot Board (DEL)","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0534","n":"Foot Board - Plate","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0535","n":"Footrest","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0536","n":"Front Mudgard L3 (YATRI)","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0537","n":"Front Suspension (DEL)","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0538","n":"Front pannel","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0539","n":"Full Fiber Kit-SL","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0540","n":"GREESE","g":"Other","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0541","n":"HALL SENSOR","g":"Other","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0542","n":"HANDLE BAR","g":"Other","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0543","n":"HANDLE BAR (BOM)","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0544","n":"HANDLE BAR ASSY","g":"Other","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0545","n":"HANDLE GRIP","g":"Other","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0546","n":"HOSE PIPE FRONT","g":"Other","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0547","n":"HOSE PIPE FRONT(BLR)","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0548","n":"HOSE PIPE FRONT(DEL)","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0549","n":"HOSE PIPE REAR","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0550","n":"HOSE PIPE REAR (BLR)","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0551","n":"Hala Branding","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0552","n":"Handle T L3 (YATRI)","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0553","n":"INDICAOTOR ASSY FRONT AND REAR","g":"Other","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0554","n":"INSULATION TAPES","g":"Other","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0555","n":"IOT","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0556","n":"Ignation Lock L3 (YATRI)","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0557","n":"LEVER SET LEFT","g":"Other","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0558","n":"LEVER SET LEFT(DEL)","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0559","n":"LEVER SET RIGHT","g":"Other","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0560","n":"LEVER SET RIGHT (BLR)","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0561","n":"LOCK SET BG","g":"Other","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0562","n":"Lever set Left (BLR)","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0563","n":"MALE THIMBLE PINS","g":"Other","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0564","n":"MASTER CYLIENDER","g":"Other","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0565","n":"MASTER CYLIENDER (BOM)","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0566","n":"MASTER CYLIENDER LEFT","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0567","n":"MASTER CYLIENDER LEFT (BLR)","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0568","n":"MASTER CYLIENDER RIGHT","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0569","n":"MASTER CYLIENDER RIGHT (BLR)","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0570","n":"MCB","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0571","n":"MCB L3 (YATRI)","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0572","n":"Number Plate L3 (YATRI)","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0573","n":"Number plate damage/Missing","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0574","n":"Numberplate","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0575","n":"OIL SEAL","g":"Other","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0576","n":"PUNCHER KIT","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0577","n":"Puncher","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0578","n":"QR SCANNER","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0579","n":"REAR FOOT REST","g":"Other","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0580","n":"RIGHT BREAK SENSOR","g":"Other","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0581","n":"Red Reflector","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0582","n":"SIDE BAR LH","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0583","n":"SIDE BAR LH (BLR)","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0584","n":"SIDE BAR LH (BOM)","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0585","n":"SIDE BAR LH (DEL)","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0586","n":"SIDE BAR RH","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0587","n":"SIDE BAR RH (BLR)","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0588","n":"SIDE BAR RH (BOM)","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0589","n":"SIDE BAR RH (DEL)","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0590","n":"SIEGER 58V 39AH","g":"Other","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0591","n":"SOLDERING PASTE","g":"Other","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0592","n":"TAG AND TIE BIG","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0593","n":"Tire 3.00*10 (BOM)","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0594","n":"Transportation charges","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0595","n":"USB","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0596","n":"VCU","g":"Other","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0597","n":"VCU OLD","g":"Other","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0598","n":"Wiper L3 (YATRI)","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0599","n":"niinik","g":"Other","m":[43],"r":0,"p":0},{"c":"PN-0600","n":"CHASIS","g":"Suspension & Frame","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0601","n":"CHASIS BEND","g":"Suspension & Frame","m":[43],"r":0,"p":0},{"c":"PN-0602","n":"CHASSIS NUMBER COVER","g":"Suspension & Frame","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0603","n":"Chassis","g":"Suspension & Frame","m":[43],"r":0,"p":0},{"c":"PN-0604","n":"DUMMY CHASIS","g":"Suspension & Frame","m":[43],"r":0,"p":0},{"c":"PN-0605","n":"FORK ASSEMBLY","g":"Suspension & Frame","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0606","n":"FORK MUDGUARD","g":"Suspension & Frame","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0607","n":"FORK OIL","g":"Suspension & Frame","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0608","n":"FORK OIL SEAL 30-40.5-10.5","g":"Suspension & Frame","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0609","n":"FORK OIL SEAL 30-42-10.5","g":"Suspension & Frame","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0610","n":"FRONT SHOCK","g":"Suspension & Frame","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0611","n":"FRONT SHOCK (BOM)","g":"Suspension & Frame","m":[43],"r":0,"p":0},{"c":"PN-0612","n":"FRONT SHOCK OLD","g":"Suspension & Frame","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0613","n":"FRONT SHOCKER (BOM)","g":"Suspension & Frame","m":[43],"r":0,"p":0},{"c":"PN-0614","n":"FRONT SHOCKER (DEL)","g":"Suspension & Frame","m":[43],"r":0,"p":0},{"c":"PN-0615","n":"FRONT SHOCKER LEFT","g":"Suspension & Frame","m":[43],"r":0,"p":0},{"c":"PN-0616","n":"FRONT SHOCKER LEFT (BLR)","g":"Suspension & Frame","m":[43],"r":0,"p":0},{"c":"PN-0617","n":"FRONT SHOCKER REF","g":"Suspension & Frame","m":[43],"r":0,"p":0},{"c":"PN-0618","n":"FRONT SHOCKER right","g":"Suspension & Frame","m":[43],"r":0,"p":0},{"c":"PN-0619","n":"FRONT SHOCKER right (BLR)","g":"Suspension & Frame","m":[43],"r":0,"p":0},{"c":"PN-0620","n":"Fork Assembly-evtric","g":"Suspension & Frame","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0621","n":"Front Shocker L3 (YATRI)","g":"Suspension & Frame","m":[43],"r":0,"p":0},{"c":"PN-0622","n":"LEVER SPRING","g":"Suspension & Frame","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0623","n":"MAIN STAND","g":"Suspension & Frame","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0624","n":"MAIN STAND ASSEMBLY","g":"Suspension & Frame","m":[43],"r":0,"p":0},{"c":"PN-0625","n":"MAIN STAND REF","g":"Suspension & Frame","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0626","n":"MAIN STAND SPRING","g":"Suspension & Frame","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0627","n":"MAIN STAND SPRING(DEL)","g":"Suspension & Frame","m":[43],"r":0,"p":0},{"c":"PN-0628","n":"REAR FORK","g":"Suspension & Frame","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0629","n":"REAR SHOCKABSOR","g":"Suspension & Frame","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0630","n":"REAR SHOCKABSOR (BLR)","g":"Suspension & Frame","m":[43],"r":0,"p":0},{"c":"PN-0631","n":"REAR SHOCKABSOR (DEL)","g":"Suspension & Frame","m":[43],"r":0,"p":0},{"c":"PN-0632","n":"SIDE STAND ASSY","g":"Suspension & Frame","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0633","n":"SIDE STAND ASSY (BLR)","g":"Suspension & Frame","m":[43],"r":0,"p":0},{"c":"PN-0634","n":"SIDE STAND ASSY(DEL)","g":"Suspension & Frame","m":[43],"r":0,"p":0},{"c":"PN-0635","n":"SIDE STAND SENSOR","g":"Suspension & Frame","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0636","n":"SIDE STAND SPRING","g":"Suspension & Frame","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0637","n":"SIDE STAND SPRING (BLR)","g":"Suspension & Frame","m":[43],"r":0,"p":0},{"c":"PN-0638","n":"SIDE STAND SPRING (BOM)","g":"Suspension & Frame","m":[43],"r":0,"p":0},{"c":"PN-0639","n":"SIDE STAND SPRING(DEL)","g":"Suspension & Frame","m":[43],"r":0,"p":0},{"c":"PN-0640","n":"SWING ARM","g":"Suspension & Frame","m":[43],"r":0,"p":0},{"c":"PN-0641","n":"SWING ARM COVER","g":"Suspension & Frame","m":[43],"r":0,"p":0},{"c":"PN-0642","n":"SWING ARM COVER LH","g":"Suspension & Frame","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0643","n":"SWING ARM COVER LH(BLR)","g":"Suspension & Frame","m":[43],"r":0,"p":0},{"c":"PN-0644","n":"SWING ARM COVER LH(DEL)","g":"Suspension & Frame","m":[43],"r":0,"p":0},{"c":"PN-0645","n":"SWING ARM COVER RH","g":"Suspension & Frame","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0646","n":"SWING ARM COVER RH(BLR)","g":"Suspension & Frame","m":[43],"r":0,"p":0},{"c":"PN-0647","n":"SWING ARM COVER RH(DEL)","g":"Suspension & Frame","m":[43],"r":0,"p":0},{"c":"PN-0648","n":"T FORK STEM","g":"Suspension & Frame","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0649","n":"T FORK STEM (BLR)","g":"Suspension & Frame","m":[43],"r":0,"p":0},{"c":"PN-0650","n":"T FORK STEM (BOM)","g":"Suspension & Frame","m":[43],"r":0,"p":0},{"c":"PN-0651","n":"T FORK STEM (DEL)","g":"Suspension & Frame","m":[43],"r":0,"p":0},{"c":"PN-0652","n":"T Fork Throwing","g":"Suspension & Frame","m":[43],"r":0,"p":0},{"c":"PN-0653","n":"T- FORK","g":"Suspension & Frame","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0654","n":"T-Fork REF","g":"Suspension & Frame","m":[43],"r":0,"p":0},{"c":"PN-0655","n":"T-forks","g":"Suspension & Frame","m":[43],"r":0,"p":0},{"c":"PN-0656","n":"fork dust oil seal","g":"Suspension & Frame","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0657","n":"fork oil seal","g":"Suspension & Frame","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0658","n":"3 Wheeler Jack","g":"Wheels & Tyres","m":[43],"r":0,"p":0},{"c":"PN-0659","n":"3 Wheeler Stepney","g":"Wheels & Tyres","m":[43],"r":0,"p":0},{"c":"PN-0660","n":"3 Wheeler Toolkit","g":"Wheels & Tyres","m":[43],"r":0,"p":0},{"c":"PN-0661","n":"3 Wheeler front mudguard","g":"Wheels & Tyres","m":[43],"r":0,"p":0},{"c":"PN-0662","n":"6204 bearing","g":"Wheels & Tyres","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0663","n":"BEARING 6004","g":"Wheels & Tyres","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0664","n":"FORK BALL BEARING","g":"Wheels & Tyres","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0665","n":"FORK BALL BEARING BIG (DEL)","g":"Wheels & Tyres","m":[43],"r":0,"p":0},{"c":"PN-0666","n":"FORK BALL BEARING REF","g":"Wheels & Tyres","m":[43],"r":0,"p":0},{"c":"PN-0667","n":"FORK BALL BEARING(DEL)","g":"Wheels & Tyres","m":[43],"r":0,"p":0},{"c":"PN-0668","n":"FORK TUBE","g":"Wheels & Tyres","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0669","n":"FRONT RIM","g":"Wheels & Tyres","m":[43],"r":0,"p":0},{"c":"PN-0670","n":"FRONT RIM COMMON(BLR)","g":"Wheels & Tyres","m":[43],"r":0,"p":0},{"c":"PN-0671","n":"FRONT WHEEL","g":"Wheels & Tyres","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0672","n":"FRONT WHEEL (DEL)","g":"Wheels & Tyres","m":[43],"r":0,"p":0},{"c":"PN-0673","n":"FRONT WHEEL BEND","g":"Wheels & Tyres","m":[43],"r":0,"p":0},{"c":"PN-0674","n":"FRONT WHEEL OLD","g":"Wheels & Tyres","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0675","n":"FRONT WHEEL TYRE","g":"Wheels & Tyres","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0676","n":"Front wheel REF","g":"Wheels & Tyres","m":[43],"r":0,"p":0},{"c":"PN-0677","n":"Front wheel-evtric","g":"Wheels & Tyres","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0678","n":"LEFT WHEEL PROTECTOR","g":"Wheels & Tyres","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0679","n":"LEFT WHEEL PROTECTOR (BLR)","g":"Wheels & Tyres","m":[43],"r":0,"p":0},{"c":"PN-0680","n":"LEFT WHEEL PROTECTOR (BOM)","g":"Wheels & Tyres","m":[43],"r":0,"p":0},{"c":"PN-0681","n":"LEFT WHEEL PROTECTOR OLD","g":"Wheels & Tyres","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0682","n":"LEFT WHEEL PROTECTOR(DEL)","g":"Wheels & Tyres","m":[43],"r":0,"p":0},{"c":"PN-0683","n":"REAR TYRE GUARD","g":"Wheels & Tyres","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0684","n":"RIGHT WHEEL PROTECTOR","g":"Wheels & Tyres","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0685","n":"RIGHT WHEEL PROTECTOR (BLR)","g":"Wheels & Tyres","m":[43],"r":0,"p":0},{"c":"PN-0686","n":"RIGHT WHEEL PROTECTOR (BOM)","g":"Wheels & Tyres","m":[43],"r":0,"p":0},{"c":"PN-0687","n":"RIGHT WHEEL PROTECTOR OLD","g":"Wheels & Tyres","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0688","n":"RIGHT WHEEL PROTECTOR(DEL)","g":"Wheels & Tyres","m":[43],"r":0,"p":0},{"c":"PN-0689","n":"TUBE","g":"Wheels & Tyres","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0690","n":"TYRE","g":"Wheels & Tyres","m":[43],"r":0,"p":0},{"c":"PN-0691","n":"TYRE 12 INCH","g":"Wheels & Tyres","m":[43],"r":0,"p":0},{"c":"PN-0692","n":"TYRE 3.00*10","g":"Wheels & Tyres","m":[43],"r":0,"p":0},{"c":"PN-0693","n":"TYRE 3.00*10 (BOM)","g":"Wheels & Tyres","m":[43],"r":0,"p":0},{"c":"PN-0694","n":"TYRE 3.00*10(BLR)","g":"Wheels & Tyres","m":[43],"r":0,"p":0},{"c":"PN-0695","n":"TYRE 3.00*10(DEL)","g":"Wheels & Tyres","m":[43],"r":0,"p":0},{"c":"PN-0696","n":"TYRE 90/100-10","g":"Wheels & Tyres","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0697","n":"TYRE 90/90-102","g":"Wheels & Tyres","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0698","n":"TYRE AIR VALVE","g":"Wheels & Tyres","m":[0,1,2,3,4,5,6,7,8,43,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0699","n":"TYRE AIR VALVE (BLR)","g":"Wheels & Tyres","m":[43],"r":0,"p":0},{"c":"PN-0700","n":"TYRE AIR VALVE (BOM)","g":"Wheels & Tyres","m":[43],"r":0,"p":0},{"c":"PN-0701","n":"TYRE AIR VALVE(DEL)","g":"Wheels & Tyres","m":[43],"r":0,"p":0},{"c":"PN-0702","n":"WHEEL","g":"Wheels & Tyres","m":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],"r":0,"p":0},{"c":"PN-0703","n":"WHEEL BEARINGS 6201","g":"Wheels & Tyres","m":[43],"r":0,"p":0},{"c":"PN-0704","n":"WHEEL BEARINGS 6201 (BLR)","g":"Wheels & Tyres","m":[43],"r":0,"p":0},{"c":"PN-0705","n":"WHEEL BEARINGS 6201 (BOM)","g":"Wheels & Tyres","m":[43],"r":0,"p":0},{"c":"PN-0706","n":"WHEEL BEARINGS 6201 (DEL)","g":"Wheels & Tyres","m":[43],"r":0,"p":0}],"SVCS":[{"c":"SV-001","n":"Front Shocker Service","p":0},{"c":"SV-002","n":"GENERAL SERVICE","p":0},{"c":"SV-003","n":"General Service TVS","p":0},{"c":"SV-004","n":"Other Service","p":0},{"c":"SV-005","n":"PUNCTURE","p":0},{"c":"SV-006","n":"T FORK SERVICE","p":0},{"c":"SV-007","n":"Welding","p":0}]};
 </script>
@@ -1444,7 +1220,7 @@ function rDash(){
 
   /* --- setup banner while the network is still being counted --- */
   const pct = Math.round(hubsWith.length / Math.max(activeHubs().length,1) * 100);
-  $("dashSetup").innerHTML = hubsWith.length === activeHubs().length && noRop === 0 ? "" : `
+  $("dashSetup").innerHTML = (hubsWith.length === activeHubs().length && noRop === 0 && AUTH.refresh) ? "" : `
     <div class="card" style="border-left:3px solid var(--s1)">
       <h2>Getting Set Up</h2>
       <div class="g3">
@@ -1471,11 +1247,16 @@ function rDash(){
         <div>
           <div class="tile" style="border:none;padding:0;background:none">
             <div class="l">Step 3 · Share the data</div>
-            <div class="v">${S.settings.url ? "Connected" : "Local"}</div>
-            <div class="s">${S.settings.url ? "syncing to Google Sheets" : "this browser only"}</div>
+            <div class="v">${(AUTH && AUTH.refresh) ? "Synced" : "Local"}</div>
+            <div class="s">${(AUTH && AUTH.refresh)
+              ? "saved to your OneDrive workbook"
+              : "this browser only"}</div>
           </div>
-          <div class="hint" style="margin-top:14px">Until a Sheet is connected, each person's browser holds its own copy.</div>
-          <button class="btn sm ghost" style="margin-top:8px" onclick="go('settings')">Connect Google Sheets</button>
+          <div class="hint" style="margin-top:14px">${(AUTH && AUTH.refresh)
+            ? "Your data follows you to any device you sign in on."
+            : "Until you sign in, this data lives in this browser alone — clearing browsing data would wipe it."}</div>
+          <button class="btn sm ghost" style="margin-top:8px" onclick="go('settings')">${
+            (AUTH && AUTH.refresh) ? "Sync settings" : "Sign in with Microsoft"}</button>
         </div>
       </div>
     </div>`;
@@ -2513,56 +2294,320 @@ function delSvc(i){
 </script>
 <script>
 /* ============================================================
-   GOOGLE SHEETS SYNC
+   MICROSOFT 365 SYNC
+   Signs in with a Hala account (OAuth2 + PKCE, no client secret)
+   and keeps an Excel workbook in the user's OneDrive as the store.
 
-   Two different merge strategies, because the data has two shapes:
+   Two merge strategies, because the data has two shapes:
 
    1. The LEDGER is append-only. Every entry carries a globally unique `u`
       (device + counter + timestamp), so two people posting at the same
-      moment can never collide — the server appends both and dedupes by `u`.
-      The client pulls with a row cursor, so it only ever fetches new rows.
+      moment can never collide — rows are appended and deduped by `u`.
+      Pulls use a row cursor, so only new rows come down.
 
-   2. MASTERS, POs and CLAIMS are mutable records. Each carries `_m`, the
-      millisecond it was last edited. On merge the newer edit wins. This is
-      last-write-wins, which is honest for records one person edits at a
-      time, and is why the ledger deliberately does not use it.
+   2. MASTERS, POs and CLAIMS are mutable records, each carrying `_m` — the
+      millisecond it was last edited. On merge the newer edit wins. That is
+      last-write-wins, honest for records one person edits at a time, and
+      deliberately not what the ledger uses.
    ============================================================ */
 
-const SYNC = {
-  busy: false, timer: null, poll: null,
-  state: "off",         // off | ok | syncing | error
-  msg: "",
+const MS = {
+  authority: "https://login.microsoftonline.com",
+  graph: "https://graph.microsoft.com/v1.0",
+  scopes: "openid profile offline_access User.Read Files.ReadWrite",
+  folder: "Hala SCM",
+  file: "hala-scm-data.xlsx",
+};
+
+const SHEETS = {
+  txns:   ["u","id","ts","d","t","p","q","h","h2","ref","by","note","meta"],
+  parts:  ["c","n","g","r","p","m","a","_m"],
+  hubs:   ["n","city","t","a","_m"],
+  models: ["n","a","_m"],
+  svcs:   ["c","n","p","_m"],
+  pos:    ["id","p","qty","rec","vendor","hub","eta","val","by","d","st","_m"],
+  claims: ["id","d","p","qty","vendor","hub","issue","by","st","resd","_m"],
 };
 const KEYOF = {parts:"c", hubs:"n", models:"n", svcs:"c", pos:"id", claims:"id"};
 const MASTER_SETS = ["parts","hubs","models","svcs","pos","claims"];
 
-function syncOn(){ return !!(S.settings.url); }
+const SYNC = {busy:false, timer:null, poll:null, state:"off", msg:""};
 
+/* ---------- config / session ---------- */
+const cfg = () => S.settings.ms || (S.settings.ms = {clientId:"", tenantId:"", fileId:""});
+const configured = () => !!(cfg().clientId && cfg().tenantId);
+let AUTH = {token:"", refresh:"", exp:0, user:null};
+const signedIn = () => !!(AUTH.token && AUTH.exp > Date.now() + 60000);
+
+function loadAuth(){
+  try{ AUTH = JSON.parse(localStorage.getItem("hala_ms_auth")||"null") || AUTH; }catch(e){}
+}
+function saveAuth(){
+  try{ localStorage.setItem("hala_ms_auth", JSON.stringify(AUTH)); }catch(e){}
+}
+function clearAuth(){
+  AUTH = {token:"", refresh:"", exp:0, user:null};
+  try{ localStorage.removeItem("hala_ms_auth"); }catch(e){}
+}
+
+/* ---------- status chip ---------- */
 function setSyncState(st, msg){
   SYNC.state = st; SYNC.msg = msg || "";
-  const el = $("syncChip");
-  if(!el) return;
+  const el = $("syncChip"); if(!el) return;
   const conf = {
     off:     ["p-mute", "◌ Local only"],
+    signin:  ["p-warn", "◌ Sign in to sync"],
     syncing: ["p-inf",  "◍ Syncing…"],
     ok:      ["p-ok",   "● Synced"],
     error:   ["p-crit", "▲ Sync failed"],
   }[st] || ["p-mute","◌"];
   el.className = "pill " + conf[0];
-  el.textContent = conf[1];
+  el.textContent = conf[1] + (st==="ok" && AUTH.user && AUTH.user.givenName ? " · " + AUTH.user.givenName : "");
   el.title = msg || "";
-  el.style.cursor = "pointer";
 }
 
-/* ---------- what still needs pushing ---------- */
-function pendingTxns(){
-  return S.txns.filter(t => !S.sync.pushed[t.u]);
+/* ============================================================
+   AUTH — authorization code + PKCE, implemented directly so the
+   page stays one self-contained file with no external library.
+   ============================================================ */
+function b64url(bytes){
+  return btoa(String.fromCharCode.apply(null, new Uint8Array(bytes)))
+    .replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
 }
+function randStr(n){
+  const a = new Uint8Array(n); crypto.getRandomValues(a);
+  return b64url(a).slice(0, n);
+}
+const sha256 = str => crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
+const redirectUri = () => location.origin + location.pathname;
+
+async function signIn(){
+  if(!configured()){ toast("Add the Client ID and Tenant ID under Settings first.", true); return; }
+  const verifier = randStr(64);
+  const challenge = b64url(await sha256(verifier));
+  const state = randStr(16);
+  sessionStorage.setItem("hala_pkce", verifier);
+  sessionStorage.setItem("hala_state", state);
+  const q = new URLSearchParams({
+    client_id: cfg().clientId,
+    response_type: "code",
+    redirect_uri: redirectUri(),
+    response_mode: "query",
+    scope: MS.scopes,
+    code_challenge: challenge,
+    code_challenge_method: "S256",
+    state,
+  });
+  location.href = MS.authority + "/" + cfg().tenantId + "/oauth2/v2.0/authorize?" + q;
+}
+
+async function handleRedirect(){
+  const p = new URLSearchParams(location.search);
+  if(p.get("error")){
+    const desc = p.get("error_description") || p.get("error");
+    history.replaceState({}, "", redirectUri());
+    setSyncState("error", desc);
+    setTimeout(()=> showAuthError(p.get("error"), desc), 400);
+    return true;
+  }
+  const code = p.get("code");
+  if(!code) return false;
+  const okState = p.get("state") === sessionStorage.getItem("hala_state");
+  const verifier = sessionStorage.getItem("hala_pkce") || "";
+  history.replaceState({}, "", redirectUri());     // strip the code from the URL
+  if(!okState){ toast("Sign-in state mismatch — please try again.", true); return true; }
+  try{
+    await tokenRequest({
+      grant_type: "authorization_code",
+      code, redirect_uri: redirectUri(), code_verifier: verifier,
+    });
+    await loadProfile();
+    toast("Signed in as " + ((AUTH.user && AUTH.user.displayName) || "your Hala account"));
+  }catch(e){
+    setSyncState("error", e.message);
+    setTimeout(()=> showAuthError("token_error", e.message), 400);
+  }
+  sessionStorage.removeItem("hala_pkce");
+  sessionStorage.removeItem("hala_state");
+  return true;
+}
+
+async function tokenRequest(extra){
+  const body = new URLSearchParams(Object.assign({
+    client_id: cfg().clientId, scope: MS.scopes,
+  }, extra));
+  const r = await fetch(MS.authority + "/" + cfg().tenantId + "/oauth2/v2.0/token", {
+    method: "POST",
+    headers: {"Content-Type": "application/x-www-form-urlencoded"},
+    body: body,
+  });
+  const j = await r.json();
+  if(!r.ok) throw new Error(j.error_description || j.error || ("HTTP " + r.status));
+  AUTH.token = j.access_token;
+  if(j.refresh_token) AUTH.refresh = j.refresh_token;
+  AUTH.exp = Date.now() + (Number(j.expires_in||3600) * 1000);
+  saveAuth();
+  return j;
+}
+async function ensureToken(){
+  if(signedIn()) return AUTH.token;
+  if(!AUTH.refresh) throw new Error("not signed in");
+  await tokenRequest({grant_type:"refresh_token", refresh_token: AUTH.refresh});
+  return AUTH.token;
+}
+async function loadProfile(){
+  AUTH.user = await graph("GET", "/me?$select=displayName,givenName,mail,userPrincipalName");
+  saveAuth();
+  return AUTH.user;
+}
+function signOut(){
+  if(!confirm("Sign out?\n\nAnything not yet uploaded stays on this device and syncs when you sign back in.")) return;
+  clearAuth();
+  setSyncState(configured() ? "signin" : "off");
+  render();
+  toast("Signed out.");
+}
+function showAuthError(code, desc){
+  const consentIssue = /consent|AADSTS65001|AADSTS90094/i.test(code + " " + desc);
+  modal('<h3>Sign-in did not complete</h3>' +
+    '<div class="msg err on" style="margin:10px 0">' + esc(desc||code) + '</div>' +
+    (consentIssue
+      ? '<div class="hint">This is the tenant consent setting we flagged as the remaining unknown. ' +
+        'Your organisation requires an administrator to approve the permissions before anyone can use the app. ' +
+        'Ask whoever administers Microsoft 365 at Hala to open <b>Entra admin center → App registrations → ' +
+        'Hala SCM Command Centre → API permissions</b> and click <b>Grant admin consent</b>. ' +
+        'It is one click, and the permission is <span class="mono">Files.ReadWrite</span>, which only ever ' +
+        'acts as the signed-in user and never in the background.</div>'
+      : '<div class="hint">Check the Client ID and Tenant ID under Settings, and that the registration lists ' +
+        '<span class="mono">' + esc(redirectUri()) + '</span> under the <b>Single-page application</b> platform.</div>') +
+    '<div class="bar" style="margin-top:16px"><button class="btn sm ghost" onclick="closeModal()">Close</button></div>');
+}
+
+/* ============================================================
+   GRAPH
+   ============================================================ */
+async function graph(method, path, body, opts, _retried){
+  opts = opts || {};
+  const token = await ensureToken();
+  const headers = Object.assign({
+    "Authorization": "Bearer " + token,
+    "Content-Type": opts.raw ? "application/octet-stream" : "application/json",
+  }, opts.headers||{});
+  const r = await fetch(MS.graph + path, {
+    method: method,
+    headers: headers,
+    body: body == null ? undefined : (opts.raw ? body : JSON.stringify(body)),
+  });
+  // An access token can be rejected before its stated expiry (revoked, password
+  // change, clock skew). Refresh once and retry before treating it as signed-out.
+  if(r.status === 401 && !_retried && AUTH.refresh){
+    AUTH.token = ""; AUTH.exp = 0;
+    try{ await ensureToken(); }catch(e){ clearAuth(); throw e; }
+    return graph(method, path, body, opts, true);
+  }
+  if(r.status === 204) return null;
+  const text = await r.text();
+  let j = null;
+  try{ j = text ? JSON.parse(text) : null; }catch(e){}
+  if(!r.ok){
+    const err = new Error((j && j.error && j.error.message) || text || ("HTTP " + r.status));
+    err.status = r.status;
+    err.code = j && j.error && j.error.code;
+    throw err;
+  }
+  return j;
+}
+
+/* ---------- workbook bootstrap ---------- */
+function blankXlsx(){ return $("blankXlsx").textContent.replace(/\s+/g, ""); }
+
+async function ensureWorkbook(){
+  if(cfg().fileId){
+    try{ await graph("GET", "/me/drive/items/" + cfg().fileId + "?$select=id"); return cfg().fileId; }
+    catch(e){ if(e.status !== 404) throw e; cfg().fileId = ""; }
+  }
+  const path = "/me/drive/root:/" + encodeURIComponent(MS.folder) + "/" + encodeURIComponent(MS.file);
+  try{                                     // already created by another device?
+    const f = await graph("GET", path + "?$select=id");
+    cfg().fileId = f.id; save();
+    return f.id;
+  }catch(e){ if(e.status !== 404) throw e; }
+
+  const b64 = blankXlsx();
+  const bin = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  const f = await graph("PUT", path + ":/content", bin, {raw:true});
+  cfg().fileId = f.id; save();
+  for(const name of Object.keys(SHEETS)) await ensureSheet(name);
+  return f.id;
+}
+const wbPath = () => "/me/drive/items/" + cfg().fileId + "/workbook";
+
+function colLetter(n){
+  let s = "";
+  while(n > 0){ const m = (n-1) % 26; s = String.fromCharCode(65+m) + s; n = Math.floor((n-1)/26); }
+  return s;
+}
+async function ensureSheet(name){
+  const cols = SHEETS[name], last = colLetter(cols.length);
+  try{ await graph("GET", wbPath() + "/worksheets/" + name); }
+  catch(e){
+    if(e.status !== 404) throw e;
+    await graph("POST", wbPath() + "/worksheets", {name: name});
+  }
+  const rng = await graph("GET", wbPath() + "/worksheets/" + name + "/range(address='A1:" + last + "1')");
+  const has = rng && rng.values && rng.values[0] && String(rng.values[0][0]||"").length;
+  if(!has){
+    await graph("PATCH", wbPath() + "/worksheets/" + name + "/range(address='A1:" + last + "1')",
+      {values:[cols]});
+  }
+}
+
+/* ---------- read / write rows ---------- */
+async function rowCount(name){
+  try{
+    const r = await graph("GET",
+      wbPath() + "/worksheets/" + name + "/usedRange(valuesOnly=true)?$select=rowCount");
+    return Math.max((r && r.rowCount ? r.rowCount : 1) - 1, 0);   // minus header
+  }catch(e){ if(e.status === 404) return 0; throw e; }
+}
+async function readRows(name, from, to){
+  if(to < from) return [];
+  const cols = SHEETS[name], last = colLetter(cols.length);
+  const r = await graph("GET", wbPath() + "/worksheets/" + name +
+    "/range(address='A" + (from+2) + ":" + last + (to+2) + "')?$select=values");
+  const vals = (r && r.values) || [];
+  return vals.map(row=>{
+    const o = {};
+    cols.forEach((c,i)=> o[c] = row[i]);
+    return o;
+  }).filter(o => Object.keys(o).some(k => o[k] !== "" && o[k] != null));
+}
+async function appendRows(name, rows){
+  if(!rows.length) return;
+  const cols = SHEETS[name], last = colLetter(cols.length);
+  const start = await rowCount(name);
+  await writeBlock(name, start, rows.map(r => cols.map(c => flat(r[c]))), last);
+}
+async function writeRowAt(name, sheetRow, rec){
+  const cols = SHEETS[name], last = colLetter(cols.length);
+  await graph("PATCH", wbPath() + "/worksheets/" + name +
+    "/range(address='A" + sheetRow + ":" + last + sheetRow + "')",
+    {values:[cols.map(c => flat(rec[c]))]});
+}
+function flat(v){
+  if(v === undefined || v === null) return "";
+  if(typeof v === "object") return JSON.stringify(v);
+  return v;
+}
+
+/* ============================================================
+   WHAT STILL NEEDS PUSHING
+   ============================================================ */
+function pendingTxns(){ return S.txns.filter(t => !S.sync.pushed[t.u]); }
 function pendingMasters(){
-  const out = {};
-  let any = false;
-  // First ever sync: upload the whole catalogue, so the Sheet is a complete
-  // record rather than only the rows someone happened to edit.
+  const out = {}; let any = false;
+  // First ever sync uploads the whole catalogue, so the workbook is a
+  // complete record rather than only the rows someone happened to edit.
   const first = !(S.sync.mPushed > 0);
   MASTER_SETS.forEach(k=>{
     const rows = first ? (S[k]||[]) : (S[k]||[]).filter(r => (r._m||0) > (S.sync.mPushed||0));
@@ -2572,44 +2617,35 @@ function pendingMasters(){
 }
 function pendingCount(){
   const m = pendingMasters();
-  return pendingTxns().length + (m ? Object.values(m).reduce((a,r)=>a+r.length,0) : 0);
+  return pendingTxns().length + (m ? Object.keys(m).reduce((a,k)=>a+m[k].length,0) : 0);
 }
 
-/* ---------- merge what came back ---------- */
 function mergeDown(data){
   let newTx = 0, newMaster = 0;
+  const have = new Set(S.txns.map(t=>t.u));
 
-  if(data.txns && data.txns.length){
-    const have = new Set(S.txns.map(t=>t.u));
-    data.txns.forEach(t=>{
-      if(!t || !t.u || have.has(t.u)) return;
-      // meta travels as a JSON string through the Sheet
-      if(typeof t.meta === "string" && t.meta){
-        try{ t.meta = JSON.parse(t.meta); }catch(e){ t.meta = {}; }
-      }
-      t.q = Number(t.q)||0;
-      t.id = Number(t.id)||0;
-      t.ts = Number(t.ts)||0;
-      S.txns.push(t);
-      S.sync.pushed[t.u] = 1;      // it is on the server by definition
-      have.add(t.u);
-      newTx++;
-    });
-  }
+  (data.txns||[]).forEach(t=>{
+    if(!t || !t.u || have.has(t.u)) return;
+    if(typeof t.meta === "string" && t.meta){
+      try{ t.meta = JSON.parse(t.meta); }catch(e){ t.meta = {}; }
+    }
+    t.q = Number(t.q)||0; t.id = Number(t.id)||0; t.ts = Number(t.ts)||0;
+    t.d = String(t.d||"").slice(0,10);
+    S.txns.push(t); S.sync.pushed[t.u] = 1; have.add(t.u);
+    newTx++;
+  });
 
   MASTER_SETS.forEach(k=>{
-    const rows = data[k];
-    if(!rows || !rows.length) return;
-    const key = KEYOF[k];
-    const idx = {};
-    (S[k]||[]).forEach(r=> idx[r[key]] = r);
+    const rows = data[k]; if(!rows || !rows.length) return;
+    const key = KEYOF[k], idx = {};
+    (S[k]||[]).forEach(r => idx[r[key]] = r);
     rows.forEach(r=>{
-      if(!r || r[key]==null || r[key]==="") return;
-      if(typeof r.m === "string" && r.m){        // parts: models array
+      if(!r || r[key] == null || r[key] === "") return;
+      if(typeof r.m === "string" && r.m){          // parts: the models array
         try{ r.m = JSON.parse(r.m); }catch(e){ r.m = []; }
       }
       ["r","p","qty","rec","val","a","_m"].forEach(f=>{
-        if(r[f]!==undefined && r[f]!=="") r[f] = Number(r[f])||0;
+        if(r[f] !== undefined && r[f] !== "") r[f] = Number(r[f])||0;
       });
       const cur = idx[r[key]];
       if(!cur){ S[k].push(r); newMaster++; }
@@ -2617,163 +2653,231 @@ function mergeDown(data){
     });
   });
 
-  // keep local counters ahead of anything that arrived
-  S.seq.tx = Math.max(S.seq.tx, ...S.txns.map(t=>Number(t.id)||0), 0);
-  const num = (arr, re) => Math.max(0, ...arr.map(x=>{
-    const mm = re.exec(x.id||""); return mm ? parseInt(mm[1],10) : 0; }));
+  S.seq.tx = Math.max.apply(null, [S.seq.tx].concat(S.txns.map(t=>Number(t.id)||0), 0));
+  const num = (arr, re) => Math.max.apply(null, [0].concat(arr.map(x=>{
+    const mm = re.exec(x.id||""); return mm ? parseInt(mm[1],10) : 0; })));
   S.seq.po = Math.max(S.seq.po, num(S.pos, /PO-(\d+)/));
   S.seq.wc = Math.max(S.seq.wc, num(S.claims, /WC-(\d+)/));
-
-  return {newTx, newMaster};
+  return {newTx: newTx, newMaster: newMaster};
 }
 
-/* ---------- the one network call ---------- */
-function syncRun(opts){
+/* ============================================================
+   THE SYNC RUN
+   ============================================================ */
+async function syncRun(opts){
   opts = opts || {};
-  if(!syncOn()){ setSyncState("off"); return Promise.resolve(null); }
-  if(SYNC.busy) return Promise.resolve(null);
+  if(!configured()){ setSyncState("off"); return null; }
+  if(!AUTH.refresh){ setSyncState("signin"); return null; }
+  if(SYNC.busy) return null;
   SYNC.busy = true;
   if(!opts.quiet) setSyncState("syncing");
 
-  const txns = pendingTxns();
-  const masters = pendingMasters();
   const stamp = Date.now();
+  try{
+    await ensureWorkbook();
+    const data = {};
 
-  const body = {
-    key: S.settings.key,
-    action: "sync",
-    cursor: S.sync.cursor || 0,   // how many ledger rows we already hold
-    mSeen:  S.sync.mSeen  || 0,   // the masters revision we last saw
-    push: {txns, masters},
-  };
+    /* 1 — pull masters first when this device has never seen them.
+           Doing this before the push is what stops a second device from
+           re-uploading the whole 706-part catalogue it already agrees with. */
+    if(!(S.sync.mSeen > 0) || opts.fullMasters){
+      let anyRows = false;
+      for(const k of MASTER_SETS){
+        const n = await rowCount(k);
+        data[k] = n ? await readRows(k, 0, n-1) : [];
+        if(data[k].length) anyRows = true;
+      }
+      mergeDown(data);                    // merge now so the push below sees the truth
+      MASTER_SETS.forEach(k => delete data[k]);
+      S.sync.mSeen = stamp;
+      if(anyRows) S.sync.mPushed = stamp; // already in step with the workbook
+    }
 
-  return fetch(S.settings.url, {
-    method: "POST",
-    headers: {"Content-Type": "text/plain;charset=utf-8"},   // avoids CORS preflight
-    body: JSON.stringify(body),
-  })
-  .then(r => r.json())
-  .then(j => {
-    if(!j || !j.ok) throw new Error((j && j.error) || "the script rejected the request");
+    /* 2 — push new ledger rows, guarding against a row this device
+           already sent but failed to record as sent */
+    const txns = pendingTxns();
+    if(txns.length){
+      const total0 = await rowCount("txns");
+      const known = new Set();
+      if(total0 > 0){
+        (await readRows("txns", 0, total0-1)).forEach(r => known.add(String(r.u)));
+      }
+      const fresh = txns.filter(t => !known.has(String(t.u)));
+      if(fresh.length) await appendRows("txns", fresh);
+      txns.forEach(t => S.sync.pushed[t.u] = 1);
+    }
 
-    txns.forEach(t => S.sync.pushed[t.u] = 1);
-    if(masters) S.sync.mPushed = stamp;
-    S.sync.cursor = j.cursor != null ? j.cursor : S.sync.cursor;
-    if(j.mRev != null) S.sync.mSeen = j.mRev;
+    /* 3 — push mutable records */
+    const masters = pendingMasters();
+    if(masters){
+      for(const k of Object.keys(masters)) await upsertMaster(k, masters[k]);
+      S.sync.mPushed = stamp;
+    }
 
-    const got = mergeDown(j.data || {});
+    /* 4 — pull ledger rows this device has not seen */
+    const total = await rowCount("txns");
+    if(total > (S.sync.cursor||0)){
+      data.txns = await readRows("txns", S.sync.cursor||0, total-1);
+      S.sync.cursor = total;
+    }
+
+    const got = mergeDown(data);
     S.lastSync = Date.now();
     save();
-
     if(got.newTx || got.newMaster){
       derive(); render();
-      if(got.newTx) toast(`${got.newTx} new entr${got.newTx===1?"y":"ies"} from the team.`);
+      if(got.newTx) toast(got.newTx + " new entr" + (got.newTx===1?"y":"ies") + " pulled in.");
     }
     setSyncState("ok", "Last synced " + new Date(S.lastSync).toLocaleTimeString("en-IN"));
     if(VIEW === "settings") rSettings();
-    return j;
-  })
-  .catch(e => {
-    setSyncState("error", e.message);
+    return true;
+  }catch(e){
+    if(/not signed in/i.test(e.message) || e.status === 401){
+      clearAuth();
+      setSyncState("signin", "Session expired — sign in again.");
+    } else {
+      setSyncState("error", e.message);
+    }
     if(!opts.quiet) console.warn("sync failed:", e);
     return null;
-  })
-  .finally(()=>{ SYNC.busy = false; });
+  }finally{
+    SYNC.busy = false;
+  }
+}
+
+async function upsertMaster(name, rows){
+  const key = KEYOF[name], cols = SHEETS[name], last = colLetter(cols.length);
+  const total = await rowCount(name);
+  const existing = total ? await readRows(name, 0, total-1) : [];
+
+  // Merge in memory, then write the block in as few calls as possible.
+  // Writing row-by-row here meant 706 HTTP round-trips on a fresh device.
+  const at = {};
+  existing.forEach((r,i)=> at[String(r[key])] = i);
+  const body = existing.slice();
+  let dirtyFrom = Infinity;
+  for(const r of rows){
+    if(r[key] == null || r[key] === "") continue;
+    const i = at[String(r[key])];
+    if(i === undefined){
+      at[String(r[key])] = body.length;
+      dirtyFrom = Math.min(dirtyFrom, body.length);
+      body.push(r);
+    } else if((Number(r._m)||0) >= (Number(body[i]._m)||0)){
+      body[i] = r;
+      dirtyFrom = Math.min(dirtyFrom, i);
+    }
+  }
+  if(dirtyFrom === Infinity) return;                 // nothing actually changed
+
+  const values = body.slice(dirtyFrom).map(r => cols.map(c => flat(r[c])));
+  await writeBlock(name, dirtyFrom, values, last);
+}
+
+/* Write rows starting at a zero-based data row, chunked so a single request
+   never carries an unreasonable payload. */
+async function writeBlock(name, fromIdx, values, last){
+  const CHUNK = 200;
+  for(let i = 0; i < values.length; i += CHUNK){
+    const part = values.slice(i, i + CHUNK);
+    const r1 = fromIdx + i + 2;                      // +2: 1-indexed sheet, plus header
+    const r2 = r1 + part.length - 1;
+    await graph("PATCH", wbPath() + "/worksheets/" + name +
+      "/range(address='A" + r1 + ":" + last + r2 + "')", {values: part});
+  }
 }
 
 /* ---------- scheduling ---------- */
 function queueSync(){
-  if(!syncOn()) return;
+  if(!configured() || !AUTH.refresh) return;
   setSyncState("syncing", pendingCount() + " unsent");
   clearTimeout(SYNC.timer);
-  SYNC.timer = setTimeout(()=> syncRun({quiet:true}), 1200);
+  SYNC.timer = setTimeout(function(){ syncRun({quiet:true}); }, 1500);
 }
 function startPolling(){
   clearInterval(SYNC.poll);
-  if(!syncOn()) return;
-  SYNC.poll = setInterval(()=>{
-    if(document.hidden) return;
+  if(!configured()) return;
+  SYNC.poll = setInterval(function(){
+    if(document.hidden || !AUTH.refresh) return;
     syncRun({quiet:true});
-  }, 45000);
+  }, 60000);
 }
 function syncNow(){
-  if(!syncOn()){ toast("Connect a Google Sheet first.", true); return; }
-  syncRun().then(j=>{ if(j) toast("Synced."); });
+  if(!configured()){ toast("Add the Client ID and Tenant ID under Settings first.", true); return; }
+  if(!AUTH.refresh){ toast("Sign in with your Hala account first.", true); return; }
+  syncRun().then(function(r){ if(r) toast("Synced."); });
 }
-// flush anything unsent before the tab closes
-window.addEventListener("beforeunload", ()=>{
-  if(!syncOn() || !pendingCount()) return;
-  try{
-    navigator.sendBeacon(S.settings.url, new Blob([JSON.stringify({
-      key: S.settings.key, action:"sync", cursor: S.sync.cursor,
-      push:{txns: pendingTxns(), masters: pendingMasters()},
-    })], {type:"text/plain;charset=utf-8"}));
-  }catch(e){}
-});
-document.addEventListener("visibilitychange", ()=>{
-  if(!document.hidden && syncOn()) syncRun({quiet:true});
+document.addEventListener("visibilitychange", function(){
+  if(!document.hidden && configured() && AUTH.refresh) syncRun({quiet:true});
 });
 
-/* ---------- settings screen ---------- */
+/* ============================================================
+   SETTINGS SCREEN
+   ============================================================ */
 function rSettings(){
-  $("setUrl").value = S.settings.url||"";
-  $("setKey").value = S.settings.key||"";
-  $("setAuto").value = S.settings.auto||"1";
+  const c = cfg();
+  $("setClient").value = c.clientId || "";
+  $("setTenant").value = c.tenantId || "";
 
-  const pend = syncOn() ? pendingCount() : 0;
-  $("syncInfo").innerHTML = !syncOn()
-    ? `No Sheet connected — everything stays in this browser only.`
-    : `${S.lastSync ? "Last synced " + new Date(S.lastSync).toLocaleString("en-IN") : "Never synced."}
-       · ${pend ? `<b style="color:var(--warn)">${pend} entr${pend===1?"y":"ies"} waiting to upload</b>` : "everything uploaded"}
-       · ledger row ${nf(S.sync.cursor||0)} on the Sheet
-       · this device is <span class="mono">${esc(S.sync.dev)}</span>`;
+  const who = AUTH.user
+    ? "<b>" + esc(AUTH.user.displayName||"") + "</b> <span class='mono'>" +
+      esc(AUTH.user.mail || AUTH.user.userPrincipalName || "") + "</span>"
+    : "";
+  const pend = pendingCount();
 
-  const bytes=(localStorage.getItem(LS_KEY)||"").length;
-  $("sysInfo").innerHTML=`
-    <dt>Version</dt><dd>${VERSION}</dd>
-    <dt>Parts</dt><dd>${nf(S.parts.length)}</dd>
-    <dt>Locations</dt><dd>${nf(S.hubs.length)}</dd>
-    <dt>Vehicle models</dt><dd>${nf(S.models.length)}</dd>
-    <dt>Services</dt><dd>${nf(S.svcs.length)}</dd>
-    <dt>Ledger entries</dt><dd>${nf(S.txns.length)}</dd>
-    <dt>Purchase orders</dt><dd>${nf(S.pos.length)}</dd>
-    <dt>Warranty claims</dt><dd>${nf(S.claims.length)}</dd>
-    <dt>Storage used</dt><dd>${(bytes/1024).toFixed(0)} KB</dd>`;
+  $("msStatus").innerHTML = !configured()
+    ? "<span class='pill p-mute'>Not configured</span> Paste the two IDs below, then sign in."
+    : !AUTH.refresh
+      ? "<span class='pill p-warn'>Signed out</span> Sign in with your Hala account to start syncing."
+      : "<span class='pill p-ok'>Signed in</span> " + who +
+        "<div class='hint' style='margin-top:8px'>" +
+        (S.lastSync ? "Last synced " + new Date(S.lastSync).toLocaleString("en-IN") : "Not synced yet.") +
+        " · " + (pend ? "<b style='color:var(--warn)'>" + pend + " waiting to upload</b>" : "everything uploaded") +
+        " · ledger row " + nf(S.sync.cursor||0) + " in the workbook" +
+        " · this device is <span class='mono'>" + esc(S.sync.dev) + "</span></div>";
+
+  $("msButtons").innerHTML = !configured() ? "" : (!AUTH.refresh
+    ? "<button class='btn sm' onclick='signIn()'>Sign in with Microsoft</button>"
+    : "<button class='btn sm ghost' onclick='syncNow()'>Sync now</button>" +
+      "<button class='btn sm ghost' onclick='openWorkbook()'>Open the workbook</button>" +
+      "<button class='btn sm ghost' onclick='resyncAll()'>Re-download everything</button>" +
+      "<button class='btn sm ghost' onclick='signOut()'>Sign out</button>");
+
+  const bytes = (localStorage.getItem(LS_KEY)||"").length;
+  $("sysInfo").innerHTML =
+    "<dt>Version</dt><dd>" + VERSION + "</dd>" +
+    "<dt>Parts</dt><dd>" + nf(S.parts.length) + "</dd>" +
+    "<dt>Locations</dt><dd>" + nf(S.hubs.length) + "</dd>" +
+    "<dt>Vehicle models</dt><dd>" + nf(S.models.length) + "</dd>" +
+    "<dt>Services</dt><dd>" + nf(S.svcs.length) + "</dd>" +
+    "<dt>Ledger entries</dt><dd>" + nf(S.txns.length) + "</dd>" +
+    "<dt>Purchase orders</dt><dd>" + nf(S.pos.length) + "</dd>" +
+    "<dt>Warranty claims</dt><dd>" + nf(S.claims.length) + "</dd>" +
+    "<dt>Storage used</dt><dd>" + (bytes/1024).toFixed(0) + " KB</dd>";
 }
-function saveSettings(){
-  const url = $("setUrl").value.trim();
-  if(url && !/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(url)){
-    say("setMsg","That does not look like a deployment URL. It should end in <b>/exec</b> — the /dev URL only works while you are signed in.","err");
-    return;
-  }
-  S.settings.url = url;
-  S.settings.key = $("setKey").value.trim();
-  S.settings.auto = $("setAuto").value;
+function saveMsSettings(){
+  const cid = $("setClient").value.trim(), tid = $("setTenant").value.trim();
+  const guid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if(cid && !guid.test(cid)){ say("setMsg","That Client ID does not look like a GUID.","err"); return; }
+  if(tid && !guid.test(tid)){ say("setMsg","That Tenant ID does not look like a GUID.","err"); return; }
+  cfg().clientId = cid; cfg().tenantId = tid;
   save();
-  if(!url){
-    setSyncState("off"); startPolling();
-    say("setMsg","Saved. No Sheet connected — this browser keeps its own copy.","inf");
-    render(); return;
-  }
-  say("setMsg","Connecting and uploading the catalogue — this first sync takes a few seconds…","inf");
-  syncRun().then(j=>{
-    if(!j) return;   // syncRun already reported the failure state
-    startPolling();
-    say("setMsg",
-      `<b>Connected.</b> ${nf(S.txns.length)} ledger entries and ${nf(S.parts.length)} parts are now shared.
-       Everyone who opens this page with the same Sheet URL sees the same numbers.`, "ok");
-  }).then(()=>{
-    if(SYNC.state === "error"){
-      say("setMsg", `Could not reach the script — <span class="mono">${esc(SYNC.msg)}</span><br><br>
-        Check that: the deployment is <b>Execute as: Me</b> and <b>Who has access: Anyone</b>,
-        the URL ends in <b>/exec</b>, and the shared key here matches <span class="mono">SHARED_KEY</span> in the script.`, "err");
-    }
-  });
+  setSyncState(configured() ? (AUTH.refresh ? "ok" : "signin") : "off");
+  render();
+  say("setMsg", (cid && tid)
+    ? "Saved. Now click <b>Sign in with Microsoft</b>."
+    : "Saved. Without both IDs the app stays on this device only.", (cid && tid) ? "ok" : "inf");
 }
-function resetSyncCursor(){
-  if(!confirm("Re-download the entire Sheet from row 1?\n\nUse this if entries seem missing. Nothing is deleted — anything already here is kept.")) return;
+async function openWorkbook(){
+  try{
+    const f = await graph("GET", "/me/drive/items/" + cfg().fileId + "?$select=webUrl");
+    window.open(f.webUrl, "_blank");
+  }catch(e){ toast("Could not open the workbook: " + e.message, true); }
+}
+function resyncAll(){
+  if(!confirm("Re-download the whole workbook?\n\nUse this if entries look missing. Nothing is deleted — anything already here is kept.")) return;
   S.sync.cursor = 0; S.sync.mSeen = 0; save();
-  syncRun().then(()=> toast("Full re-sync done."));
+  syncRun({fullMasters:true}).then(function(){ toast("Full re-sync done."); });
 }
 </script>
 <script>
@@ -2881,33 +2985,11 @@ function resetAll(){
 }
 
 /* ============================================================
-   APPS SCRIPT CODE VIEWER
-   ============================================================ */
-function showScript(){
-  const code = $("gsCode").textContent.trim();
-  modal(`<h3>Google Sheets backend</h3>
-    <div class="hint" style="margin-bottom:10px">
-      Copy this into your Sheet's Apps Script editor, change <b>SHARED_KEY</b>, then
-      Deploy &gt; New deployment &gt; Web app with <b>Execute as: Me</b> and
-      <b>Who has access: Anyone</b>. Bring the <b>/exec</b> URL back here.
-    </div>
-    <textarea readonly style="height:330px;font-family:ui-monospace,Menlo,monospace;font-size:11px;line-height:1.45;white-space:pre">${esc(code)}</textarea>
-    <div class="bar" style="margin-top:14px">
-      <button class="btn sm" onclick="copyScript()">Copy code</button>
-      <button class="btn sm ghost" onclick="closeModal()">Close</button>
-    </div>`);
-}
-function copyScript(){
-  navigator.clipboard.writeText($("gsCode").textContent.trim()).then(
-    ()=>toast("Apps Script copied — paste it into your Sheet."),
-    ()=>toast("Select the code and copy it manually.", true));
-}
-
-/* ============================================================
    BOOT
    ============================================================ */
-function boot(){
+async function boot(){
   S = load();
+  loadAuth();
   document.documentElement.setAttribute("data-theme", S.settings.theme||"dark");
   PMAP = partsById();
   derive();
@@ -2930,16 +3012,19 @@ function boot(){
   ["tkBy","isBy","xBy","scBy","auBy","poBy"].forEach(id=>{ const e=$(id); if(e) e.value=lsGet(id); });
   ["xFrom","poHub"].forEach(id=>{ const e=$(id); if(e) e.addEventListener("change",()=>e.dataset.touched="1"); });
 
+  const rd = $("curRedirect"); if(rd) rd.textContent = redirectUri();
+
   go("dash");
 
-  // Sheets sync
-  setSyncState(syncOn() ? "syncing" : "off");
-  if(syncOn()){
+  // Microsoft 365 sync
+  const cameBack = await handleRedirect();
+  setSyncState(!configured() ? "off" : (AUTH.refresh ? "syncing" : "signin"));
+  if(configured() && AUTH.refresh){
     syncRun({quiet:true});
     startPolling();
   }
 
-  if(!S.txns.length && !syncOn()){
+  if(!S.txns.length && !cameBack && !AUTH.refresh){
     setTimeout(()=>toast("Welcome. Start with a Stock Take to open your balances."), 900);
   }
 }
