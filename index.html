@@ -251,9 +251,15 @@ td.nm{font-variant-numeric:normal;max-width:280px}
       <div class="sep"></div>
       <div class="g21">
         <div>
-          <label>Add a Part to Count <span class="req">*</span></label>
+          <label>Load a Rack to Count</label>
+          <div class="bar" style="margin-bottom:4px">
+            <select id="tkRack" onchange="tkLoadRack()" style="flex:1"></select>
+          </div>
+          <div class="hint" id="tkRackHint">Counting rack by rack is the fastest way through a warehouse — and the hardest to skip something.</div>
+          <div class="sep" style="margin:14px 0"></div>
+          <label>Or Add a Single Part</label>
           <div class="cb" id="cb-tk"></div>
-          <div class="hint">Type any part of the name or code. 706 parts in the catalogue.</div>
+          <div class="hint">Type any part of the name or code.</div>
           <div class="bar" style="margin-top:14px">
             <button class="btn sm ghost" onclick="tkAddCat()">+ Add whole category</button>
             <button class="btn sm ghost" onclick="tkClear()">Clear sheet</button>
@@ -267,7 +273,7 @@ td.nm{font-variant-numeric:normal;max-width:280px}
             <button class="btn g sm" onclick="tkPost()" id="tkPostBtn">Post Stock Take</button>
           </div>
           <div class="tw"><table>
-            <thead><tr><th>Part</th><th class="num">System</th><th class="num" style="width:110px">Counted</th><th class="num">Variance</th><th></th></tr></thead>
+            <thead><tr><th>Rack</th><th>Part</th><th class="num">System</th><th class="num" style="width:105px">Counted</th><th class="num">Variance</th><th></th></tr></thead>
             <tbody id="tkTbl"></tbody>
           </table></div>
         </div>
@@ -292,6 +298,7 @@ td.nm{font-variant-numeric:normal;max-width:280px}
         <div class="f"><label>Location</label><select id="stHub" onchange="render()"></select></div>
         <div class="f"><label>Category</label><select id="stCat" onchange="render()"></select></div>
         <div class="f"><label>Vehicle model</label><select id="stModel" onchange="render()"></select></div>
+        <div class="f"><label>Rack</label><select id="stRack" onchange="render()"></select></div>
         <div class="f"><label>Status</label><select id="stStat" onchange="render()">
           <option value="">All</option><option value="stock">In stock</option>
           <option value="low">At / below reorder</option><option value="out">Stockout</option>
@@ -299,7 +306,7 @@ td.nm{font-variant-numeric:normal;max-width:280px}
         </select></div>
       </div>
       <div class="tw"><table>
-        <thead><tr><th>Part</th><th>Code</th><th>Category</th><th class="num">On Hand</th><th class="num">Reorder Pt</th><th class="num">In Refurb</th><th class="num">Incoming</th><th>Status</th><th>Locations</th></tr></thead>
+        <thead><tr><th>Part</th><th>Code</th><th>Rack</th><th>Category</th><th class="num">On Hand</th><th class="num">Reorder Pt</th><th class="num">In Refurb</th><th class="num">Incoming</th><th>Status</th><th>Locations</th></tr></thead>
         <tbody id="stTbl"></tbody>
       </table></div>
       <div class="hint" id="stFoot"></div>
@@ -667,6 +674,30 @@ td.nm{font-variant-numeric:normal;max-width:280px}
       </div>
     </div>
 
+    <div id="m-racks" style="display:none">
+      <div class="fbar">
+        <div class="f grow"><label>Location</label><select id="rkHub" onchange="render()"></select></div>
+        <div class="f" style="align-self:end"><button class="btn sm" onclick="openRackGen()">Generate racks</button></div>
+        <div class="f" style="align-self:end"><button class="btn sm ghost" onclick="openRack()">Add one rack</button></div>
+        <div class="f" style="align-self:end"><button class="btn sm ghost" onclick="openBulkAssign()">Place parts in bulk</button></div>
+        <div class="f" style="align-self:end"><button class="btn sm ghost" onclick="printLabels()">Print rack labels</button></div>
+        <div class="f" style="align-self:end"><button class="btn sm ghost" onclick="rackWalk()">Print count sheet</button></div>
+      </div>
+      <div class="tiles" id="rackTiles"></div>
+      <div class="card">
+        <h2>Racks</h2>
+        <div class="desc">A rack is an address. Stock quantity stays at location level — the rack tells your team where to walk.</div>
+        <div class="tw"><table>
+          <thead><tr><th>Rack</th><th>Zone</th><th>Note</th><th class="num">Part Types</th><th class="num">Units</th><th></th></tr></thead>
+          <tbody id="rackTbl"></tbody>
+        </table></div>
+      </div>
+      <div class="card">
+        <h2>Parts Without a Rack</h2>
+        <div id="unplaced"></div>
+      </div>
+    </div>
+
     <div id="m-svcs" style="display:none">
       <div class="card">
         <h2><span>Services</span><span class="sp"></span><button class="btn xs" onclick="openSvc()">+ New Service</button></h2>
@@ -787,6 +818,7 @@ function freshState(){
     hubs:  DATA.HUBS.map(h => ({...h, a:1})),
     models: DATA.MODELS.map(m => ({n:m, a:1})),
     svcs:  DATA.SVCS.map(s => ({...s})),
+    racks: [], bins: [],          // rack master, and part -> rack assignment
     txns: [], pos: [], claims: [],
     seq: {tx:0, po:0, wc:0, pn:DATA.PARTS.length},
     settings: {url:"", key:"", auto:"1", theme:"dark"},
@@ -804,6 +836,7 @@ function load(){
         o.settings = Object.assign({url:"",key:"",auto:"1",theme:"dark"}, o.settings||{});
         o.sync = Object.assign({cursor:0, mSeen:0, mPushed:0, pushed:{}, dev:deviceId()}, o.sync||{});
         o.claims = o.claims||[]; o.pos = o.pos||[]; o.svcs = o.svcs||[];
+        o.racks = o.racks||[]; o.bins = o.bins||[];
         o.txns.forEach((t,i)=>{ if(!t.u) t.u = "legacy-"+i; });
         return o;
       }
@@ -852,6 +885,37 @@ const activeHubs  = () => S.hubs.filter(h=>h.a);
 const activeModels= () => S.models.filter(m=>m.a).map(m=>m.n);
 const warehouse   = () => (S.hubs.find(h=>h.t==="WH") || S.hubs[0] || {}).n;
 const hubOf = n => S.hubs.find(h=>h.n===n) || {n, city:"", t:"HUB"};
+
+/* ---------- racks ----------
+   A rack is an address, not a stock bucket: quantity stays at location level.
+   `bins` maps one part at one location to one rack. */
+const binKey  = (h,p) => h + "|" + p;
+let BINMAP = null;
+function binIndex(){
+  if(!BINMAP){
+    BINMAP = {};
+    S.bins.forEach(b => { if(b.rack) BINMAP[b.k || binKey(b.h,b.p)] = b.rack; });
+  }
+  return BINMAP;
+}
+const rackOf = (h,p) => binIndex()[binKey(h,p)] || "";
+function setRack(h, p, rack){
+  BINMAP = null;
+  const k = binKey(h,p);
+  let b = S.bins.find(x => (x.k || binKey(x.h,x.p)) === k);
+  if(!b){ b = {k, h, p, rack:""}; S.bins.push(b); }
+  b.rack = rack || "";
+  touch(b);
+  return b;
+}
+const racksAt   = h => S.racks.filter(r => r.h === h && r.a);
+const partsInRack = (h, rack) => S.bins
+  .filter(b => b.h === h && b.rack === rack)
+  .map(b => b.p)
+  .filter(c => PMAP[c] && PMAP[c].a);
+const unassignedAt = h => activeParts()
+  .filter(p => !rackOf(h, p.c))
+  .map(p => p.c);
 
 /* ============================================================
    DERIVE — stock, WIP and FIFO lots from the ledger
@@ -935,6 +999,7 @@ function derive(){
 
   C = {stock, wip, lots, incoming};
   STOCKED_AT = null;          // invalidate the location-carries-part index
+  BINMAP = null;              // and the part -> rack index
   return C;
 }
 
@@ -1066,7 +1131,7 @@ const NAV = [
   {id:"ledger",  ic:"≡", t:"Ledger",        sub:"Every movement, append-only"},
   {id:"plan",    ic:"◭", t:"Analysis",      sub:"Consumption, reorder points, ageing"},
   {g:"Configure"},
-  {id:"master",  ic:"⚒", t:"Masters",       sub:"Parts, locations, models, services"},
+  {id:"master",  ic:"⚒", t:"Masters",       sub:"Parts, racks, locations, models, services"},
   {id:"settings",ic:"⚙", t:"Settings",      sub:"Sync, backup and reset"},
 ];
 let VIEW = "dash";
@@ -1106,6 +1171,10 @@ function fillSel(id, arr, sel, blank){
 function hubOptions(){
   return activeHubs().map(h => h.n);
 }
+function rackFilterHub(){
+  const h = ($("stHub")||{}).value;
+  return h || warehouse();
+}
 function fillAllSelects(){
   const hubs = hubOptions(), models = activeModels(), cats = [...new Set(S.parts.map(p=>p.g))].sort();
   ["tkHub","isHub","xFrom","xTo","poHub","scHub","auHub"].forEach(id => fillSel(id, hubs));
@@ -1121,6 +1190,13 @@ function fillAllSelects(){
   if(xt && xt.value === warehouse() && hubs.length>1) xt.value = hubs.find(h=>h!==warehouse());
   const ph = $("poHub");
   if(ph && !ph.dataset.touched) ph.value = warehouse();
+  // rack pickers
+  const wh = warehouse();
+  const rkList = racksAt(rackFilterHub()).map(r=>r.code).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
+  const tkH = ($("tkHub")||{}).value || wh;
+  const tkList = racksAt(tkH).map(r=>r.code).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
+  fillSel("tkRack", tkList, undefined, tkList.length ? "— choose a rack —" : "no racks defined here");
+  fillSel("stRack", rkList, undefined, "All racks");
   // vendor suggestions
   const vs = [...new Set(S.pos.map(p=>p.vendor).concat(S.claims.map(c=>c.vendor)))].filter(Boolean).sort();
   $("vendorList").innerHTML = vs.map(v=>`<option>${esc(v)}</option>`).join("");
@@ -1363,15 +1439,32 @@ function quickFill(code, hub){
    ============================================================ */
 function rTake(){
   const hub = $("tkHub").value;
-  $("tkCount").textContent = TK.length ? `${TK.length} line${TK.length>1?"s":""} on the sheet` : "No lines yet";
+  const keyed = TK.filter(r=>r.q!=="").length;
+  $("tkCount").innerHTML = TK.length
+    ? `<b>${TK.length}</b> line${TK.length>1?"s":""} on the sheet · <b>${keyed}</b> counted`
+    : "No lines yet";
+  const rkHint = $("tkRackHint");
+  if(rkHint){
+    const racks = racksAt(hub);
+    if(!racks.length){
+      rkHint.innerHTML = `No racks defined at ${esc(hub)} yet — set them up under
+        <a onclick="go('master');mGo('racks')" style="color:var(--s1);cursor:pointer">Masters → Racks</a>.`;
+    } else {
+      const placed = activeParts().filter(p => rackOf(hub, p.c)).length;
+      rkHint.innerHTML = `${racks.length} racks at ${esc(hub)} · ${nf(placed)} parts placed.
+        Counting rack by rack is the fastest way through a warehouse.`;
+    }
+  }
   $("tkPostBtn").disabled = !TK.length;
 
   $("tkTbl").innerHTML = !TK.length
-    ? emptyRow(5, "Nothing on the count sheet", "Search a part on the left to add it, or add a whole category at once.")
+    ? emptyRow(6, "Nothing on the count sheet", "Load a rack on the left, or search for a single part.")
     : TK.map((r,i)=>{
         const sys = qtyAt(hub, r.c);
         const v = r.q==="" ? null : Number(r.q) - sys;
+        const rk = rackOf(hub, r.c);
         return `<tr>
+          <td>${rk?`<span class="tag wh">${esc(rk)}</span>`:`<span class="mono">—</span>`}</td>
           <td class="nm">${esc(pname(r.c))}<div class="mono">${esc(r.c)}</div></td>
           <td class="num">${nf(sys)}</td>
           <td class="num"><input type="number" min="0" step="1" value="${r.q}" style="padding:5px 7px;font-size:12.5px;text-align:right"
@@ -1394,6 +1487,21 @@ function rTake(){
         <td>${esc(t.by||"—")}</td></tr>`).join("");
 }
 
+function tkLoadRack(){
+  const hub = $("tkHub").value, rack = $("tkRack").value;
+  if(!rack) return;
+  const parts = partsInRack(hub, rack);
+  if(!parts.length){
+    say("tkMsg", `Nothing is placed on <b>${esc(rack)}</b> yet. Assign parts to it under Masters → Racks.`, "inf");
+    return;
+  }
+  let added = 0;
+  parts.forEach(c=>{ if(!TK.some(r=>r.c===c)){ TK.push({c, q:""}); added++; } });
+  rTake();
+  say("tkMsg", `Loaded <b>${esc(rack)}</b> — ${added} part${added===1?"":"s"} added` +
+      (added < parts.length ? `, ${parts.length-added} already on the sheet.` : "."), "ok");
+  setTimeout(()=>{ const rows=$("tkTbl").querySelectorAll("input"); if(rows[0]) rows[0].focus(); },40);
+}
 function tkAdd(p){
   if(TK.some(r=>r.c===p.c)){ toast(pname(p.c) + " is already on the sheet."); return; }
   TK.push({c:p.c, q:""});
@@ -1456,13 +1564,15 @@ function tkPost(){
 function rStock(){
   const q = $("stQ").value.trim().toLowerCase(),
         hub = $("stHub").value, cat = $("stCat").value,
-        model = $("stModel").value, stat = $("stStat").value;
+        model = $("stModel").value, stat = $("stStat").value,
+        rackF = ($("stRack")||{}).value || "";
   const mi = model ? DATA.MODELS.indexOf(model) : -1;
 
   let rows = activeParts().filter(p=>{
     if(cat && p.g !== cat) return false;
     if(q && !(p.n+" "+p.c).toLowerCase().includes(q)) return false;
     if(mi >= 0 && !(p.m||[]).includes(mi)) return false;
+    if(rackF && rackOf(hub || warehouse(), p.c) !== rackF) return false;
     return true;
   }).map(p=>{
     const on  = hub ? qtyAt(hub,p.c) : totalOf(p.c);
@@ -1488,10 +1598,13 @@ function rStock(){
 
   const show = rows.slice(0,300);
   $("stTbl").innerHTML = !rows.length
-    ? emptyRow(9, "No parts match", "Try widening the filters above.")
+    ? emptyRow(10, "No parts match", "Try widening the filters above.")
     : show.map(r=>`<tr>
         <td class="nm">${esc(r.p.n)}</td>
         <td class="mono">${esc(r.p.c)}</td>
+        <td>${rackOf(hub || warehouse(), r.p.c)
+              ? `<span class="tag wh">${esc(rackOf(hub || warehouse(), r.p.c))}</span>`
+              : `<span class="mono">—</span>`}</td>
         <td><span class="tag">${esc(r.p.g)}</span></td>
         <td class="num" style="font-weight:700${r.on<=0&&r.ever?';color:var(--crit)':r.p.r>0&&r.on<=r.p.r?';color:var(--warn)':''}">${nf(r.on)}</td>
         <td class="num">${r.p.r?nf(r.p.r):`<span class="mono">not set</span>`}</td>
@@ -1512,11 +1625,12 @@ function rStock(){
 function isAvail(){
   const hub=$("isHub").value, c=cbVal("cb-is");
   if(!c){ say("isStock","Pick a part to see availability.","inf"); return; }
-  const on=qtyAt(hub,c), p=partOf(c);
+  const on=qtyAt(hub,c), p=partOf(c), rk=rackOf(hub,c);
   say("isStock",
     `<b>${nf(on)}</b> on hand at ${esc(hub)}` +
     (p.r?` · reorder point ${nf(p.r)}`:"") +
-    (on<=0?` — <b>nothing to issue.</b>`:""),
+    (on<=0?` — <b>nothing to issue.</b>`:"") +
+    (rk?`<div class="hint" style="margin-top:5px">Kept on rack <b>${esc(rk)}</b></div>`:""),
     on<=0?"err": (p.r&&on<=p.r)?"inf":"ok");
 }
 function issuePart(){
@@ -2070,12 +2184,13 @@ function applyAllRop(){
    ============================================================ */
 let MTAB="parts";
 function rMaster(){
-  const tabs=[["parts","Parts",activeParts().length],["hubs","Locations",activeHubs().length],
+  const tabs=[["parts","Parts",activeParts().length],["racks","Racks",S.racks.filter(r=>r.a).length],
+              ["hubs","Locations",activeHubs().length],
               ["models","Vehicle Models",activeModels().length],["svcs","Services",S.svcs.length]];
   $("mTabs").innerHTML=tabs.map(([k,l,n])=>
     `<div class="chip${MTAB===k?" on":""}" onclick="mGo('${k}')">${l} <span style="opacity:.7">${n}</span></div>`).join("");
-  ["parts","hubs","models","svcs"].forEach(k=>{ const e=$("m-"+k); if(e) e.style.display = MTAB===k?"":"none"; });
-  ({parts:mParts, hubs:mHubs, models:mModels, svcs:mSvcs}[MTAB])();
+  ["parts","racks","hubs","models","svcs"].forEach(k=>{ const e=$("m-"+k); if(e) e.style.display = MTAB===k?"":"none"; });
+  ({parts:mParts, racks:mRacks, hubs:mHubs, models:mModels, svcs:mSvcs}[MTAB])();
 }
 function mGo(k){ MTAB=k; rMaster(); }
 
@@ -2091,9 +2206,10 @@ function mParts(){
   }).sort((a,b)=>a.n.localeCompare(b.n));
   const view=rows.slice(0,250);
   $("mTbl").innerHTML = !rows.length
-    ? emptyRow(8,"No parts match","Adjust the filters, or add a new part.")
+    ? emptyRow(9,"No parts match","Adjust the filters, or add a new part.")
     : view.map(p=>`<tr>
         <td class="nm">${esc(p.n)}</td><td class="mono">${esc(p.c)}</td>
+        <td>${rackOf(warehouse(),p.c)?`<span class="tag wh">${esc(rackOf(warehouse(),p.c))}</span>`:`<span class="mono">—</span>`}</td>
         <td><span class="tag">${esc(p.g)}</span></td>
         <td class="num">${p.r?nf(p.r):`<span class="mono">not set</span>`}</td>
         <td class="num">${p.p?nf(p.p):`<span class="mono">—</span>`}</td>
@@ -2122,6 +2238,11 @@ function openPart(prefill, code){
       <div><label>Reorder point</label><input id="mdRop" type="number" min="0" value="${p?p.r:0}"></div>
       <div><label>Unit cost ₹</label><input id="mdCost" type="number" min="0" value="${p?p.p:0}" placeholder="Optional"></div>
     </div>
+    ${p ? `<label>Rack at ${esc(warehouse())}</label>
+      <select id="mdRack"><option value="">— not placed —</option>${
+        racksAt(warehouse()).map(r=>r.code).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}))
+          .map(rc=>`<option${rackOf(warehouse(),p.c)===rc?" selected":""}>${esc(rc)}</option>`).join("")
+      }</select>` : ""}
     <label>Fits vehicle models</label>
     <select id="mdModels" multiple size="7" style="height:auto">
       ${DATA.MODELS.map((m,i)=>`<option value="${i}"${p&&(p.m||[]).includes(i)?" selected":""}>${esc(m)}</option>`).join("")}
@@ -2147,6 +2268,7 @@ function savePart(code){
     const p=S.parts.find(x=>x.c===code);
     Object.assign(p,{n:name, g:cat, r:rop, p:cost, m:models});
     touch(p);
+    const rk=$("mdRack"); if(rk) setRack(warehouse(), code, rk.value);
     toast("Part updated");
   } else {
     const dupe=S.parts.find(x=>x.n.toLowerCase()===name.toLowerCase());
@@ -2294,6 +2416,338 @@ function delSvc(i){
 </script>
 <script>
 /* ============================================================
+   RACKS
+   A rack is an address, not a stock bucket. Quantity stays at
+   location level; the rack tells you where to walk.
+   ============================================================ */
+
+function rackHub(){
+  const e = $("rkHub");
+  return (e && e.value) || warehouse();
+}
+
+function mRacks(){
+  const h = rackHub();
+  fillSel("rkHub", hubOptions(), h);
+  const racks = S.racks.filter(r => r.h === h);
+  const parts = activeParts().length;
+  const assigned = activeParts().filter(p => rackOf(h, p.c)).length;
+
+  $("rackTiles").innerHTML = `
+    ${tile("Racks Defined", nf(racks.filter(r=>r.a).length), "at " + h, "acc")}
+    ${tile("Parts Placed", nf(assigned), "of " + nf(parts) + " in the catalogue", assigned?"good":"")}
+    ${tile("Not Yet Placed", nf(parts - assigned), "no rack assigned", (parts-assigned)?"warn":"good")}
+    ${tile("Empty Racks", nf(racks.filter(r=>r.a && !partsInRack(h, r.code).length).length), "nothing assigned to them", "")}`;
+
+  $("rackTbl").innerHTML = !racks.length
+    ? emptyRow(6, "No racks defined yet", "Generate a block of racks, or add them one at a time.")
+    : racks.slice().sort((a,b)=>a.code.localeCompare(b.code, undefined, {numeric:true})).map(r=>{
+        const held = partsInRack(h, r.code);
+        const units = held.reduce((a,c)=> a + qtyAt(h,c), 0);
+        return `<tr>
+          <td class="nm"><b>${esc(r.code)}</b>${!r.a?` <span class="tag">archived</span>`:""}</td>
+          <td>${esc(r.zone||"—")}</td>
+          <td class="nm">${esc(r.note||"—")}</td>
+          <td class="num">${held.length?nf(held.length):"—"}</td>
+          <td class="num">${units?nf(units):"—"}</td>
+          <td><div class="bar">
+            <button class="btn xs ghost" onclick="openRack('${esc(r.code)}')">Edit</button>
+            <button class="btn xs ghost" onclick="countRack('${esc(r.code)}')">Count</button>
+            <button class="btn xs ghost" onclick="toggleRack('${esc(r.code)}')">${r.a?"Archive":"Restore"}</button>
+          </div></td></tr>`;
+      }).join("");
+
+  // unplaced parts
+  const un = unassignedAt(h);
+  $("unplaced").innerHTML = !un.length
+    ? `<div class="empty"><b>Every part has a rack</b>Nothing left to place at ${esc(h)}.</div>`
+    : `<div class="hint" style="margin-bottom:10px">${nf(un.length)} part${un.length===1?"":"s"} with no rack.
+         Assign them in bulk by category, or one at a time.</div>
+       <div class="tw"><table>
+         <thead><tr><th>Part</th><th>Code</th><th>Category</th><th class="num">On Hand</th><th></th></tr></thead>
+         <tbody>${un.slice(0,60).map(c=>{
+           const p = partOf(c);
+           return `<tr><td class="nm">${esc(p.n)}</td><td class="mono">${esc(c)}</td>
+             <td><span class="tag">${esc(p.g)}</span></td>
+             <td class="num">${nf(qtyAt(h,c))}</td>
+             <td><button class="btn xs" onclick="assignOne('${c}')">Place</button></td></tr>`;
+         }).join("")}</tbody></table></div>
+       ${un.length>60?`<div class="hint">Showing 60 of ${nf(un.length)}.</div>`:""}`;
+}
+
+/* ---------- define racks ---------- */
+function openRackGen(){
+  const h = rackHub();
+  modal(`<h3>Generate racks</h3>
+    <div class="hint" style="margin-bottom:12px">
+      Creates a block of rack codes at <b>${esc(h)}</b> in the form
+      <span class="mono">A-01-3</span> — aisle, rack, shelf. Leave shelves at 0 for
+      unshelved racks, which gives plain <span class="mono">A-01</span>.
+      Codes that already exist are skipped.
+    </div>
+    <label>Aisles</label>
+    <input id="gAisles" value="A,B,C" placeholder="A,B,C">
+    <div class="row">
+      <div><label>Racks per aisle</label><input id="gRacks" type="number" min="1" max="99" value="10"></div>
+      <div><label>Shelves per rack</label><input id="gShelves" type="number" min="0" max="9" value="4"></div>
+    </div>
+    <div class="msg inf on" id="gPreview" style="margin-top:12px"></div>
+    <div class="bar" style="margin-top:14px">
+      <button class="btn sm" onclick="doRackGen()">Create racks</button>
+      <button class="btn sm ghost" onclick="closeModal()">Cancel</button>
+    </div>`);
+  ["gAisles","gRacks","gShelves"].forEach(id => $(id).oninput = genPreview);
+  genPreview();
+}
+function genCodes(){
+  const aisles = ($("gAisles").value||"").split(",").map(s=>s.trim().toUpperCase()).filter(Boolean);
+  const nr = Math.max(parseInt($("gRacks").value,10)||0, 0);
+  const ns = Math.max(parseInt($("gShelves").value,10)||0, 0);
+  const out = [];
+  aisles.forEach(a=>{
+    for(let r=1; r<=nr; r++){
+      const rr = String(r).padStart(2,"0");
+      if(ns === 0) out.push(`${a}-${rr}`);
+      else for(let sh=1; sh<=ns; sh++) out.push(`${a}-${rr}-${sh}`);
+    }
+  });
+  return out;
+}
+function genPreview(){
+  const codes = genCodes();
+  $("gPreview").innerHTML = !codes.length
+    ? "Nothing to create — check the aisles and counts."
+    : `<b>${nf(codes.length)} racks</b> — ${esc(codes.slice(0,3).join(", "))}${codes.length>3?" … "+esc(codes[codes.length-1]):""}`;
+}
+function doRackGen(){
+  const h = rackHub(), codes = genCodes();
+  if(!codes.length){ toast("Nothing to create.", true); return; }
+  if(codes.length > 2000){ toast("That's over 2,000 racks — narrow it down.", true); return; }
+  const have = new Set(S.racks.filter(r=>r.h===h).map(r=>r.code));
+  let n = 0;
+  codes.forEach(code=>{
+    if(have.has(code)) return;
+    S.racks.push(touch({k: h + "|" + code, h, code, zone: code.split("-")[0], note:"", a:1}));
+    n++;
+  });
+  closeModal(); commit();
+  toast(n ? `${n} racks created at ${h}.` : "All those racks already existed.");
+}
+function openRack(code){
+  const h = rackHub();
+  const r = code ? S.racks.find(x => x.h===h && x.code===code) : null;
+  modal(`<h3>${r ? "Edit rack" : "New rack"}</h3>
+    <label>Rack code <span class="req">*</span></label>
+    <input id="rkCode" value="${esc(r?r.code:"")}" placeholder="e.g. A-01-3">
+    <label>Zone / aisle</label>
+    <input id="rkZone" value="${esc(r?r.zone:"")}" placeholder="e.g. A">
+    <label>Note</label>
+    <input id="rkNote" value="${esc(r?r.note:"")}" placeholder="e.g. Heavy items, near the door">
+    <div class="bar" style="margin-top:16px">
+      <button class="btn sm" onclick="saveRack('${esc(code||"")}')">${r?"Save":"Create"}</button>
+      <button class="btn sm ghost" onclick="closeModal()">Cancel</button>
+    </div>`);
+  setTimeout(()=>$("rkCode").focus(), 40);
+}
+function saveRack(old){
+  const h = rackHub();
+  const code = $("rkCode").value.trim().toUpperCase();
+  if(!code){ toast("A rack needs a code.", true); return; }
+  const zone = $("rkZone").value.trim(), note = $("rkNote").value.trim();
+  if(old){
+    const r = S.racks.find(x => x.h===h && x.code===old);
+    if(code !== old){
+      if(S.racks.some(x => x.h===h && x.code===code)){ toast("That rack code already exists here.", true); return; }
+      S.bins.filter(b => b.h===h && b.rack===old).forEach(b => { b.rack = code; touch(b); });
+      BINMAP = null;
+    }
+    Object.assign(r, {code, zone, note, k: h + "|" + code}); touch(r);
+  } else {
+    if(S.racks.some(x => x.h===h && x.code===code)){ toast("That rack already exists.", true); return; }
+    S.racks.push(touch({k: h + "|" + code, h, code, zone, note, a:1}));
+  }
+  closeModal(); commit();
+  toast("Rack saved.");
+}
+function toggleRack(code){
+  const h = rackHub();
+  const r = S.racks.find(x => x.h===h && x.code===code); if(!r) return;
+  const held = partsInRack(h, code).length;
+  if(r.a && held && !confirm(`${code} still has ${held} part${held===1?"":"s"} assigned. Archive anyway? They become unplaced.`)) return;
+  r.a = r.a ? 0 : 1; touch(r); commit();
+}
+
+/* Jump straight from a rack row into counting it. */
+function countRack(code){
+  const h = rackHub();
+  const parts = partsInRack(h, code);
+  if(!parts.length){ toast("Nothing is placed on " + code + " yet.", true); return; }
+  go("take");
+  $("tkHub").value = h;
+  render();
+  $("tkRack").value = code;
+  tkLoadRack();
+}
+
+/* ---------- assigning parts to racks ---------- */
+function assignOne(code){
+  const h = rackHub(), p = partOf(code);
+  const racks = racksAt(h).map(r=>r.code).sort((a,b)=>a.localeCompare(b, undefined, {numeric:true}));
+  if(!racks.length){ toast("Define some racks first.", true); return; }
+  modal(`<h3>Place a part</h3>
+    <div class="hint" style="margin-bottom:10px"><b>${esc(p.n)}</b> <span class="mono">${esc(code)}</span>
+      · ${nf(qtyAt(h,code))} on hand at ${esc(h)}</div>
+    <label>Rack</label>
+    <select id="apRack">${racks.map(r=>`<option${rackOf(h,code)===r?" selected":""}>${esc(r)}</option>`).join("")}</select>
+    <div class="bar" style="margin-top:16px">
+      <button class="btn sm" onclick="doAssignOne('${code}')">Place here</button>
+      ${rackOf(h,code)?`<button class="btn sm ghost" onclick="clearRack('${code}')">Remove from rack</button>`:""}
+      <button class="btn sm ghost" onclick="closeModal()">Cancel</button>
+    </div>`);
+}
+function doAssignOne(code){
+  const rack = $("apRack").value;
+  setRack(rackHub(), code, rack);
+  closeModal(); commit();
+  toast(pname(code) + " placed on " + rack);
+}
+function clearRack(code){
+  setRack(rackHub(), code, "");
+  closeModal(); commit();
+  toast(pname(code) + " removed from its rack.");
+}
+function openBulkAssign(){
+  const h = rackHub();
+  const cats = [...new Set(activeParts().map(p=>p.g))].sort();
+  const racks = racksAt(h).map(r=>r.code).sort((a,b)=>a.localeCompare(b, undefined, {numeric:true}));
+  if(!racks.length){ toast("Define some racks first.", true); return; }
+  modal(`<h3>Place parts in bulk</h3>
+    <div class="hint" style="margin-bottom:12px">
+      Assigns every part matching the filter to one rack. Quickest way to get a
+      first pass done — you can refine individual parts afterwards.
+    </div>
+    <label>Category</label>
+    <select id="baCat"><option value="">All categories</option>
+      ${cats.map(c=>`<option>${esc(c)}</option>`).join("")}</select>
+    <label>Name contains</label>
+    <input id="baQ" placeholder="e.g. BRAKE" oninput="baPreview()">
+    <label>Only parts with no rack yet</label>
+    <select id="baOnly" onchange="baPreview()">
+      <option value="1">Yes — leave placed parts alone</option>
+      <option value="0">No — move them all</option>
+    </select>
+    <label>Place them on</label>
+    <select id="baRack">${racks.map(r=>`<option>${esc(r)}</option>`).join("")}</select>
+    <div class="msg inf on" id="baCount" style="margin-top:12px"></div>
+    <div class="bar" style="margin-top:14px">
+      <button class="btn sm" onclick="doBulkAssign()">Place them</button>
+      <button class="btn sm ghost" onclick="closeModal()">Cancel</button>
+    </div>`);
+  $("baCat").onchange = baPreview;
+  baPreview();
+}
+function baMatches(){
+  const h = rackHub(), cat = $("baCat").value, q = ($("baQ").value||"").trim().toLowerCase(),
+        only = $("baOnly").value === "1";
+  return activeParts().filter(p=>{
+    if(cat && p.g !== cat) return false;
+    if(q && !(p.n + " " + p.c).toLowerCase().includes(q)) return false;
+    if(only && rackOf(h, p.c)) return false;
+    return true;
+  });
+}
+function baPreview(){
+  const n = baMatches().length;
+  $("baCount").innerHTML = n ? `<b>${nf(n)} part${n===1?"":"s"}</b> will be placed.`
+                             : "Nothing matches that filter.";
+}
+function doBulkAssign(){
+  const h = rackHub(), rack = $("baRack").value, list = baMatches();
+  if(!list.length){ toast("Nothing matches.", true); return; }
+  list.forEach(p => setRack(h, p.c, rack));
+  closeModal(); commit();
+  toast(`${list.length} parts placed on ${rack}.`);
+}
+
+/* ---------- printable labels ---------- */
+function printLabels(){
+  const h = rackHub();
+  const racks = racksAt(h).slice().sort((a,b)=>a.code.localeCompare(b.code, undefined, {numeric:true}));
+  if(!racks.length){ toast("No racks to print.", true); return; }
+  const cells = racks.map(r=>{
+    const held = partsInRack(h, r.code).length;
+    return `<div class="lbl">
+      <div class="code">${esc(r.code)}</div>
+      <div class="meta">${esc(h)}</div>
+      <div class="sub">${r.note ? esc(r.note) : (held ? held + " part types" : "")}</div>
+    </div>`;
+  }).join("");
+  const w = window.open("", "_blank");
+  if(!w){ toast("Allow pop-ups to print labels.", true); return; }
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
+    <title>Rack labels — ${esc(h)}</title>
+    <style>
+      @page{size:A4;margin:10mm}
+      *{box-sizing:border-box;margin:0}
+      body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:#fff;color:#000}
+      h1{font-size:13pt;margin-bottom:6mm;font-weight:600}
+      h1 span{font-weight:400;color:#666}
+      .sheet{display:grid;grid-template-columns:1fr 1fr;gap:4mm}
+      .lbl{border:1.5pt solid #000;border-radius:2mm;padding:6mm 5mm;height:38mm;
+           display:flex;flex-direction:column;justify-content:center;page-break-inside:avoid}
+      .code{font-size:34pt;font-weight:700;letter-spacing:1pt;line-height:1}
+      .meta{font-size:8pt;color:#444;margin-top:3mm;text-transform:uppercase;letter-spacing:.5pt}
+      .sub{font-size:8pt;color:#666;margin-top:1mm}
+      @media print{ h1{display:none} }
+    </style></head><body>
+    <h1>Rack labels — ${esc(h)} <span>· ${racks.length} labels · print, cut along the boxes</span></h1>
+    <div class="sheet">${cells}</div>
+    <script>window.onload=function(){setTimeout(function(){window.print();},350);}<\/script>
+    </body></html>`);
+  w.document.close();
+}
+
+/* ---------- rack-ordered picking view ---------- */
+function rackWalk(){
+  const h = rackHub();
+  const racks = racksAt(h).slice().sort((a,b)=>a.code.localeCompare(b.code, undefined, {numeric:true}));
+  const rows = [];
+  racks.forEach(r=>{
+    partsInRack(h, r.code).forEach(c=>{
+      const q = qtyAt(h,c);
+      if(q > 0) rows.push({rack:r.code, c, q});
+    });
+  });
+  if(!rows.length){ toast("Nothing placed with stock yet.", true); return; }
+  const w = window.open("", "_blank");
+  if(!w){ toast("Allow pop-ups to print.", true); return; }
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
+    <title>Rack walk — ${esc(h)}</title>
+    <style>
+      @page{size:A4;margin:12mm}
+      body{font-family:system-ui,sans-serif;font-size:9pt;color:#000}
+      h1{font-size:13pt;margin:0 0 2mm}
+      .sub{color:#666;font-size:8pt;margin-bottom:5mm}
+      table{width:100%;border-collapse:collapse}
+      th{text-align:left;border-bottom:1pt solid #000;padding:2mm 1.5mm;font-size:8pt;text-transform:uppercase}
+      td{border-bottom:.5pt solid #ccc;padding:2mm 1.5mm}
+      .r{font-weight:700} .n{text-align:right;font-variant-numeric:tabular-nums}
+      .box{display:inline-block;width:16mm;border-bottom:.5pt solid #000}
+      tr{page-break-inside:avoid}
+    </style></head><body>
+    <h1>Rack walk — ${esc(h)}</h1>
+    <div class="sub">${rows.length} lines · ${new Date().toLocaleDateString("en-IN")} · counted by ______________</div>
+    <table><thead><tr><th>Rack</th><th>Part</th><th class="n">System</th><th class="n">Counted</th></tr></thead><tbody>
+    ${rows.map(x=>`<tr><td class="r">${esc(x.rack)}</td><td>${esc(pname(x.c))}</td>
+      <td class="n">${nf(x.q)}</td><td class="n"><span class="box"></span></td></tr>`).join("")}
+    </tbody></table>
+    <script>window.onload=function(){setTimeout(function(){window.print();},350);}<\/script>
+    </body></html>`);
+  w.document.close();
+}
+</script>
+<script>
+/* ============================================================
    MICROSOFT 365 SYNC
    Signs in with a Hala account (OAuth2 + PKCE, no client secret)
    and keeps an Excel workbook in the user's OneDrive as the store.
@@ -2327,8 +2781,11 @@ const SHEETS = {
   svcs:   ["c","n","p","_m"],
   pos:    ["id","p","qty","rec","vendor","hub","eta","val","by","d","st","_m"],
   claims: ["id","d","p","qty","vendor","hub","issue","by","st","resd","_m"],
+  racks:  ["k","h","code","zone","note","a","_m"],
+  bins:   ["k","h","p","rack","_m"],
 };
-const KEYOF = {parts:"c", hubs:"n", models:"n", svcs:"c", pos:"id", claims:"id"};
+const KEYOF = {parts:"c", hubs:"n", models:"n", svcs:"c", pos:"id", claims:"id",
+               racks:"k", bins:"k"};
 // Excel stores an ISO date string as a real date, so it comes back as a serial
 // number (2026-08-20 reads as 46254). Every date field has to be normalised on
 // the way in, or ageing, the 30/90-day windows and ledger ordering all break.
@@ -2346,7 +2803,7 @@ function isoDate(v){
   if(!isNaN(d) && s.length > 8) return d.toISOString().slice(0,10);
   return s.slice(0,10);
 }
-const MASTER_SETS = ["parts","hubs","models","svcs","pos","claims"];
+const MASTER_SETS = ["parts","hubs","models","svcs","pos","claims","racks","bins"];
 
 const SYNC = {busy:false, timer:null, poll:null, state:"off", msg:""};
 
@@ -2706,6 +3163,7 @@ async function syncRun(opts){
         data[k] = n ? await readRows(k, 0, n-1) : [];
         if(data[k].length) anyRows = true;
       }
+      BINMAP = null;
       mergeDown(data);                    // merge now so the push below sees the truth
       MASTER_SETS.forEach(k => delete data[k]);
       S.sync.mSeen = stamp;
