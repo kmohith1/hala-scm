@@ -2928,8 +2928,23 @@ async function tokenRequest(extra){
 async function ensureToken(){
   if(signedIn()) return AUTH.token;
   if(!AUTH.refresh) throw new Error("not signed in");
-  await tokenRequest({grant_type:"refresh_token", refresh_token: AUTH.refresh});
+  try{
+    await tokenRequest({grant_type:"refresh_token", refresh_token: AUTH.refresh});
+  }catch(e){
+    // A browser app's refresh token has a hard 24-hour life that cannot be
+    // extended (AADSTS700084). When it dies the session is simply over — drop
+    // it so the UI offers a Sign in button, instead of leaving the app looking
+    // signed in and reporting a sync failure nobody can act on.
+    if(isDeadSession(e.message)){
+      clearAuth();
+      throw new Error("not signed in");
+    }
+    throw e;
+  }
   return AUTH.token;
+}
+function isDeadSession(msg){
+  return /AADSTS700084|AADSTS70008|AADSTS50173|invalid_grant|expired|revoked|reauth/i.test(msg||"");
 }
 async function loadProfile(){
   AUTH.user = await graph("GET", "/me?$select=displayName,givenName,mail,userPrincipalName");
@@ -3309,7 +3324,7 @@ function startPolling(){
 }
 function syncNow(){
   if(!configured()){ toast("Add the Client ID and Tenant ID under Settings first.", true); return; }
-  if(!AUTH.refresh){ toast("Sign in with your Hala account first.", true); return; }
+  if(!AUTH.refresh){ setSyncState("signin"); render(); toast("Your session expired — sign in again.", true); return; }
   syncRun().then(function(r){ if(r) toast("Synced."); });
 }
 document.addEventListener("visibilitychange", function(){
@@ -3332,7 +3347,7 @@ function rSettings(){
 
   $("msStatus").innerHTML = !configured()
     ? "<span class='pill p-mute'>Not configured</span> Paste the two IDs below, then sign in."
-    : !AUTH.refresh
+    : (!AUTH.refresh || SYNC.state === "signin")
       ? "<span class='pill p-warn'>Signed out</span> Sign in with your Hala account to start syncing."
       : "<span class='pill p-ok'>Signed in</span> " + who +
         "<div class='hint' style='margin-top:8px'>" +
@@ -3341,6 +3356,11 @@ function rSettings(){
         " · ledger row " + nf(S.sync.cursor||0) + " in the workbook" +
         " · this device is <span class='mono'>" + esc(S.sync.dev) + "</span></div>";
 
+  if(SYNC.state === "signin"){
+    $("msErr").className = "msg inf on";
+    $("msErr").innerHTML = "Microsoft signs browser apps out every 24 hours and that cannot be extended. " +
+      "Signing in again takes one click — nothing on this device is lost, and anything unsent uploads straight after.";
+  } else
   $("msErr").innerHTML = (SYNC.state === "error" && SYNC.msg)
     ? "<b>Last sync failed.</b> " + esc(SYNC.msg) +
       "<div class='hint' style='margin-top:6px'>Nothing is lost — entries stay on this device and upload once this clears. " +
@@ -3348,7 +3368,7 @@ function rSettings(){
     : "";
   $("msErr").className = (SYNC.state === "error" && SYNC.msg) ? "msg err on" : "msg";
 
-  $("msButtons").innerHTML = !configured() ? "" : (!AUTH.refresh
+  $("msButtons").innerHTML = !configured() ? "" : ((!AUTH.refresh || SYNC.state === "signin")
     ? "<button class='btn sm' onclick='signIn()'>Sign in with Microsoft</button>"
     : "<button class='btn sm ghost' onclick='syncNow()'>Sync now</button>" +
       "<button class='btn sm ghost' onclick='openWorkbook()'>Open the workbook</button>" +
