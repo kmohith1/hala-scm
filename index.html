@@ -327,7 +327,10 @@ td.nm{font-variant-numeric:normal;max-width:280px}
           this books it back.
         </div>
         <label>Unit ID <span class="req">*</span></label>
-        <input id="uiId" placeholder="e.g. CTL-0912" oninput="uInAvail()" style="font-family:ui-monospace,Menlo,monospace">
+        <div style="display:flex;gap:8px">
+          <input id="uiId" placeholder="e.g. CTL-0912" oninput="uInAvail()" style="font-family:ui-monospace,Menlo,monospace;flex:1">
+          <button class="btn sm" style="margin:0;white-space:nowrap" onclick="openScan('ui')">⛶ Scan</button>
+        </div>
         <div class="msg inf on" id="uiState" style="margin-top:8px">Enter the ID printed on the unit.</div>
         <div id="uiNewWrap">
           <div class="row">
@@ -375,7 +378,10 @@ td.nm{font-variant-numeric:normal;max-width:280px}
           claim with the vendor, or write it off.
         </div>
         <label>Unit ID <span class="req">*</span></label>
-        <input id="uoId" placeholder="e.g. CTL-0912" oninput="uOutAvail()" style="font-family:ui-monospace,Menlo,monospace">
+        <div style="display:flex;gap:8px">
+          <input id="uoId" placeholder="e.g. CTL-0912" oninput="uOutAvail()" style="font-family:ui-monospace,Menlo,monospace;flex:1">
+          <button class="btn sm" style="margin:0;white-space:nowrap" onclick="openScan('uo')">⛶ Scan</button>
+        </div>
         <div class="msg inf on" id="uoState" style="margin-top:8px">Enter the unit ID.</div>
         <label>Send to <span class="req">*</span></label>
         <select id="uoKind" onchange="uOutKind()">
@@ -3416,6 +3422,293 @@ function doUnitBulk(){
   });
   closeModal(); commit();
   toast(`${seen.size} units booked in at ${hub} (${made} newly registered).`);
+}
+</script>
+<script>
+/* ============================================================
+   SCAN A UNIT LABEL
+   Two routes, tried in order:
+     1. A barcode or QR on the label — instant and exact.
+     2. Reading the printed text (OCR) — best effort.
+   Whatever comes back is ALWAYS shown for confirmation before it
+   is used. OCR mistakes 1 for I and 5 for S on small print, and a
+   wrong unit ID is worse than typing it.
+   ============================================================ */
+
+const OCR_CDN = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
+const SCAN = {stream:null, target:"ui", worker:null, shot:null, track:null};
+
+/* ---------- parse a label's text into fields ----------
+   Tested against real OCR output from a Sprinto controller label. */
+function parseLabel(text, oems){
+  const raw = String(text||"");
+  const up = raw.toUpperCase();
+  const out = {id:"", cat:"", oem:"", model:"", made:""};
+
+  if(/BRUSHLESS|CONTROLLER/.test(up)) out.cat = "Controller";
+  else if(/\bMOTOR\b/.test(up))       out.cat = "Motor";
+  else if(/BATTERY|CELL|\bAH\b/.test(up)) out.cat = "Battery";
+  if(/CONTROLLER/.test(up)) out.cat = "Controller";   // beats a stray "motor"
+
+  // OEM match is fuzzy because OCR mangles the logo line ("e-SPRINTO" -> "CSPRINTO")
+  const squash = s => String(s).toUpperCase().replace(/[^A-Z0-9]/g,"");
+  const hay = squash(raw);
+  let best = "", bestLen = 0;
+  (oems||[]).forEach(o=>{
+    const k = squash(o);
+    if(k.length >= 3 && hay.indexOf(k) >= 0 && k.length > bestLen){ best = o; bestLen = k.length; }
+  });
+  out.oem = best;
+
+  const mm = /MODEL\s*[:：]\s*([A-Z0-9][A-Z0-9.\-\/]{3,})/i.exec(raw);
+  if(mm) out.model = mm[1].replace(/[.,]$/,"");
+
+  const dm = /(20\d{2})[.\-\/](\d{1,2})/.exec(raw);
+  if(dm) out.made = dm[1] + "-" + String(dm[2]).padStart(2,"0");
+
+  /* A serial is a solid run of letters and digits with no separators; model
+     codes carry hyphens or dots, so this skips them reliably. */
+  const toks = up.match(/[A-Z0-9]{8,}/g) || [];
+  const cands = toks.filter(t =>
+    (t.match(/\d/g)||[]).length >= 2 &&
+    (t.match(/[A-Z]/g)||[]).length >= 2 &&
+    !/^(CONTROLLER|BRUSHLESS|WORKING|CONFINED|PRODUCT|VOLTAGE|CURRENT|BATTERY)/.test(t));
+  cands.sort((a,b)=> b.length - a.length || up.lastIndexOf(b) - up.lastIndexOf(a));
+  out.id = cands[0] || "";
+  return out;
+}
+/* Characters OCR habitually confuses. Flagged, never silently "corrected" —
+   auto-fixing would quietly corrupt IDs that were read correctly. */
+function confusables(id){
+  const hits = String(id||"").match(/[01І5S8BOI]/g) || [];
+  return hits.length ? [...new Set(hits)].join(" ") : "";
+}
+
+/* ---------- the camera sheet ---------- */
+async function openScan(target){
+  SCAN.target = target || "ui";
+  modal(`<h3>Scan a unit label</h3>
+    <div class="hint" style="margin-bottom:10px">
+      Fill the box with the printed label. Hold steady — small text needs a sharp photo.
+    </div>
+    <div id="scStage" style="position:relative;background:#000;border-radius:var(--rs);overflow:hidden;aspect-ratio:4/3">
+      <video id="scVid" playsinline muted autoplay style="width:100%;height:100%;object-fit:cover"></video>
+      <div id="scGuide" style="position:absolute;left:8%;top:28%;width:84%;height:44%;
+        border:2px solid rgba(255,255,255,.9);border-radius:6px;box-shadow:0 0 0 9999px rgba(0,0,0,.35)"></div>
+      <img id="scShot" style="display:none;width:100%;height:100%;object-fit:contain;background:#000">
+    </div>
+    <div class="msg inf on" id="scMsg" style="margin-top:10px">Starting the camera…</div>
+    <div id="scFields"></div>
+    <div class="bar" id="scBtns" style="margin-top:14px">
+      <button class="btn sm" id="scCap" onclick="scanCapture()" disabled>Capture</button>
+      <button class="btn sm ghost" id="scTorch" onclick="scanTorch()" style="display:none">Light</button>
+      <button class="btn sm ghost" onclick="scanManual()">Enter manually</button>
+      <button class="btn sm ghost" onclick="closeScan()">Cancel</button>
+    </div>`);
+  startCamera();
+}
+async function startCamera(){
+  try{
+    SCAN.stream = await navigator.mediaDevices.getUserMedia({
+      video: {facingMode: {ideal:"environment"}, width:{ideal:1920}, height:{ideal:1080}},
+      audio: false
+    });
+    const v = $("scVid");
+    v.srcObject = SCAN.stream;
+    await v.play().catch(()=>{});
+    SCAN.track = SCAN.stream.getVideoTracks()[0];
+    const caps = SCAN.track.getCapabilities ? SCAN.track.getCapabilities() : {};
+    if(caps && caps.torch) $("scTorch").style.display = "";
+    $("scCap").disabled = false;
+    say("scMsg","Line the label up inside the box, then Capture.","inf");
+  }catch(e){
+    say("scMsg","<b>Camera unavailable.</b> " + esc(e.message) +
+        "<div class='hint' style='margin-top:6px'>On a phone the page must be on https and the camera permission allowed. You can still enter the details by hand.</div>","err");
+    $("scCap").disabled = true;
+  }
+}
+function scanTorch(){
+  if(!SCAN.track) return;
+  const on = !SCAN.torchOn;
+  SCAN.track.applyConstraints({advanced:[{torch:on}]}).then(()=>{ SCAN.torchOn = on; }).catch(()=>{
+    toast("This camera has no controllable light.", true);
+  });
+}
+function closeScan(){
+  if(SCAN.stream){ SCAN.stream.getTracks().forEach(t=>t.stop()); SCAN.stream = null; }
+  SCAN.track = null; SCAN.torchOn = false;
+  closeModal();
+}
+
+/* ---------- capture, then read ---------- */
+function cropToGuide(video){
+  const vw = video.videoWidth, vh = video.videoHeight;
+  if(!vw || !vh) return null;
+  // matches the on-screen guide: 84% wide, 44% tall, centred
+  const w = Math.round(vw * 0.84), h = Math.round(vh * 0.44);
+  const x = Math.round((vw - w) / 2), y = Math.round((vh - h) / 2);
+  const scale = 3;                                   // upscale: small print needs it
+  const c = document.createElement("canvas");
+  c.width = w * scale; c.height = h * scale;
+  const g = c.getContext("2d");
+  g.imageSmoothingQuality = "high";
+  g.drawImage(video, x, y, w, h, 0, 0, c.width, c.height);
+  return c;
+}
+function enhance(canvas){
+  const g = canvas.getContext("2d");
+  const d = g.getImageData(0,0,canvas.width,canvas.height);
+  const px = d.data;
+  for(let i=0;i<px.length;i+=4){
+    // grayscale, then push contrast so printed text separates from the metal
+    let v = px[i]*0.299 + px[i+1]*0.587 + px[i+2]*0.114;
+    v = (v - 128) * 2.2 + 128;
+    v = v < 0 ? 0 : v > 255 ? 255 : v;
+    px[i] = px[i+1] = px[i+2] = v;
+  }
+  g.putImageData(d,0,0);
+  return canvas;
+}
+
+async function scanCapture(){
+  const v = $("scVid");
+  const full = document.createElement("canvas");
+  full.width = v.videoWidth; full.height = v.videoHeight;
+  if(!full.width){ say("scMsg","The camera has not started yet.","err"); return; }
+  full.getContext("2d").drawImage(v,0,0);
+
+  const crop = cropToGuide(v);
+  SCAN.shot = crop.toDataURL("image/jpeg", 0.92);
+  $("scVid").style.display = "none";
+  $("scGuide").style.display = "none";
+  $("scShot").src = SCAN.shot;
+  $("scShot").style.display = "";
+  $("scCap").disabled = true;
+  if(SCAN.stream){ SCAN.stream.getTracks().forEach(t=>t.stop()); SCAN.stream = null; }
+
+  // 1. a barcode or QR is exact — always worth trying first
+  say("scMsg","Looking for a barcode…","inf");
+  const code = await tryBarcode(full);
+  if(code){
+    showScanResult({id:code, cat:"", oem:"", model:"", made:""}, "barcode");
+    return;
+  }
+
+  // 2. fall back to reading the printed text
+  say("scMsg","No barcode on this label — reading the text… <span class='mono'>this can take a few seconds</span>","inf");
+  try{
+    const text = await runOcr(enhance(crop));
+    const got = parseLabel(text, activeOems());
+    if(!got.id && !got.cat && !got.oem){
+      say("scMsg","<b>Could not read the label.</b> Try again with more light and the label filling the box — or enter the details by hand.","err");
+      $("scBtns").innerHTML = `<button class="btn sm" onclick="openScan('${SCAN.target}')">Scan again</button>
+        <button class="btn sm ghost" onclick="scanManual()">Enter manually</button>
+        <button class="btn sm ghost" onclick="closeScan()">Cancel</button>`;
+      return;
+    }
+    showScanResult(got, "text");
+  }catch(e){
+    say("scMsg","<b>Could not run text recognition.</b> " + esc(e.message) +
+        "<div class='hint' style='margin-top:6px'>This needs an internet connection the first time. Enter the details by hand instead.</div>","err");
+    $("scBtns").innerHTML = `<button class="btn sm" onclick="openScan('${SCAN.target}')">Try again</button>
+      <button class="btn sm ghost" onclick="scanManual()">Enter manually</button>
+      <button class="btn sm ghost" onclick="closeScan()">Cancel</button>`;
+  }
+}
+
+async function tryBarcode(canvas){
+  try{
+    if(!("BarcodeDetector" in window)) return "";
+    const fmts = await window.BarcodeDetector.getSupportedFormats();
+    const det = new window.BarcodeDetector({formats: fmts});
+    const found = await det.detect(canvas);
+    return (found && found[0] && found[0].rawValue) ? String(found[0].rawValue).trim() : "";
+  }catch(e){ return ""; }
+}
+
+function loadScript(src){
+  return new Promise((res, rej)=>{
+    if(window.Tesseract) return res();
+    const s = document.createElement("script");
+    s.src = src;
+    s.onload = res;
+    s.onerror = ()=> rej(new Error("could not load the text-recognition library"));
+    document.head.appendChild(s);
+  });
+}
+async function runOcr(canvas){
+  await loadScript(OCR_CDN);
+  if(!window.Tesseract) throw new Error("text recognition unavailable");
+  if(!SCAN.worker){
+    SCAN.worker = await window.Tesseract.createWorker("eng", 1, {
+      logger: m => {
+        if(m.status === "recognizing text")
+          say("scMsg","Reading the label… " + Math.round((m.progress||0)*100) + "%","inf");
+        else if(/loading|initializ|download/i.test(m.status||""))
+          say("scMsg","Preparing text recognition (first run only)…","inf");
+      }
+    });
+  }
+  const r = await SCAN.worker.recognize(canvas);
+  return (r && r.data && r.data.text) || "";
+}
+
+/* ---------- confirm before anything is used ---------- */
+function showScanResult(got, how){
+  const warn = confusables(got.id);
+  say("scMsg", how === "barcode"
+    ? "<b>Barcode read.</b> Check it matches the unit before continuing."
+    : "<b>Read from the label.</b> Check every field — small print is easy to misread.", "ok");
+  $("scFields").innerHTML = `
+    <label>Unit ID <span class="req">*</span></label>
+    <input id="scId" value="${esc(got.id)}" style="font-family:ui-monospace,Menlo,monospace;font-size:15px">
+    ${warn && how !== "barcode" ? `<div class="hint" style="color:var(--warn);margin-top:5px">
+      Contains ${esc(warn)} — these are the characters text recognition most often gets wrong. Check them against the label.
+    </div>` : ""}
+    <div class="row">
+      <div><label>Type</label><select id="scCat">
+        <option value="">— choose —</option>
+        ${UNIT_CATS.map(c=>`<option${got.cat===c?" selected":""}>${esc(c)}</option>`).join("")}
+      </select></div>
+      <div><label>OEM</label><select id="scOem">
+        <option value="">— choose —</option>
+        ${activeOems().map(o=>`<option${got.oem===o?" selected":""}>${esc(o)}</option>`).join("")}
+      </select></div>
+    </div>
+    ${got.model || got.made ? `<div class="hint" style="margin-top:8px">Also read:
+      ${got.model?`model <span class="mono">${esc(got.model)}</span>`:""}
+      ${got.made?` · made <span class="mono">${esc(got.made)}</span>`:""}</div>` : ""}`;
+  $("scBtns").innerHTML = `
+    <button class="btn sm g" onclick="scanUse()">Use these details</button>
+    <button class="btn sm ghost" onclick="openScan('${SCAN.target}')">Scan again</button>
+    <button class="btn sm ghost" onclick="closeScan()">Cancel</button>`;
+}
+function scanUse(){
+  const id = $("scId").value.trim().toUpperCase();
+  if(!id){ toast("A unit ID is needed.", true); return; }
+  const cat = $("scCat").value, oem = $("scOem").value;
+  closeScan();
+  if(SCAN.target === "uo"){
+    $("uoId").value = id; uOutAvail();
+    $("uoId").scrollIntoView({behavior:"smooth", block:"center"});
+  } else {
+    go("units");
+    $("uiId").value = id; uInAvail();
+    if(!unitById(id)){
+      if(cat) $("uiCat").value = cat;
+      if(oem){ addOem(oem); fillOem("uiOem", oem); $("uiOem").dataset.touched = "1"; }
+    }
+    $("uiId").scrollIntoView({behavior:"smooth", block:"center"});
+  }
+  toast("Scanned " + id + " — check the rest and book it in.");
+}
+function scanManual(){
+  closeScan();
+  const f = SCAN.target === "uo" ? "uoId" : "uiId";
+  go("units");
+  const e = $(f);
+  if(e){ e.focus(); e.scrollIntoView({behavior:"smooth", block:"center"}); }
+  toast("Type the unit ID by hand.");
 }
 </script>
 <script>
