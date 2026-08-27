@@ -329,10 +329,15 @@ td.nm{font-variant-numeric:normal;max-width:280px}
         <label>Unit ID <span class="req">*</span></label>
         <input id="uiId" placeholder="e.g. CTL-0912" oninput="uInAvail()" style="font-family:ui-monospace,Menlo,monospace">
         <div class="msg inf on" id="uiState" style="margin-top:8px">Enter the ID printed on the unit.</div>
-        <div id="uiNewWrap" style="display:none">
+        <div id="uiNewWrap">
           <div class="row">
-            <div><label>Category <span class="req">*</span></label><select id="uiCat"></select></div>
-            <div><label>Make / brand</label><input id="uiMake" placeholder="e.g. BGauss"></div>
+            <div><label>Type <span class="req">*</span></label><select id="uiCat"></select></div>
+            <div><label>OEM <span class="req">*</span></label>
+              <select id="uiOem" onchange="uiOemChange()"></select></div>
+          </div>
+          <div class="hint" id="uiKnown" style="display:none">
+            Type and OEM come from the unit's existing record and cannot be changed here —
+            edit them from the register if they are wrong.
           </div>
           <div class="row">
             <div><label>Fits vehicle model</label><select id="uiVm"></select></div>
@@ -413,7 +418,8 @@ td.nm{font-variant-numeric:normal;max-width:280px}
       </h2>
       <div class="fbar">
         <div class="f grow"><label>Search by ID, make or vendor</label><input id="unQ" placeholder="e.g. CTL-09" oninput="render()"></div>
-        <div class="f"><label>Category</label><select id="unCat" onchange="render()"></select></div>
+        <div class="f"><label>Type</label><select id="unCat" onchange="render()"></select></div>
+        <div class="f"><label>OEM</label><select id="unOem" onchange="render()"></select></div>
         <div class="f"><label>Location</label><select id="unHub" onchange="render()"></select></div>
         <div class="f"><label>Status</label><select id="unStat" onchange="render()">
           <option value="">All</option><option value="STOCK">In stock</option>
@@ -424,7 +430,7 @@ td.nm{font-variant-numeric:normal;max-width:280px}
           <option value="BAD">Not working</option><option value="UNK">Untested</option></select></div>
       </div>
       <div class="tw"><table>
-        <thead><tr><th>Unit ID</th><th>Category</th><th>Make</th><th>Location / With</th><th>Condition</th><th>Status</th><th class="num">Age</th><th></th></tr></thead>
+        <thead><tr><th>Unit ID</th><th>Type</th><th>OEM</th><th>Location / With</th><th>Condition</th><th>Status</th><th class="num">Age</th><th></th></tr></thead>
         <tbody id="unitTbl"></tbody>
       </table></div>
       <div class="hint" id="unitFoot"></div>
@@ -824,6 +830,17 @@ td.nm{font-variant-numeric:normal;max-width:280px}
       </div>
     </div>
 
+    <div id="m-oems" style="display:none">
+      <div class="card">
+        <h2><span>OEMs</span><span class="sp"></span><button class="btn xs" onclick="openOem()">+ New OEM</button></h2>
+        <div class="desc">Who made the controller, motor or battery. Seeded from the brands in your fleet — prune what you do not buy, add what you do.</div>
+        <div class="tw"><table>
+          <thead><tr><th>OEM</th><th class="num">Units</th><th class="num">In Stock</th><th>Status</th><th></th></tr></thead>
+          <tbody id="oemTbl"></tbody>
+        </table></div>
+      </div>
+    </div>
+
     <div id="m-svcs" style="display:none">
       <div class="card">
         <h2><span>Services</span><span class="sp"></span><button class="btn xs" onclick="openSvc()">+ New Service</button></h2>
@@ -928,6 +945,12 @@ const TX = {
   ADJ:    {lbl:"Adjustment",    dir:"set",  cls:"p-mute"},
 };
 
+/* A starting list of the brands visible in the fleet data. It is only a
+   starting point — OEMs are a master you add to and archive like any other. */
+const OEM_SEED = ["Amo","Bajaj","Battre","BGauss","Esprinto","Euler","Evtric","Gemopai",
+  "Komaki","Lectrix","Log 9","Montra","Odysse","Piaggio","Rilox","Ryder","Sprinto",
+  "Tata","Varcas","White Carbon","Yatri"];
+
 /* ---------- state ---------- */
 let S = null;
 let C = null;            // derived cache {stock, wip, lots, incoming}
@@ -947,6 +970,7 @@ function freshState(){
     svcs:  DATA.SVCS.map(s => ({...s})),
     racks: [], bins: [],          // rack master, and part -> rack assignment
     units: [], umoves: [],        // serialised assets, and their movement log
+    oems: OEM_SEED.map(n => ({k:n, n, a:1})),   // who made the unit
     txns: [], pos: [], claims: [],
     seq: {tx:0, po:0, wc:0, um:0, pn:DATA.PARTS.length},
     settings: {url:"", key:"", auto:"1", theme:"dark"},
@@ -966,6 +990,7 @@ function load(){
         o.claims = o.claims||[]; o.pos = o.pos||[]; o.svcs = o.svcs||[];
         o.racks = o.racks||[]; o.bins = o.bins||[];
         o.units = o.units||[]; o.umoves = o.umoves||[];
+        if(!o.oems || !o.oems.length) o.oems = OEM_SEED.map(n => ({k:n, n, a:1}));
         o.txns.forEach((t,i)=>{ if(!t.u) t.u = "legacy-"+i; });
         return o;
       }
@@ -1012,6 +1037,7 @@ const pname  = c => partOf(c).n;
 const activeParts = () => S.parts.filter(p=>p.a);
 const activeHubs  = () => S.hubs.filter(h=>h.a);
 const activeModels= () => S.models.filter(m=>m.a).map(m=>m.n);
+const activeOems  = () => (S.oems||[]).filter(o=>o.a).map(o=>o.n).sort((a,b)=>a.localeCompare(b));
 const warehouse   = () => (S.hubs.find(h=>h.t==="WH") || S.hubs[0] || {}).n;
 const hubOf = n => S.hubs.find(h=>h.n===n) || {n, city:"", t:"HUB"};
 
@@ -2330,11 +2356,12 @@ let MTAB="parts";
 function rMaster(){
   const tabs=[["parts","Parts",activeParts().length],["racks","Racks",S.racks.filter(r=>r.a).length],
               ["hubs","Locations",activeHubs().length],
-              ["models","Vehicle Models",activeModels().length],["svcs","Services",S.svcs.length]];
+              ["models","Vehicle Models",activeModels().length],
+              ["oems","OEMs",activeOems().length],["svcs","Services",S.svcs.length]];
   $("mTabs").innerHTML=tabs.map(([k,l,n])=>
     `<div class="chip${MTAB===k?" on":""}" onclick="mGo('${k}')">${l} <span style="opacity:.7">${n}</span></div>`).join("");
-  ["parts","racks","hubs","models","svcs"].forEach(k=>{ const e=$("m-"+k); if(e) e.style.display = MTAB===k?"":"none"; });
-  ({parts:mParts, racks:mRacks, hubs:mHubs, models:mModels, svcs:mSvcs}[MTAB])();
+  ["parts","racks","hubs","models","oems","svcs"].forEach(k=>{ const e=$("m-"+k); if(e) e.style.display = MTAB===k?"":"none"; });
+  ({parts:mParts, racks:mRacks, hubs:mHubs, models:mModels, oems:mOems, svcs:mSvcs}[MTAB])();
 }
 function mGo(k){ MTAB=k; rMaster(); }
 
@@ -2534,6 +2561,54 @@ function saveModel(){
   closeModal(); commit(); toast("Model created — " + n);
 }
 
+function mOems(){
+  $("oemTbl").innerHTML = !(S.oems||[]).length
+    ? emptyRow(5,"No OEMs yet","Add the brands you buy controllers, motors and batteries from.")
+    : S.oems.slice().sort((a,b)=>a.n.localeCompare(b.n)).map(o=>{
+        const mine = S.units.filter(u=>u.make===o.n);
+        const inSt = mine.filter(u=>uState(u.id).st==="STOCK").length;
+        return `<tr><td class="nm"><b>${esc(o.n)}</b></td>
+          <td class="num">${mine.length?nf(mine.length):"—"}</td>
+          <td class="num">${inSt?nf(inSt):"—"}</td>
+          <td>${o.a?`<span class="pill p-ok">Active</span>`:`<span class="pill p-mute">Archived</span>`}</td>
+          <td><div class="bar">
+            <button class="btn xs ghost" onclick="openOem('${esc(o.n)}')">Rename</button>
+            <button class="btn xs ghost" onclick="toggleOem('${esc(o.n)}')">${o.a?"Archive":"Restore"}</button>
+          </div></td></tr>`;
+      }).join("");
+}
+function openOem(name){
+  const o = name ? S.oems.find(x=>x.n===name) : null;
+  modal(`<h3>${o?"Rename OEM":"New OEM"}</h3>
+    <label>OEM name <span class="req">*</span></label>
+    <input id="mdOem" value="${esc(o?o.n:"")}" placeholder="e.g. Votol">
+    ${o?`<div class="hint" style="margin-top:8px">Renaming updates every unit recorded against this OEM.</div>`:""}
+    <div class="bar" style="margin-top:16px">
+      <button class="btn sm" onclick="saveOem('${esc(name||"")}')">${o?"Save":"Create"}</button>
+      <button class="btn sm ghost" onclick="closeModal()">Cancel</button>
+    </div>`);
+  setTimeout(()=>$("mdOem").focus(),40);
+}
+function saveOem(old){
+  const n = $("mdOem").value.trim();
+  if(!n){ toast("An OEM needs a name.", true); return; }
+  if(S.oems.some(x=>x.n.toLowerCase()===n.toLowerCase() && x.n!==old)){
+    toast("That OEM already exists.", true); return; }
+  if(old){
+    const o = S.oems.find(x=>x.n===old);
+    S.units.filter(u=>u.make===old).forEach(u=>{ u.make = n; touch(u); });
+    o.n = n; o.k = n; touch(o);
+  } else {
+    S.oems.push(touch({k:n, n, a:1}));
+  }
+  closeModal(); commit(); toast("Saved.");
+}
+function toggleOem(name){
+  const o = S.oems.find(x=>x.n===name); if(!o) return;
+  const used = S.units.filter(u=>u.make===name).length;
+  if(o.a && used && !confirm(`${name} is on ${used} unit${used===1?"":"s"}. Archive anyway? Those records keep the name.`)) return;
+  o.a = o.a?0:1; touch(o); commit();
+}
 function mSvcs(){
   $("svcTbl").innerHTML = !S.svcs.length
     ? emptyRow(4,"No services","Add labour and service lines here.")
@@ -3006,8 +3081,11 @@ function uInAvail(){
   const u = unitById(id);
   if(!u){
     box.className = "msg inf on";
-    box.innerHTML = "<b>New unit.</b> Booking it in will register " + esc(id) + " for the first time.";
+    box.innerHTML = "<b>New unit.</b> Booking it in will register " + esc(id) + " for the first time — " +
+      "set the category and OEM below.";
     $("uiNewWrap").style.display = "";
+    $("uiKnown").style.display = "none";
+    ["uiCat","uiOem"].forEach(k => $(k).disabled = false);
   } else {
     const s = uState(u.id);
     box.className = "msg ok on";
@@ -3016,7 +3094,13 @@ function uInAvail(){
       "<div class='hint' style='margin-top:5px'>Currently " +
       (s.st === "STOCK" ? "at <b>" + esc(s.h || "—") + "</b>" : UST[s.st].lbl + (s.vendor ? " with " + esc(s.vendor) : "")) +
       " · " + UCOND[s.cond].lbl + "</div>";
-    $("uiNewWrap").style.display = "none";
+    // A known unit already has a category and OEM — show them, locked, so the
+    // fields never look absent and cannot be silently contradicted.
+    $("uiNewWrap").style.display = "";
+    $("uiKnown").style.display = "";
+    $("uiCat").value = u.cat;
+    fillOem("uiOem", u.make || "");
+    ["uiCat","uiOem"].forEach(k => $(k).disabled = true);
   }
 }
 function uInward(){
@@ -3033,7 +3117,9 @@ function uInward(){
   let u = unitById(id);
   if(!u){
     const cat = $("uiCat").value;
-    u = registerUnit(id, cat, $("uiPart").value || "", $("uiMake").value.trim(), $("uiVm").value, "");
+    const oem = $("uiOem").value;
+    if(!cat){ say("uiMsg","Choose whether this is a controller, motor or battery.","err"); return; }
+    u = registerUnit(id, cat, $("uiPart").value || "", oem, $("uiVm").value, "");
   }
   const prev = uState(u.id);
   const backFrom = prev.st === "SERVICE" ? "SVC_IN" : prev.st === "CLAIM" ? "CLM_IN" : "IN";
@@ -3109,9 +3195,13 @@ function rUnits(){
   fillSel("uiTo", hubOptions());
   fillSel("uiFromHub", hubOptions());
   fillSel("uoHub", hubOptions());
-  fillSel("uiCat", UNIT_CATS);
+  fillSel("uiCat", UNIT_CATS, undefined, "— choose —");
+  const known = unitById(($("uiId")||{}).value || "");
+  if(!$("uiOem").dataset.touched) fillOem("uiOem", known ? known.make : undefined);
+  fillSel("ubOemSel", activeOems(), undefined, "— choose OEM —");
   fillSel("uiVm", activeModels(), undefined, "— any model —");
   fillSel("unCat", UNIT_CATS, undefined, "All categories");
+  fillSel("unOem", activeOems(), undefined, "All OEMs");
   fillSel("unHub", hubOptions(), undefined, "All locations");
   const parts = activeParts().filter(p => p.sn).map(p => p.n);
   fillSel("uiPart", parts, undefined, parts.length ? "— link to a catalogue part —" : "— none marked serialised —");
@@ -3151,13 +3241,14 @@ function rUnits(){
   /* the register */
   const q = $("unQ").value.trim().toLowerCase(),
         fc = $("unCat").value, fh = $("unHub").value,
-        fs = $("unStat").value, fcond = $("unCond").value;
+        fs = $("unStat").value, fcond = $("unCond").value, fo = ($("unOem")||{}).value || "";
   let list = all.filter(u=>{
     const s = st[u.id];
     if(fc && u.cat !== fc) return false;
     if(fh && s.h !== fh) return false;
     if(fs && s.st !== fs) return false;
     if(fcond && s.cond !== fcond) return false;
+    if(fo && u.make !== fo) return false;
     if(q && !((u.id + " " + u.make + " " + u.cat + " " + (s.vendor||"")).toLowerCase().includes(q))) return false;
     return true;
   }).sort((a,b)=> String(a.id).localeCompare(String(b.id), undefined, {numeric:true}));
@@ -3236,6 +3327,34 @@ function uHistory(id){
     </div>`);
 }
 
+/* Add an OEM without leaving the form — new brands turn up constantly. */
+function uiOemChange(){
+  const sel = $("uiOem");
+  sel.dataset.touched = "1";
+  if(sel.value !== "__new") return;
+  const name = prompt("New OEM name");
+  if(!name || !name.trim()){ sel.value = ""; return; }
+  addOem(name.trim());
+  fillOem("uiOem", name.trim());
+}
+/* Every place that fills the OEM picker must also offer "add a new one",
+   otherwise refilling the list silently drops the escape hatch. */
+function fillOem(id, selected){
+  fillSel(id, activeOems(), selected, "— choose OEM —");
+  const e = $(id); if(!e) return;
+  e.insertAdjacentHTML("beforeend", '<option value="__new">+ Add a new OEM…</option>');
+}
+function addOem(name){
+  const n = name.trim();
+  if(!n) return null;
+  const found = (S.oems||[]).find(o => o.n.toLowerCase() === n.toLowerCase());
+  if(found){ if(!found.a){ found.a = 1; touch(found); commit(); } return found; }
+  S.oems.push(touch({k:n, n, a:1}));
+  commit();
+  toast("OEM added — " + n);
+  return S.oems[S.oems.length-1];
+}
+
 function uiFromKindChange(){
   const k = $("uiFromKind").value;
   $("uiFromHub").style.display   = k === "HUB" ? "" : "none";
@@ -3261,8 +3380,8 @@ function openUnitBulk(){
       <div><label>Received from</label><input id="ubFrom" placeholder="Vendor or hub"></div>
       <div><label>Received by</label><input id="ubBy" placeholder="Your name"></div>
     </div>
-    <label>Make / brand (optional)</label>
-    <input id="ubMake" placeholder="e.g. BGauss">
+    <label>OEM</label>
+    <select id="ubOemSel">${activeOems().map(o=>`<option>${esc(o)}</option>`).join("")}</select>
     <label>Unit IDs — one per line</label>
     <textarea id="ubIds" style="height:130px;font-family:ui-monospace,Menlo,monospace;font-size:12px"
       placeholder="CTL-0912&#10;CTL-0913&#10;CTL-0914" oninput="ubCount()"></textarea>
@@ -3287,7 +3406,7 @@ function doUnitBulk(){
   const ids = ubIdList();
   if(!ids.length){ toast("No IDs pasted.", true); return; }
   const cat=$("ubCat").value, hub=$("ubHub").value, cond=$("ubCond").value;
-  const from=$("ubFrom").value.trim(), by=$("ubBy").value.trim(), make=$("ubMake").value.trim();
+  const from=$("ubFrom").value.trim(), by=$("ubBy").value.trim(), make=$("ubOemSel").value;
   if(!by || !from){ toast("Enter who received it and where from.", true); return; }
   let made=0, seen=new Set();
   ids.forEach(id=>{
@@ -3318,7 +3437,7 @@ function doUnitBulk(){
       deliberately not what the ledger uses.
    ============================================================ */
 
-const SCHEMA_V = 4;      // bump whenever a worksheet is added to SHEETS
+const SCHEMA_V = 5;      // bump whenever a worksheet is added to SHEETS
 const MS = {
   authority: "https://login.microsoftonline.com",
   graph: "https://graph.microsoft.com/v1.0",
@@ -3338,11 +3457,12 @@ const SHEETS = {
   racks:  ["k","h","code","zone","note","a","_m"],
   bins:   ["k","h","p","rack","_m"],
   units:  ["k","id","cat","p","make","vm","note","d","a","_m"],
+  oems:   ["k","n","a","_m"],
   _meta:  ["k","v"],
   umoves: ["u","uid","ts","d","t","from","to","cond","by","ref","note"],
 };
 const KEYOF = {parts:"c", hubs:"n", models:"n", svcs:"c", pos:"id", claims:"id",
-               racks:"k", bins:"k", units:"k"};
+               racks:"k", bins:"k", units:"k", oems:"k"};
 // Excel stores an ISO date string as a real date, so it comes back as a serial
 // number (2026-08-20 reads as 46254). Every date field has to be normalised on
 // the way in, or ageing, the 30/90-day windows and ledger ordering all break.
@@ -3361,7 +3481,7 @@ function isoDate(v){
   return s.slice(0,10);
 }
 // units are a keyed master; umoves is append-only like the stock ledger
-const MASTER_SETS = ["parts","hubs","models","svcs","pos","claims","racks","bins","units"];
+const MASTER_SETS = ["parts","hubs","models","svcs","pos","claims","racks","bins","units","oems"];
 
 const SYNC = {busy:false, timer:null, poll:null, state:"off", msg:""};
 
