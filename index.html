@@ -313,6 +313,132 @@ td.nm{font-variant-numeric:normal;max-width:280px}
     </div>
   </div>
 
+
+  <!-- ============ UNITS BY ID ============ -->
+  <div class="view" id="v-units">
+    <div class="tiles" id="unitTiles"></div>
+
+    <div class="g2">
+      <div class="card">
+        <h2>⇩ Inward — receive a unit</h2>
+        <div class="desc">
+          Book a controller, motor or battery in by its ID. An ID you have not seen before
+          is registered automatically. If it was away at service or on a warranty claim,
+          this books it back.
+        </div>
+        <label>Unit ID <span class="req">*</span></label>
+        <input id="uiId" placeholder="e.g. CTL-0912" oninput="uInAvail()" style="font-family:ui-monospace,Menlo,monospace">
+        <div class="msg inf on" id="uiState" style="margin-top:8px">Enter the ID printed on the unit.</div>
+        <div id="uiNewWrap" style="display:none">
+          <div class="row">
+            <div><label>Category <span class="req">*</span></label><select id="uiCat"></select></div>
+            <div><label>Make / brand</label><input id="uiMake" placeholder="e.g. BGauss"></div>
+          </div>
+          <div class="row">
+            <div><label>Fits vehicle model</label><select id="uiVm"></select></div>
+            <div><label>Catalogue part</label><select id="uiPart"></select></div>
+          </div>
+        </div>
+        <div class="row">
+          <div><label>Received at <span class="req">*</span></label><select id="uiTo"></select></div>
+          <div><label>Condition <span class="req">*</span></label><select id="uiCond">
+            <option value="OK">Working</option><option value="BAD">Not working</option>
+            <option value="UNK">Untested</option></select></div>
+        </div>
+        <label>Received from <span class="req">*</span></label>
+        <select id="uiFromKind" onchange="uiFromKindChange()">
+          <option value="HUB">Another location</option>
+          <option value="OTHER">Vendor / new purchase / other</option>
+        </select>
+        <select id="uiFromHub" style="margin-top:7px"></select>
+        <input id="uiFromOther" style="margin-top:7px;display:none" placeholder="e.g. BGauss Spares, or New purchase" list="vendorList">
+        <div class="row">
+          <div><label>Received by <span class="req">*</span></label><input id="uiBy" placeholder="Your name" oninput="lsSet('uiBy',this.value)"></div>
+          <div><label>Date</label><input id="uiDate" type="date"></div>
+        </div>
+        <label>Reference / note</label>
+        <input id="uiRef" placeholder="Optional — DC number, remarks">
+        <input id="uiNote" style="display:none">
+        <button class="btn g" onclick="uInward()">Book In</button>
+        <div class="msg" id="uiMsg"></div>
+      </div>
+
+      <div class="card">
+        <h2>⇧ Outward — send a unit</h2>
+        <div class="desc">
+          Move a unit to another location, send it out for service, raise a warranty
+          claim with the vendor, or write it off.
+        </div>
+        <label>Unit ID <span class="req">*</span></label>
+        <input id="uoId" placeholder="e.g. CTL-0912" oninput="uOutAvail()" style="font-family:ui-monospace,Menlo,monospace">
+        <div class="msg inf on" id="uoState" style="margin-top:8px">Enter the unit ID.</div>
+        <label>Send to <span class="req">*</span></label>
+        <select id="uoKind" onchange="uOutKind()">
+          <option value="HUB">Another location</option>
+          <option value="SVC_OUT">Out for service / repair</option>
+          <option value="CLM_OUT">Warranty claim to vendor</option>
+          <option value="SCRAP">Scrap — write off</option>
+        </select>
+        <div id="uoHubWrap"><select id="uoHub" style="margin-top:7px"></select></div>
+        <div id="uoVendorWrap" style="display:none">
+          <input id="uoVendor" style="margin-top:7px" placeholder="Vendor or workshop name" list="vendorList">
+        </div>
+        <div class="row">
+          <div><label>Condition when sent</label><select id="uoCond">
+            <option value="BAD">Not working</option><option value="OK">Working</option>
+            <option value="UNK">Untested</option></select></div>
+          <div><label>Date</label><input id="uoDate" type="date"></div>
+        </div>
+        <div class="row">
+          <div><label>Authorised by <span class="req">*</span></label><input id="uoBy" placeholder="Your name" oninput="lsSet('uoBy',this.value)"></div>
+          <div><label>Reference</label><input id="uoRef" placeholder="Optional"></div>
+        </div>
+        <label>Reason / note</label>
+        <input id="uoNote" placeholder="e.g. Burnt MOSFET, no output">
+        <button class="btn w" onclick="uOutward()">Send Out</button>
+        <div class="msg" id="uoMsg"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Units in Stock by Location</h2>
+      <div class="desc">The quantity at each location, and every ID behind it is one click away below.</div>
+      <div id="unitByHub"></div>
+    </div>
+
+    <div class="card">
+      <h2><span>Unit Register</span><span class="sp"></span>
+        <button class="btn xs" onclick="openUnitBulk()">+ Register in bulk</button>
+        <button class="btn xs ghost" onclick="expCsv('units')">Export CSV</button>
+      </h2>
+      <div class="fbar">
+        <div class="f grow"><label>Search by ID, make or vendor</label><input id="unQ" placeholder="e.g. CTL-09" oninput="render()"></div>
+        <div class="f"><label>Category</label><select id="unCat" onchange="render()"></select></div>
+        <div class="f"><label>Location</label><select id="unHub" onchange="render()"></select></div>
+        <div class="f"><label>Status</label><select id="unStat" onchange="render()">
+          <option value="">All</option><option value="STOCK">In stock</option>
+          <option value="SERVICE">At service</option><option value="CLAIM">Warranty claim</option>
+          <option value="SCRAP">Scrapped</option></select></div>
+        <div class="f"><label>Condition</label><select id="unCond" onchange="render()">
+          <option value="">All</option><option value="OK">Working</option>
+          <option value="BAD">Not working</option><option value="UNK">Untested</option></select></div>
+      </div>
+      <div class="tw"><table>
+        <thead><tr><th>Unit ID</th><th>Category</th><th>Make</th><th>Location / With</th><th>Condition</th><th>Status</th><th class="num">Age</th><th></th></tr></thead>
+        <tbody id="unitTbl"></tbody>
+      </table></div>
+      <div class="hint" id="unitFoot"></div>
+    </div>
+
+    <div class="card">
+      <h2><span>Recent Unit Movements</span><span class="sp"></span><button class="btn xs ghost" onclick="expCsv('umoves')">Export CSV</button></h2>
+      <div class="tw"><table>
+        <thead><tr><th>Date</th><th>Unit ID</th><th>Event</th><th>From</th><th>To</th><th>Condition</th><th>By</th><th>Note</th></tr></thead>
+        <tbody id="unitMoves"></tbody>
+      </table></div>
+    </div>
+  </div>
+
   <!-- ============ ISSUE ============ -->
   <div class="view" id="v-issue">
     <div class="g21">
@@ -820,10 +946,11 @@ function freshState(){
     models: DATA.MODELS.map(m => ({n:m, a:1})),
     svcs:  DATA.SVCS.map(s => ({...s})),
     racks: [], bins: [],          // rack master, and part -> rack assignment
+    units: [], umoves: [],        // serialised assets, and their movement log
     txns: [], pos: [], claims: [],
-    seq: {tx:0, po:0, wc:0, pn:DATA.PARTS.length},
+    seq: {tx:0, po:0, wc:0, um:0, pn:DATA.PARTS.length},
     settings: {url:"", key:"", auto:"1", theme:"dark"},
-    sync: {cursor:0, mSeen:0, mPushed:0, pushed:{}, dev:deviceId()},
+    sync: {cursor:0, mcursor:0, mSeen:0, mRev:0, mPushed:0, pushed:{}, dev:deviceId()},
     lastSync: null,
   };
 }
@@ -835,9 +962,10 @@ function load(){
       const o = JSON.parse(raw);
       if(o && o.parts && o.txns){
         o.settings = Object.assign({url:"",key:"",auto:"1",theme:"dark"}, o.settings||{});
-        o.sync = Object.assign({cursor:0, mSeen:0, mPushed:0, pushed:{}, dev:deviceId()}, o.sync||{});
+        o.sync = Object.assign({cursor:0, mcursor:0, mSeen:0, mRev:0, mPushed:0, pushed:{}, dev:deviceId()}, o.sync||{});
         o.claims = o.claims||[]; o.pos = o.pos||[]; o.svcs = o.svcs||[];
         o.racks = o.racks||[]; o.bins = o.bins||[];
+        o.units = o.units||[]; o.umoves = o.umoves||[];
         o.txns.forEach((t,i)=>{ if(!t.u) t.u = "legacy-"+i; });
         return o;
       }
@@ -1001,10 +1129,16 @@ function derive(){
   C = {stock, wip, lots, incoming};
   STOCKED_AT = null;          // invalidate the location-carries-part index
   BINMAP = null;              // and the part -> rack index
+  UMAP = null;                // and the derived unit states
   return C;
 }
 
-const qtyAt   = (h,p) => (C.stock[h] && C.stock[h][p]) || 0;
+/* For a part tracked by individual ID, the count IS the number of units in
+   stock. Deriving it here means the quantity on every screen and the list of
+   IDs behind it can never disagree. */
+const qtyAt = (h,p) => (typeof isSerial === "function" && isSerial(p))
+  ? unitCount(h,p)
+  : ((C.stock[h] && C.stock[h][p]) || 0);
 const wipAt   = (h,p) => (C.wip[h] && C.wip[h][p]) || 0;
 const incAt   = (h,p) => (C.incoming[h] && C.incoming[h][p]) || 0;
 const totalOf = p => S.hubs.reduce((a,h)=> a + qtyAt(h.n,p), 0);
@@ -1121,6 +1255,7 @@ const NAV = [
   {id:"dash",    ic:"◈", t:"Dashboard",     sub:"Network overview"},
   {id:"take",    ic:"◱", t:"Stock Take",    sub:"Count and open your balances"},
   {id:"stock",   ic:"▦", t:"Inventory",     sub:"On-hand across every location"},
+  {id:"units",   ic:"⬡", t:"Units by ID",    sub:"Controllers, motors and batteries tracked one by one"},
   {g:"Transact"},
   {id:"issue",   ic:"→", t:"Issue Parts",   sub:"Consume stock against a vehicle or job"},
   {id:"xfer",    ic:"⇄", t:"Transfer",      sub:"Move stock between locations"},
@@ -1241,7 +1376,7 @@ function render(){
     fillAllSelects();
     navBadges();
     ({dash:rDash, take:rTake, stock:rStock, issue:rIssue, xfer:rXfer, po:rPO,
-      in:rIn, scrap:rScrap, audit:rAudit, ledger:rLedger, plan:rPlan,
+      in:rIn, scrap:rScrap, audit:rAudit, ledger:rLedger, plan:rPlan, units:rUnits,
       master:rMaster, settings:rSettings}[VIEW] || function(){})();
   } catch(e){
     console.error(e);
@@ -1282,6 +1417,8 @@ function navBadges(){
   set("dash", alertList().length);
   set("in", S.pos.filter(p=>p.st!=="closed").length);
   set("scrap", S.claims.filter(c=>c.st==="open").length);
+  set("units", typeof unitState === "function"
+    ? S.units.filter(u=>u.a && uState(u.id).cond === "BAD" && uState(u.id).st === "STOCK").length : 0);
 }
 </script>
 <script>
@@ -1497,13 +1634,14 @@ function tkLoadRack(){
     return;
   }
   let added = 0;
-  parts.forEach(c=>{ if(!TK.some(r=>r.c===c)){ TK.push({c, q:""}); added++; } });
+  parts.forEach(c=>{ if(!isSerial(c) && !TK.some(r=>r.c===c)){ TK.push({c, q:""}); added++; } });
   rTake();
   say("tkMsg", `Loaded <b>${esc(rack)}</b> — ${added} part${added===1?"":"s"} added` +
       (added < parts.length ? `, ${parts.length-added} already on the sheet.` : "."), "ok");
   setTimeout(()=>{ const rows=$("tkTbl").querySelectorAll("input"); if(rows[0]) rows[0].focus(); },40);
 }
 function tkAdd(p){
+  if(isSerial(p.c)){ toast(p.n + " is counted by individual ID — count it under Units by ID.", true); return; }
   if(TK.some(r=>r.c===p.c)){ toast(pname(p.c) + " is already on the sheet."); return; }
   TK.push({c:p.c, q:""});
   cbReset("cb-tk");
@@ -1532,7 +1670,7 @@ function tkAddCat(){
 function tkDoCat(){
   const cat = $("mdCat").value.split(" — ")[0];
   let n=0;
-  activeParts().filter(p=>p.g===cat).forEach(p=>{
+  activeParts().filter(p=>p.g===cat && !isSerial(p.c)).forEach(p=>{
     if(!TK.some(r=>r.c===p.c)){ TK.push({c:p.c, q:""}); n++; }
   });
   closeModal(); rTake();
@@ -1602,7 +1740,7 @@ function rStock(){
     ? emptyRow(10, "No parts match", "Try widening the filters above.")
     : show.map(r=>`<tr>
         <td class="nm">${esc(r.p.n)}</td>
-        <td class="mono">${esc(r.p.c)}</td>
+        <td class="mono">${esc(r.p.c)}${r.p.sn?` <span class="tag wh" style="cursor:pointer" onclick="go('units')">BY ID</span>`:""}</td>
         <td>${rackOf(hub || warehouse(), r.p.c)
               ? `<span class="tag wh">${esc(rackOf(hub || warehouse(), r.p.c))}</span>`
               : `<span class="mono">—</span>`}</td>
@@ -1639,6 +1777,9 @@ function issuePart(){
         ref=$("isRef").value.trim(), by=$("isBy").value.trim(),
         d=$("isDate").value||today(), model=$("isModel").value, note=$("isNote").value.trim();
   if(!c){ say("isMsg","Choose a part.","err"); return; }
+  if(isSerial(c)){ say("isMsg","<b>" + esc(pname(c)) + "</b> is tracked by individual ID. " +
+      "Use <a onclick=\"go('units')\" style='color:var(--s1);cursor:pointer'>Units by ID</a> to send it out, " +
+      "so the count and the IDs stay in step.","err"); return; }
   const miss = need([["a quantity",qty],["a vehicle or job reference",ref],["who issued it",by]]);
   if(miss||!ref||!by){ say("isMsg",`Enter ${miss||"the missing fields"} — no issue without a reference, that is the audit rule.`,"err"); return; }
   if(qty<1){ say("isMsg","Quantity must be at least 1.","err"); return; }
@@ -1688,6 +1829,8 @@ function transfer(){
         qty=intVal("xQty"), by=$("xBy").value.trim(), d=$("xDate").value||today(),
         note=$("xNote").value.trim();
   if(!c){ say("xMsg","Choose a part.","err"); return; }
+  if(isSerial(c)){ say("xMsg","<b>" + esc(pname(c)) + "</b> is tracked by individual ID — move it under " +
+      "<a onclick=\"go('units')\" style='color:var(--s1);cursor:pointer'>Units by ID</a>.","err"); return; }
   if(from===to){ say("xMsg","Source and destination are the same location.","err"); return; }
   if(!qty||qty<1||!by){ say("xMsg","Enter a quantity and who authorised the move.","err"); return; }
   const on=qtyAt(from,c);
@@ -2210,7 +2353,7 @@ function mParts(){
     ? emptyRow(9,"No parts match","Adjust the filters, or add a new part.")
     : view.map(p=>`<tr>
         <td class="nm">${esc(p.n)}</td><td class="mono">${esc(p.c)}</td>
-        <td>${rackOf(warehouse(),p.c)?`<span class="tag wh">${esc(rackOf(warehouse(),p.c))}</span>`:`<span class="mono">—</span>`}</td>
+        <td>${rackOf(warehouse(),p.c)?`<span class="tag wh">${esc(rackOf(warehouse(),p.c))}</span>`:`<span class="mono">—</span>`}${p.sn?` <span class="tag">by ID</span>`:""}</td>
         <td><span class="tag">${esc(p.g)}</span></td>
         <td class="num">${p.r?nf(p.r):`<span class="mono">not set</span>`}</td>
         <td class="num">${p.p?nf(p.p):`<span class="mono">—</span>`}</td>
@@ -2239,6 +2382,13 @@ function openPart(prefill, code){
       <div><label>Reorder point</label><input id="mdRop" type="number" min="0" value="${p?p.r:0}"></div>
       <div><label>Unit cost ₹</label><input id="mdCost" type="number" min="0" value="${p?p.p:0}" placeholder="Optional"></div>
     </div>
+    <label>Tracking</label>
+    <select id="mdSn">
+      <option value="0"${p&&p.sn?"":" selected"}>By quantity — a count per location</option>
+      <option value="1"${p&&p.sn?" selected":""}>By individual ID — each unit tracked separately</option>
+    </select>
+    <div class="hint">Controllers, motors and batteries are usually tracked by ID. Switching a part to
+      ID tracking moves it out of Stock Take and Issue, and its quantity is then the number of units in stock.</div>
     ${p ? `<label>Rack at ${esc(warehouse())}</label>
       <select id="mdRack"><option value="">— not placed —</option>${
         racksAt(warehouse()).map(r=>r.code).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}))
@@ -2267,7 +2417,7 @@ function savePart(code){
 
   if(code){
     const p=S.parts.find(x=>x.c===code);
-    Object.assign(p,{n:name, g:cat, r:rop, p:cost, m:models});
+    Object.assign(p,{n:name, g:cat, r:rop, p:cost, m:models, sn: parseInt(($("mdSn")||{}).value||0,10)||0});
     touch(p);
     const rk=$("mdRack"); if(rk) setRack(warehouse(), code, rk.value);
     toast("Part updated");
@@ -2275,7 +2425,8 @@ function savePart(code){
     const dupe=S.parts.find(x=>x.n.toLowerCase()===name.toLowerCase());
     if(dupe){ toast(`"${dupe.n}" already exists (${dupe.c}).`, true); return; }
     S.seq.pn++;
-    S.parts.push(touch({c:"PN-"+String(S.seq.pn).padStart(4,"0"), n:name, g:cat, r:rop, p:cost, m:models, a:1}));
+    S.parts.push(touch({c:"PN-"+String(S.seq.pn).padStart(4,"0"), n:name, g:cat, r:rop, p:cost, m:models,
+      sn: parseInt(($("mdSn")||{}).value||0,10)||0, a:1}));
     toast("Part created — " + name);
   }
   closeModal(); commit();
@@ -2749,6 +2900,407 @@ function rackWalk(){
 </script>
 <script>
 /* ============================================================
+   SERIALISED UNITS — controllers, motors, batteries
+   Tracked one by one, not as a quantity. Each unit's location,
+   condition and status are DERIVED from its movement log, so the
+   register can never drift from the history behind it.
+   ============================================================ */
+
+const UNIT_CATS = ["Controller", "Motor", "Battery"];
+
+const UEV = {
+  IN:      {lbl:"Inward",             cls:"p-ok",   dir:"in"},
+  OUT:     {lbl:"Outward",            cls:"p-inf",  dir:"move"},
+  SVC_OUT: {lbl:"Sent to Service",    cls:"p-ser",  dir:"out"},
+  SVC_IN:  {lbl:"Back from Service",  cls:"p-ok",   dir:"in"},
+  CLM_OUT: {lbl:"Warranty Claim Sent",cls:"p-warn", dir:"out"},
+  CLM_IN:  {lbl:"Warranty Returned",  cls:"p-ok",   dir:"in"},
+  SCRAP:   {lbl:"Scrapped",           cls:"p-crit", dir:"out"},
+  COND:    {lbl:"Condition Check",    cls:"p-mute", dir:"none"},
+};
+const UST = {
+  STOCK:   {lbl:"In stock",      cls:"p-ok"},
+  SERVICE: {lbl:"At service",    cls:"p-ser"},
+  CLAIM:   {lbl:"Warranty claim",cls:"p-warn"},
+  SCRAP:   {lbl:"Scrapped",      cls:"p-crit"},
+};
+const UCOND = {
+  OK:  {lbl:"Working",     cls:"p-ok"},
+  BAD: {lbl:"Not working", cls:"p-crit"},
+  UNK: {lbl:"Untested",    cls:"p-mute"},
+};
+
+/* ---------- derive each unit's current state from its moves ---------- */
+let UMAP = null;
+function unitState(){
+  if(UMAP) return UMAP;
+  UMAP = {};
+  S.units.forEach(u => UMAP[u.id] = {
+    h:"", st:"STOCK", cond:"UNK", vendor:"", since:u.d || "", last:null
+  });
+  const moves = S.umoves.slice().sort((a,b)=>
+    a.d !== b.d ? (a.d < b.d ? -1 : 1)
+    : (a.ts||0) !== (b.ts||0) ? (a.ts||0)-(b.ts||0)
+    : String(a.u||"").localeCompare(String(b.u||"")));
+
+  for(const m of moves){
+    const s = UMAP[m.uid];
+    if(!s) continue;                       // a move for a unit we do not hold
+    if(m.cond) s.cond = m.cond;
+    switch(m.t){
+      case "IN": case "SVC_IN": case "CLM_IN": case "OUT":
+        s.h = m.to || s.h; s.st = "STOCK"; s.vendor = ""; break;
+      case "SVC_OUT":
+        s.h = ""; s.st = "SERVICE"; s.vendor = m.to || ""; break;
+      case "CLM_OUT":
+        s.h = ""; s.st = "CLAIM"; s.vendor = m.to || ""; break;
+      case "SCRAP":
+        s.h = ""; s.st = "SCRAP"; s.vendor = ""; break;
+      case "COND":
+        break;
+    }
+    if(m.t !== "COND"){ s.since = m.d; }
+    s.last = m;
+  }
+  return UMAP;
+}
+const uState = id => unitState()[id] || {h:"", st:"STOCK", cond:"UNK", vendor:"", since:"", last:null};
+const unitById = id => S.units.find(u => String(u.id).toUpperCase() === String(id).toUpperCase());
+const unitsAt = (hub, cat) => S.units.filter(u=>{
+  const s = uState(u.id);
+  return s.h === hub && s.st === "STOCK" && (!cat || u.cat === cat);
+});
+/* Quantity for a serialised catalogue part is the number of its units in
+   stock — one source of truth, so a count and its IDs can never disagree. */
+function unitCount(hub, partCode){
+  return S.units.filter(u => u.p === partCode && uState(u.id).h === hub
+    && uState(u.id).st === "STOCK").length;
+}
+const isSerial = code => { const p = PMAP[code]; return !!(p && p.sn); };
+
+function uMove(rec){
+  S.seq.um = (S.seq.um || 0) + 1;
+  const m = Object.assign({
+    u: S.sync.dev + "-um" + S.seq.um + "-" + Date.now().toString(36),
+    ts: Date.now(),
+  }, rec);
+  S.umoves.push(m);
+  UMAP = null;
+  return m;
+}
+function registerUnit(id, cat, part, make, vm, note){
+  const u = touch({ k:String(id), id:String(id), cat, p:part||"", make:make||"",
+                    vm:vm||"", note:note||"", d:today(), a:1 });
+  S.units.push(u);
+  UMAP = null;
+  return u;
+}
+
+/* ============================================================
+   INWARD / OUTWARD
+   ============================================================ */
+function uInAvail(){
+  const id = $("uiId").value.trim();
+  const box = $("uiState");
+  if(!id){ box.className = "msg inf on"; box.innerHTML = "Enter the ID printed on the unit."; return; }
+  const u = unitById(id);
+  if(!u){
+    box.className = "msg inf on";
+    box.innerHTML = "<b>New unit.</b> Booking it in will register " + esc(id) + " for the first time.";
+    $("uiNewWrap").style.display = "";
+  } else {
+    const s = uState(u.id);
+    box.className = "msg ok on";
+    box.innerHTML = "<b>" + esc(u.id) + "</b> · " + esc(u.cat) +
+      (u.make ? " · " + esc(u.make) : "") +
+      "<div class='hint' style='margin-top:5px'>Currently " +
+      (s.st === "STOCK" ? "at <b>" + esc(s.h || "—") + "</b>" : UST[s.st].lbl + (s.vendor ? " with " + esc(s.vendor) : "")) +
+      " · " + UCOND[s.cond].lbl + "</div>";
+    $("uiNewWrap").style.display = "none";
+  }
+}
+function uInward(){
+  const id = $("uiId").value.trim().toUpperCase();
+  const to = $("uiTo").value, fromKind = $("uiFromKind").value;
+  const from = fromKind === "HUB" ? $("uiFromHub").value : $("uiFromOther").value.trim();
+  const cond = $("uiCond").value, by = $("uiBy").value.trim();
+  const d = $("uiDate").value || today(), note = $("uiNote").value.trim();
+
+  if(!id){ say("uiMsg","Enter the unit ID.","err"); return; }
+  if(!by){ say("uiMsg","Enter who received it.","err"); return; }
+  if(!from){ say("uiMsg","Enter where it came from.","err"); return; }
+
+  let u = unitById(id);
+  if(!u){
+    const cat = $("uiCat").value;
+    u = registerUnit(id, cat, $("uiPart").value || "", $("uiMake").value.trim(), $("uiVm").value, "");
+  }
+  const prev = uState(u.id);
+  const backFrom = prev.st === "SERVICE" ? "SVC_IN" : prev.st === "CLAIM" ? "CLM_IN" : "IN";
+  uMove({ uid:u.id, d, t:backFrom, from, to, cond, by, ref:$("uiRef").value.trim(), note });
+  commit();
+  say("uiMsg", "<b>" + esc(u.id) + "</b> booked in at " + esc(to) + " from " + esc(from) +
+      " · " + UCOND[cond].lbl + ".", "ok");
+  toast(u.id + " inward at " + to);
+  $("uiId").value = ""; $("uiNote").value = ""; $("uiRef").value = "";
+  $("uiNewWrap").style.display = "none";
+  uInAvail();
+}
+
+function uOutAvail(){
+  const id = $("uoId").value.trim();
+  const box = $("uoState");
+  if(!id){ box.className = "msg inf on"; box.innerHTML = "Enter the unit ID."; return; }
+  const u = unitById(id);
+  if(!u){ box.className = "msg err on"; box.innerHTML = "No unit with ID <b>" + esc(id) + "</b>. Book it in first."; return; }
+  const s = uState(u.id);
+  box.className = s.st === "STOCK" ? "msg ok on" : "msg err on";
+  box.innerHTML = "<b>" + esc(u.id) + "</b> · " + esc(u.cat) +
+    "<div class='hint' style='margin-top:5px'>" +
+    (s.st === "STOCK" ? "At <b>" + esc(s.h || "—") + "</b> · " + UCOND[s.cond].lbl
+      : "Already " + UST[s.st].lbl.toLowerCase() + (s.vendor ? " with " + esc(s.vendor) : "") + " — nothing to send.") +
+    "</div>";
+  uOutKind();
+}
+function uOutKind(){
+  const k = $("uoKind").value;
+  $("uoHubWrap").style.display    = k === "HUB" ? "" : "none";
+  $("uoVendorWrap").style.display = (k === "SVC_OUT" || k === "CLM_OUT") ? "" : "none";
+}
+function uOutward(){
+  const id = $("uoId").value.trim().toUpperCase();
+  const u = unitById(id);
+  if(!u){ say("uoMsg","No unit with that ID.","err"); return; }
+  const s = uState(u.id);
+  if(s.st !== "STOCK"){
+    say("uoMsg","<b>" + esc(u.id) + "</b> is already " + UST[s.st].lbl.toLowerCase() +
+        ". Book it back in before sending it anywhere.","err"); return;
+  }
+  const kind = $("uoKind").value, by = $("uoBy").value.trim();
+  const cond = $("uoCond").value, d = $("uoDate").value || today();
+  const note = $("uoNote").value.trim(), ref = $("uoRef").value.trim();
+  if(!by){ say("uoMsg","Enter who authorised it.","err"); return; }
+
+  let t, to;
+  if(kind === "HUB"){
+    t = "OUT"; to = $("uoHub").value;
+    if(to === s.h){ say("uoMsg","That is where the unit already is.","err"); return; }
+  } else if(kind === "SCRAP"){
+    t = "SCRAP"; to = "";
+    if(!note){ say("uoMsg","A write-off needs a reason.","err"); return; }
+  } else {
+    t = kind; to = $("uoVendor").value.trim();
+    if(!to){ say("uoMsg","Enter the vendor it is going to.","err"); return; }
+  }
+
+  uMove({ uid:u.id, d, t, from:s.h, to, cond, by, ref, note });
+  commit();
+  say("uoMsg","<b>" + esc(u.id) + "</b> — " + UEV[t].lbl.toLowerCase() +
+      (to ? " → " + esc(to) : "") + ".", "ok");
+  toast(u.id + " " + UEV[t].lbl.toLowerCase());
+  $("uoId").value = ""; $("uoNote").value = ""; $("uoRef").value = "";
+  uOutAvail();
+}
+
+/* ============================================================
+   RENDER
+   ============================================================ */
+function rUnits(){
+  fillSel("uiTo", hubOptions());
+  fillSel("uiFromHub", hubOptions());
+  fillSel("uoHub", hubOptions());
+  fillSel("uiCat", UNIT_CATS);
+  fillSel("uiVm", activeModels(), undefined, "— any model —");
+  fillSel("unCat", UNIT_CATS, undefined, "All categories");
+  fillSel("unHub", hubOptions(), undefined, "All locations");
+  const parts = activeParts().filter(p => p.sn).map(p => p.n);
+  fillSel("uiPart", parts, undefined, parts.length ? "— link to a catalogue part —" : "— none marked serialised —");
+
+  const st = unitState();
+  const all = S.units.filter(u => u.a);
+  const inStock = all.filter(u => st[u.id].st === "STOCK");
+  const bad = inStock.filter(u => st[u.id].cond === "BAD");
+  const atSvc = all.filter(u => st[u.id].st === "SERVICE");
+  const atClm = all.filter(u => st[u.id].st === "CLAIM");
+
+  $("unitTiles").innerHTML =
+    tile("Units Tracked", nf(all.length), UNIT_CATS.map(c =>
+      all.filter(u=>u.cat===c).length + " " + c.toLowerCase()).join(" · "), "acc") +
+    tile("In Stock", nf(inStock.length), "across all locations", "") +
+    tile("Not Working", nf(bad.length), "in stock but faulty", bad.length ? "warn" : "good") +
+    tile("At Service", nf(atSvc.length), "away being repaired", "") +
+    tile("Warranty Claims", nf(atClm.length), "with the vendor", atClm.length ? "warn" : "") +
+    tile("Scrapped", nf(all.filter(u => st[u.id].st === "SCRAP").length), "written off", "");
+
+  /* counts by location and category — the "qty" view, backed by real IDs */
+  const rows = activeHubs().map(h => {
+    const c = {};
+    UNIT_CATS.forEach(k => c[k] = unitsAt(h.n, k).length);
+    return {h:h.n, c, tot: UNIT_CATS.reduce((a,k)=>a+c[k],0)};
+  }).filter(r => r.tot > 0).sort((a,b)=>b.tot-a.tot);
+  $("unitByHub").innerHTML = !rows.length
+    ? `<div class="empty"><b>No units in stock yet</b>Book units in using the Inward panel above.</div>`
+    : `<div class="tw"><table><thead><tr><th>Location</th>${
+        UNIT_CATS.map(c=>`<th class="num">${esc(c)}s</th>`).join("")
+      }<th class="num">Total</th></tr></thead><tbody>${
+        rows.map(r=>`<tr><td>${esc(r.h)}</td>${
+          UNIT_CATS.map(c=>`<td class="num">${r.c[c]?nf(r.c[c]):"—"}</td>`).join("")
+        }<td class="num" style="font-weight:700">${nf(r.tot)}</td></tr>`).join("")
+      }</tbody></table></div>`;
+
+  /* the register */
+  const q = $("unQ").value.trim().toLowerCase(),
+        fc = $("unCat").value, fh = $("unHub").value,
+        fs = $("unStat").value, fcond = $("unCond").value;
+  let list = all.filter(u=>{
+    const s = st[u.id];
+    if(fc && u.cat !== fc) return false;
+    if(fh && s.h !== fh) return false;
+    if(fs && s.st !== fs) return false;
+    if(fcond && s.cond !== fcond) return false;
+    if(q && !((u.id + " " + u.make + " " + u.cat + " " + (s.vendor||"")).toLowerCase().includes(q))) return false;
+    return true;
+  }).sort((a,b)=> String(a.id).localeCompare(String(b.id), undefined, {numeric:true}));
+
+  const view = list.slice(0, 300);
+  $("unitTbl").innerHTML = !list.length
+    ? emptyRow(8, "No units match", all.length ? "Try widening the filters." : "Book your first unit in using the Inward panel.")
+    : view.map(u=>{
+        const s = st[u.id];
+        const age = s.since ? daysBetween(s.since, today()) : 0;
+        return `<tr>
+          <td class="nm"><b>${esc(u.id)}</b></td>
+          <td><span class="tag">${esc(u.cat)}</span></td>
+          <td class="nm">${esc(u.make || "—")}</td>
+          <td>${s.st === "STOCK" ? esc(s.h || "—") : `<span class="mono">${esc(s.vendor || "—")}</span>`}</td>
+          <td><span class="pill ${UCOND[s.cond].cls}">${UCOND[s.cond].lbl}</span></td>
+          <td><span class="pill ${UST[s.st].cls}">${UST[s.st].lbl}</span></td>
+          <td class="num" style="${(s.st==="SERVICE"||s.st==="CLAIM")&&age>30?'color:var(--warn);font-weight:700':''}">${age}d</td>
+          <td><div class="bar">
+            <button class="btn xs ghost" onclick="uHistory('${esc(u.id)}')">History</button>
+            ${s.st==="STOCK" ? `<button class="btn xs ghost" onclick="uQuickOut('${esc(u.id)}')">Send</button>`
+                             : `<button class="btn xs g" onclick="uQuickIn('${esc(u.id)}')">Receive</button>`}
+          </div></td></tr>`;
+      }).join("");
+  $("unitFoot").textContent = list.length > view.length
+    ? `Showing 300 of ${nf(list.length)} — narrow the search.`
+    : `${nf(list.length)} unit${list.length===1?"":"s"}.`;
+
+  /* recent movements */
+  const mv = S.umoves.slice(-40).reverse();
+  $("unitMoves").innerHTML = !mv.length
+    ? emptyRow(8, "No movements yet", "Every inward and outward is logged here.")
+    : mv.map(m=>{
+        const e = UEV[m.t] || {lbl:m.t, cls:"p-mute"};
+        return `<tr><td>${esc(m.d)}</td>
+          <td class="nm"><b>${esc(m.uid)}</b></td>
+          <td><span class="pill ${e.cls}">${esc(e.lbl)}</span></td>
+          <td>${esc(m.from || "—")}</td><td>${esc(m.to || "—")}</td>
+          <td>${m.cond ? `<span class="pill ${UCOND[m.cond].cls}">${UCOND[m.cond].lbl}</span>` : "—"}</td>
+          <td>${esc(m.by || "—")}</td>
+          <td class="nm mono">${esc(m.note || m.ref || "")}</td></tr>`;
+      }).join("");
+}
+
+function uQuickIn(id){ $("uoId").value=""; $("uiId").value = id; uInAvail();
+  $("uiId").scrollIntoView({behavior:"smooth", block:"center"}); }
+function uQuickOut(id){ $("uiId").value=""; $("uoId").value = id; uOutAvail();
+  $("uoId").scrollIntoView({behavior:"smooth", block:"center"}); }
+
+function uHistory(id){
+  const u = unitById(id); if(!u) return;
+  const s = uState(id);
+  const moves = S.umoves.filter(m => m.uid === id)
+    .sort((a,b)=> a.d !== b.d ? (a.d<b.d?1:-1) : (b.ts||0)-(a.ts||0));
+  modal(`<h3>${esc(u.id)}</h3>
+    <div class="hint" style="margin-bottom:12px">
+      ${esc(u.cat)}${u.make ? " · " + esc(u.make) : ""}${u.vm ? " · fits " + esc(u.vm) : ""}
+      · registered ${esc(u.d || "—")}
+    </div>
+    <div class="msg ${s.st==="STOCK"?"ok":"inf"} on" style="margin:0 0 14px">
+      <b>${s.st === "STOCK" ? "At " + esc(s.h || "—") : UST[s.st].lbl + (s.vendor ? " with " + esc(s.vendor) : "")}</b>
+      · ${UCOND[s.cond].lbl}${s.since ? " · " + daysBetween(s.since, today()) + " days" : ""}
+    </div>
+    <div class="tw" style="max-height:340px;overflow-y:auto"><table>
+      <thead><tr><th>Date</th><th>Event</th><th>From</th><th>To</th><th>Condition</th><th>By</th></tr></thead>
+      <tbody>${!moves.length ? emptyRow(6,"No movements","") : moves.map(m=>{
+        const e = UEV[m.t] || {lbl:m.t, cls:"p-mute"};
+        return `<tr><td>${esc(m.d)}</td>
+          <td><span class="pill ${e.cls}">${esc(e.lbl)}</span></td>
+          <td>${esc(m.from||"—")}</td><td>${esc(m.to||"—")}</td>
+          <td>${m.cond?UCOND[m.cond].lbl:"—"}</td><td>${esc(m.by||"—")}</td></tr>` +
+          (m.note ? `<tr><td></td><td colspan="5" class="nm mono" style="color:var(--ink-mute)">${esc(m.note)}</td></tr>` : "");
+      }).join("")}</tbody></table></div>
+    <div class="bar" style="margin-top:16px">
+      <button class="btn sm ghost" onclick="closeModal()">Close</button>
+    </div>`);
+}
+
+function uiFromKindChange(){
+  const k = $("uiFromKind").value;
+  $("uiFromHub").style.display   = k === "HUB" ? "" : "none";
+  $("uiFromOther").style.display = k === "HUB" ? "none" : "";
+}
+
+/* ---------- bulk registration ---------- */
+function openUnitBulk(){
+  modal(`<h3>Register units in bulk</h3>
+    <div class="hint" style="margin-bottom:12px">
+      Paste one ID per line — straight from a delivery note or a scanner. They are
+      registered and booked in together. IDs already known are skipped.
+    </div>
+    <label>Category</label>
+    <select id="ubCat">${UNIT_CATS.map(c=>`<option>${esc(c)}</option>`).join("")}</select>
+    <div class="row">
+      <div><label>Book in at</label><select id="ubHub">${hubOptions().map(h=>`<option>${esc(h)}</option>`).join("")}</select></div>
+      <div><label>Condition</label><select id="ubCond">
+        <option value="OK">Working</option><option value="BAD">Not working</option>
+        <option value="UNK">Untested</option></select></div>
+    </div>
+    <div class="row">
+      <div><label>Received from</label><input id="ubFrom" placeholder="Vendor or hub"></div>
+      <div><label>Received by</label><input id="ubBy" placeholder="Your name"></div>
+    </div>
+    <label>Make / brand (optional)</label>
+    <input id="ubMake" placeholder="e.g. BGauss">
+    <label>Unit IDs — one per line</label>
+    <textarea id="ubIds" style="height:130px;font-family:ui-monospace,Menlo,monospace;font-size:12px"
+      placeholder="CTL-0912&#10;CTL-0913&#10;CTL-0914" oninput="ubCount()"></textarea>
+    <div class="msg inf on" id="ubMsg" style="margin-top:10px"></div>
+    <div class="bar" style="margin-top:14px">
+      <button class="btn sm" onclick="doUnitBulk()">Register &amp; book in</button>
+      <button class="btn sm ghost" onclick="closeModal()">Cancel</button>
+    </div>`);
+  ubCount();
+}
+function ubIdList(){
+  return ($("ubIds").value||"").split(/[\n,]/).map(s=>s.trim().toUpperCase()).filter(Boolean);
+}
+function ubCount(){
+  const ids = ubIdList();
+  const dupes = ids.filter(id => unitById(id)).length;
+  $("ubMsg").innerHTML = !ids.length ? "Paste some IDs above."
+    : `<b>${ids.length}</b> ID${ids.length===1?"":"s"}` +
+      (dupes ? ` · ${dupes} already registered and will be booked in, not duplicated` : "");
+}
+function doUnitBulk(){
+  const ids = ubIdList();
+  if(!ids.length){ toast("No IDs pasted.", true); return; }
+  const cat=$("ubCat").value, hub=$("ubHub").value, cond=$("ubCond").value;
+  const from=$("ubFrom").value.trim(), by=$("ubBy").value.trim(), make=$("ubMake").value.trim();
+  if(!by || !from){ toast("Enter who received it and where from.", true); return; }
+  let made=0, seen=new Set();
+  ids.forEach(id=>{
+    if(seen.has(id)) return; seen.add(id);
+    if(!unitById(id)){ registerUnit(id, cat, "", make, "", ""); made++; }
+    uMove({uid:id, d:today(), t:"IN", from, to:hub, cond, by, ref:"BULK", note:""});
+  });
+  closeModal(); commit();
+  toast(`${seen.size} units booked in at ${hub} (${made} newly registered).`);
+}
+</script>
+<script>
+/* ============================================================
    MICROSOFT 365 SYNC
    Signs in with a Hala account (OAuth2 + PKCE, no client secret)
    and keeps an Excel workbook in the user's OneDrive as the store.
@@ -2766,7 +3318,7 @@ function rackWalk(){
       deliberately not what the ledger uses.
    ============================================================ */
 
-const SCHEMA_V = 2;      // bump whenever a worksheet is added to SHEETS
+const SCHEMA_V = 4;      // bump whenever a worksheet is added to SHEETS
 const MS = {
   authority: "https://login.microsoftonline.com",
   graph: "https://graph.microsoft.com/v1.0",
@@ -2777,7 +3329,7 @@ const MS = {
 
 const SHEETS = {
   txns:   ["u","id","ts","d","t","p","q","h","h2","ref","by","note","meta"],
-  parts:  ["c","n","g","r","p","m","a","_m"],
+  parts:  ["c","n","g","r","p","m","a","sn","_m"],
   hubs:   ["n","city","t","a","_m"],
   models: ["n","a","_m"],
   svcs:   ["c","n","p","_m"],
@@ -2785,13 +3337,16 @@ const SHEETS = {
   claims: ["id","d","p","qty","vendor","hub","issue","by","st","resd","_m"],
   racks:  ["k","h","code","zone","note","a","_m"],
   bins:   ["k","h","p","rack","_m"],
+  units:  ["k","id","cat","p","make","vm","note","d","a","_m"],
+  _meta:  ["k","v"],
+  umoves: ["u","uid","ts","d","t","from","to","cond","by","ref","note"],
 };
 const KEYOF = {parts:"c", hubs:"n", models:"n", svcs:"c", pos:"id", claims:"id",
-               racks:"k", bins:"k"};
+               racks:"k", bins:"k", units:"k"};
 // Excel stores an ISO date string as a real date, so it comes back as a serial
 // number (2026-08-20 reads as 46254). Every date field has to be normalised on
 // the way in, or ageing, the 30/90-day windows and ledger ordering all break.
-const DATE_COLS = {txns:["d"], pos:["eta","d"], claims:["d","resd"]};
+const DATE_COLS = {txns:["d"], pos:["eta","d"], claims:["d","resd"], units:["d"], umoves:["d"]};
 function isoDate(v){
   if(v == null || v === "") return "";
   if(typeof v === "number" && v > 20000 && v < 80000){
@@ -2805,7 +3360,8 @@ function isoDate(v){
   if(!isNaN(d) && s.length > 8) return d.toISOString().slice(0,10);
   return s.slice(0,10);
 }
-const MASTER_SETS = ["parts","hubs","models","svcs","pos","claims","racks","bins"];
+// units are a keyed master; umoves is append-only like the stock ledger
+const MASTER_SETS = ["parts","hubs","models","svcs","pos","claims","racks","bins","units"];
 
 const SYNC = {busy:false, timer:null, poll:null, state:"off", msg:""};
 
@@ -3060,11 +3616,34 @@ async function ensureSheet(name){
     if(e.status !== 404) throw e;
     await graph("POST", wbPath() + "/worksheets", {name: name});
   }
+  if(name === "_meta") return;          // a marker sheet, not a table
   const rng = await graph("GET", wbPath() + "/worksheets/" + name + "/range(address='A1:" + last + "1')");
   const has = rng && rng.values && rng.values[0] && String(rng.values[0][0]||"").length;
   if(!has){
     await graph("PATCH", wbPath() + "/worksheets/" + name + "/range(address='A1:" + last + "1')",
       {values:[cols]});
+  }
+}
+
+/* The workbook needs a cheap "have the masters changed?" marker. Without one a
+   device pulls masters on its first sync and never again, so a part, rack or
+   unit created elsewhere would never reach it — and pulling 800 master rows on
+   every poll instead would be far too heavy. One cell answers it. */
+async function readMRev(){
+  try{
+    const r = await graph("GET", wbPath() + "/worksheets/_meta/range(address='B1')?$select=values");
+    return Number(r && r.values && r.values[0] && r.values[0][0]) || 0;
+  }catch(e){ if(e.status === 404) return 0; throw e; }
+}
+async function bumpMRev(v){
+  try{
+    await graph("PATCH", wbPath() + "/worksheets/_meta/range(address='A1:B1')",
+      {values: [["mrev", v]]});
+  }catch(e){
+    if(e.status !== 404) throw e;
+    await ensureSheet("_meta");
+    await graph("PATCH", wbPath() + "/worksheets/_meta/range(address='A1:B1')",
+      {values: [["mrev", v]]});
   }
 }
 
@@ -3112,6 +3691,7 @@ function flat(v){
    WHAT STILL NEEDS PUSHING
    ============================================================ */
 function pendingTxns(){ return S.txns.filter(t => !S.sync.pushed[t.u]); }
+function pendingMoves(){ return S.umoves.filter(m => !S.sync.pushed[m.u]); }
 function pendingMasters(){
   const out = {}; let any = false;
   // First ever sync uploads the whole catalogue, so the workbook is a
@@ -3125,7 +3705,8 @@ function pendingMasters(){
 }
 function pendingCount(){
   const m = pendingMasters();
-  return pendingTxns().length + (m ? Object.keys(m).reduce((a,k)=>a+m[k].length,0) : 0);
+  return pendingTxns().length + pendingMoves().length +
+    (m ? Object.keys(m).reduce((a,k)=>a+m[k].length,0) : 0);
 }
 
 function mergeDown(data){
@@ -3143,6 +3724,15 @@ function mergeDown(data){
     newTx++;
   });
 
+  const haveM = new Set(S.umoves.map(m=>m.u));
+  (data.umoves||[]).forEach(m=>{
+    if(!m || !m.u || haveM.has(m.u)) return;
+    m.d = isoDate(m.d); m.ts = Number(m.ts)||0;
+    S.umoves.push(m); S.sync.pushed[m.u] = 1; haveM.add(m.u);
+    newTx++;
+  });
+  if(data.umoves && data.umoves.length) UMAP = null;
+
   MASTER_SETS.forEach(k=>{
     const rows = data[k]; if(!rows || !rows.length) return;
     const key = KEYOF[k], idx = {};
@@ -3152,7 +3742,7 @@ function mergeDown(data){
       if(typeof r.m === "string" && r.m){          // parts: the models array
         try{ r.m = JSON.parse(r.m); }catch(e){ r.m = []; }
       }
-      ["r","p","qty","rec","val","a","_m"].forEach(f=>{
+      ["r","p","qty","rec","val","a","sn","_m"].forEach(f=>{
         if(r[f] !== undefined && r[f] !== "") r[f] = Number(r[f])||0;
       });
       const cur = idx[r[key]];
@@ -3185,20 +3775,22 @@ async function syncRun(opts){
     await ensureWorkbook();
     const data = {};
 
-    /* 1 — pull masters first when this device has never seen them.
-           Doing this before the push is what stops a second device from
-           re-uploading the whole 706-part catalogue it already agrees with. */
-    if(!(S.sync.mSeen > 0) || opts.fullMasters){
+    /* 1 — pull masters when this device has never seen them, or when another
+           device has changed them since. Doing this before the push is what
+           stops a second device re-uploading a catalogue it already agrees with. */
+    const rev = await readMRev();
+    if(!(S.sync.mSeen > 0) || opts.fullMasters || rev > (S.sync.mRev || 0)){
       let anyRows = false;
       for(const k of MASTER_SETS){
         const n = await rowCount(k);
         data[k] = n ? await readRows(k, 0, n-1) : [];
         if(data[k].length) anyRows = true;
       }
-      BINMAP = null;
+      BINMAP = null; UMAP = null;
       mergeDown(data);                    // merge now so the push below sees the truth
       MASTER_SETS.forEach(k => delete data[k]);
       S.sync.mSeen = stamp;
+      S.sync.mRev = rev;
       if(anyRows) S.sync.mPushed = stamp; // already in step with the workbook
     }
 
@@ -3216,18 +3808,36 @@ async function syncRun(opts){
       txns.forEach(t => S.sync.pushed[t.u] = 1);
     }
 
+    /* 2b — push new unit movements (append-only, deduped by u) */
+    const moves = pendingMoves();
+    if(moves.length){
+      const mtot = await rowCount("umoves");
+      const mknown = new Set();
+      if(mtot > 0) (await readRows("umoves", 0, mtot-1)).forEach(r => mknown.add(String(r.u)));
+      const mfresh = moves.filter(m => !mknown.has(String(m.u)));
+      if(mfresh.length) await appendRows("umoves", mfresh);
+      moves.forEach(m => S.sync.pushed[m.u] = 1);
+    }
+
     /* 3 — push mutable records */
     const masters = pendingMasters();
     if(masters){
       for(const k of Object.keys(masters)) await upsertMaster(k, masters[k]);
       S.sync.mPushed = stamp;
+      await bumpMRev(stamp);            // tell other devices the masters moved
+      S.sync.mRev = stamp;
     }
 
-    /* 4 — pull ledger rows this device has not seen */
+    /* 4 — pull ledger rows and unit movements this device has not seen */
     const total = await rowCount("txns");
     if(total > (S.sync.cursor||0)){
       data.txns = await readRows("txns", S.sync.cursor||0, total-1);
       S.sync.cursor = total;
+    }
+    const mtotal = await rowCount("umoves");
+    if(mtotal > (S.sync.mcursor||0)){
+      data.umoves = await readRows("umoves", S.sync.mcursor||0, mtotal-1);
+      S.sync.mcursor = mtotal;
     }
 
     const got = mergeDown(data);
@@ -3427,7 +4037,7 @@ async function repairWorkbook(){
 }
 function resyncAll(){
   if(!confirm("Re-download the whole workbook?\n\nUse this if entries look missing. Nothing is deleted — anything already here is kept.")) return;
-  S.sync.cursor = 0; S.sync.mSeen = 0; save();
+  S.sync.cursor = 0; S.sync.mcursor = 0; S.sync.mSeen = 0; S.sync.mRev = 0; save();
   syncRun({fullMasters:true}).then(function(){ toast("Full re-sync done."); });
 }
 </script>
@@ -3490,10 +4100,25 @@ function expCsv(what){
       rows.push([t.d,t.h,pname(t.p),t.p,m.sys||0,m.cnt||0,v,t.by||"",m.applied?"Yes":"No"]);
     });
   }
+  else if(what==="units"){
+    rows=[["Unit ID","Category","Make","Fits Model","Location","With Vendor","Condition","Status","Days","Registered"]];
+    S.units.filter(u=>u.a).forEach(u=>{
+      const st=uState(u.id);
+      rows.push([u.id,u.cat,u.make||"",u.vm||"",st.h||"",st.vendor||"",
+        (UCOND[st.cond]||{}).lbl||"", (UST[st.st]||{}).lbl||"",
+        st.since?daysBetween(st.since,today()):"", u.d||""]);
+    });
+  }
+  else if(what==="umoves"){
+    rows=[["Date","Unit ID","Event","From","To","Condition","By","Reference","Note"]];
+    S.umoves.slice().reverse().forEach(m=>rows.push([m.d,m.uid,(UEV[m.t]||{lbl:m.t}).lbl,
+      m.from||"",m.to||"",(UCOND[m.cond]||{}).lbl||"",m.by||"",m.ref||"",m.note||""]));
+  }
   else if(what==="parts"){
-    rows=[["Part","Code","Category","Reorder Point","Unit Cost","Fits Models","On Hand","Status"]];
+    rows=[["Part","Code","Category","Reorder Point","Unit Cost","Fits Models","On Hand","Tracking","Status"]];
     S.parts.forEach(p=>rows.push([p.n,p.c,p.g,p.r,p.p||"",
-      (p.m||[]).map(i=>DATA.MODELS[i]).join(" | "),totalOf(p.c),p.a?"Active":"Archived"]));
+      (p.m||[]).map(i=>DATA.MODELS[i]).join(" | "),totalOf(p.c),
+      p.sn?"By ID":"By quantity", p.a?"Active":"Archived"]));
   }
   if(rows.length<2){ toast("Nothing to export yet."); return; }
   dl(`hala-${name}-${stamp}.csv`, csv(rows));
@@ -3559,8 +4184,8 @@ async function boot(){
   combo("cb-au", {placeholder:"Search parts…", onPick:auAvail});
 
   // defaults
-  ["tkDate","isDate","xDate","scDate","auDate"].forEach(id=>{ const e=$(id); if(e) e.value=today(); });
-  ["tkBy","isBy","xBy","scBy","auBy","poBy"].forEach(id=>{ const e=$(id); if(e) e.value=lsGet(id); });
+  ["tkDate","isDate","xDate","scDate","auDate","uiDate","uoDate"].forEach(id=>{ const e=$(id); if(e) e.value=today(); });
+  ["tkBy","isBy","xBy","scBy","auBy","poBy","uiBy","uoBy"].forEach(id=>{ const e=$(id); if(e) e.value=lsGet(id); });
   ["xFrom","poHub"].forEach(id=>{ const e=$(id); if(e) e.addEventListener("change",()=>e.dataset.touched="1"); });
 
   const rd = $("curRedirect"); if(rd) rd.textContent = redirectUri();
