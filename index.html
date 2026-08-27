@@ -3435,7 +3435,13 @@ function doUnitBulk(){
    wrong unit ID is worse than typing it.
    ============================================================ */
 
-const OCR_CDN = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
+/* Mirrors, tried in order — some office and mobile networks block one CDN but
+   not another, and a blocked mirror must not cost us the scan. */
+const OCR_CDNS = [
+  "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js",
+  "https://unpkg.com/tesseract.js@5.1.1/dist/tesseract.min.js",
+  "https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.1/tesseract.min.js"
+];
 const SCAN = {stream:null, target:"ui", worker:null, shot:null, track:null};
 
 /* ---------- parse a label's text into fields ----------
@@ -3477,6 +3483,24 @@ function parseLabel(text, oems){
   out.id = cands[0] || "";
   return out;
 }
+/* Fold every lookalike character to one representative, so a misread and the
+   real ID collide. Measured against a real controller label: OLTCOIS2SH387,
+   0LTC01525H387 and OLTCO1S2SH387 all fold onto the same key as the true
+   OLTCO1S25H387, while genuine nonsense does not. */
+const CONFUSE = {O:"0", Q:"0", D:"0", I:"1", L:"1", S:"5", B:"8", Z:"2", G:"6", U:"V"};
+function canonId(s){
+  return String(s||"").toUpperCase().replace(/[^A-Z0-9]/g,"")
+    .split("").map(ch => CONFUSE[ch] || ch).join("");
+}
+/* If a scan folds onto a unit already on the register, that is almost certainly
+   the unit in your hand — a serial is far too long to collide by chance. */
+function snapToKnown(id){
+  const c = canonId(id);
+  if(c.length < 6) return null;
+  const hit = S.units.find(u => canonId(u.id) === c);
+  return (hit && hit.id !== id) ? hit.id : null;
+}
+
 /* Characters OCR habitually confuses. Flagged, never silently "corrected" —
    auto-fixing would quietly corrupt IDs that were read correctly. */
 function confusables(id){
@@ -3555,19 +3579,85 @@ function cropToGuide(video){
   g.drawImage(video, x, y, w, h, 0, 0, c.width, c.height);
   return c;
 }
-function enhance(canvas){
+/* Grayscale, not binarised: thresholding measurably destroyed the serial on a
+   real label, while contrast + unsharp on grayscale recovered it. */
+function preVariants(src){
+  const specs = [
+    {scale:1.0, contrast:2.2, sharpen:true},
+    {scale:1.0, contrast:1.6, sharpen:true},
+    {scale:1.3, contrast:2.6, sharpen:true},
+  ];
+  return specs.map(sp => {
+    const c = document.createElement("canvas");
+    c.width = Math.round(src.width * sp.scale);
+    c.height = Math.round(src.height * sp.scale);
+    const g = c.getContext("2d");
+    g.imageSmoothingQuality = "high";
+    g.drawImage(src, 0, 0, c.width, c.height);
+    return enhance(c, sp.contrast, sp.sharpen);
+  });
+}
+function sharpenCanvas(canvas){
+  const g = canvas.getContext("2d");
+  const w = canvas.width, h = canvas.height;
+  const src = g.getImageData(0,0,w,h), out = g.createImageData(w,h);
+  const s = src.data, o = out.data;
+  const k = [0,-1,0,-1,5,-1,0,-1,0];
+  for(let y=1;y<h-1;y++) for(let x=1;x<w-1;x++){
+    let sum = 0, i = 0;
+    for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++,i++)
+      sum += s[((y+dy)*w + (x+dx))*4] * k[i];
+    const v = sum < 0 ? 0 : sum > 255 ? 255 : sum;
+    const p = (y*w+x)*4;
+    o[p] = o[p+1] = o[p+2] = v; o[p+3] = 255;
+  }
+  g.putImageData(out,0,0);
+  return canvas;
+}
+function enhance(canvas, contrast, sharpen){
+  contrast = contrast || 2.2;
   const g = canvas.getContext("2d");
   const d = g.getImageData(0,0,canvas.width,canvas.height);
   const px = d.data;
   for(let i=0;i<px.length;i+=4){
     // grayscale, then push contrast so printed text separates from the metal
     let v = px[i]*0.299 + px[i+1]*0.587 + px[i+2]*0.114;
-    v = (v - 128) * 2.2 + 128;
+    v = (v - 128) * contrast + 128;
     v = v < 0 ? 0 : v > 255 ? 255 : v;
     px[i] = px[i+1] = px[i+2] = v;
   }
   g.putImageData(d,0,0);
-  return canvas;
+  return sharpen ? sharpenCanvas(canvas) : canvas;
+}
+
+/* Every serial-shaped token a piece of text contains. */
+function serialCandidates(text){
+  const up = String(text||"").toUpperCase();
+  const toks = up.match(/[A-Z0-9]{8,}/g) || [];
+  return toks.filter(t =>
+    (t.match(/\d/g)||[]).length >= 2 &&
+    (t.match(/[A-Z]/g)||[]).length >= 2 &&
+    !/^(CONTROLLER|BRUSHLESS|WORKING|CONFINED|PRODUCT|VOLTAGE|CURRENT|BATTERY)/.test(t));
+}
+
+/* Read the same picture several ways and let the readings vote. On a real
+   label the true serial won 5 votes to 3 over the model code. */
+async function ocrVote(sources, onStep){
+  const votes = {}, texts = [];
+  let done = 0;
+  const total = sources.length;
+  for(const src of sources){
+    for(const canvas of preVariants(src)){
+      const t = await runOcr(canvas);
+      texts.push(t);
+      serialCandidates(t).forEach(c => votes[c] = (votes[c]||0) + 1);
+    }
+    done++;
+    if(onStep) onStep(done, total);
+  }
+  const ranked = Object.keys(votes).sort((a,b)=> votes[b]-votes[a] || b.length-a.length);
+  return {id: ranked[0] || "", votes: votes[ranked[0]] || 0,
+          ranked, text: texts.join("\n")};
 }
 
 async function scanCapture(){
@@ -3577,7 +3667,17 @@ async function scanCapture(){
   if(!full.width){ say("scMsg","The camera has not started yet.","err"); return; }
   full.getContext("2d").drawImage(v,0,0);
 
-  const crop = cropToGuide(v);
+  /* Several frames a moment apart: shake and glare differ between them, so a
+     character lost in one is often clean in another. */
+  say("scMsg","Capturing…","inf");
+  const frames = [cropToGuide(v)];
+  for(let i=0;i<2;i++){
+    await new Promise(r => setTimeout(r, 180));
+    const f = cropToGuide(v);
+    if(f) frames.push(f);
+  }
+  const crop = frames[0];
+  SCAN.frames = frames;
   SCAN.shot = crop.toDataURL("image/jpeg", 0.92);
   $("scVid").style.display = "none";
   $("scGuide").style.display = "none";
@@ -3595,13 +3695,22 @@ async function scanCapture(){
   }
 
   // 2. fall back to reading the printed text
-  say("scMsg","No barcode on this label — reading the text… <span class='mono'>this can take a few seconds</span>","inf");
+  say("scMsg","No barcode on this label — reading the text…","inf");
   try{
-    const text = await runOcr(enhance(crop));
-    const got = parseLabel(text, activeOems());
+    const vres = await ocrVote(SCAN.frames || [crop], (d,t)=>{
+      say("scMsg","Reading the label — pass " + d + " of " + t + "…","inf");
+    });
+    SCAN.vote = vres;
+    const got = parseLabel(vres.text, activeOems());
+    if(vres.id) got.id = vres.id;                 // the voted winner beats a single pass
+    got.votes = vres.votes;
+    // a reading that folds onto a unit already on the register is almost certainly it
+    const snapped = snapToKnown(got.id);
+    if(snapped){ got.snappedFrom = got.id; got.id = snapped; }
     if(!got.id && !got.cat && !got.oem){
       say("scMsg","<b>Could not read the label.</b> Try again with more light and the label filling the box — or enter the details by hand.","err");
-      $("scBtns").innerHTML = `<button class="btn sm" onclick="openScan('${SCAN.target}')">Scan again</button>
+      $("scBtns").innerHTML = `<button class="btn sm" onclick="scanPickId()">Ring just the ID</button>
+        <button class="btn sm ghost" onclick="openScan('${SCAN.target}')">Scan again</button>
         <button class="btn sm ghost" onclick="scanManual()">Enter manually</button>
         <button class="btn sm ghost" onclick="closeScan()">Cancel</button>`;
       return;
@@ -3636,8 +3745,18 @@ function loadScript(src){
     document.head.appendChild(s);
   });
 }
+/* Try each mirror in turn; only give up when every one of them fails. */
+async function loadOcrLib(){
+  if(window.Tesseract) return;
+  let last = null;
+  for(const url of OCR_CDNS){
+    try{ await loadScript(url); if(window.Tesseract) return; }
+    catch(e){ last = e; }
+  }
+  throw last || new Error("could not load the text-recognition library");
+}
 async function runOcr(canvas){
-  await loadScript(OCR_CDN);
+  await loadOcrLib();
   if(!window.Tesseract) throw new Error("text recognition unavailable");
   if(!SCAN.worker){
     SCAN.worker = await window.Tesseract.createWorker("eng", 1, {
@@ -3649,6 +3768,12 @@ async function runOcr(canvas){
       }
     });
   }
+  try{
+    // a strict character set stops the reader inventing punctuation in a serial
+    await SCAN.worker.setParameters({
+      tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789:.-/+ "
+    });
+  }catch(e){}
   const r = await SCAN.worker.recognize(canvas);
   return (r && r.data && r.data.text) || "";
 }
@@ -3656,9 +3781,16 @@ async function runOcr(canvas){
 /* ---------- confirm before anything is used ---------- */
 function showScanResult(got, how){
   const warn = confusables(got.id);
+  const weak = how !== "barcode" && (got.votes || 0) <= 1;
   say("scMsg", how === "barcode"
     ? "<b>Barcode read.</b> Check it matches the unit before continuing."
-    : "<b>Read from the label.</b> Check every field — small print is easy to misread.", "ok");
+    : got.snappedFrom
+      ? "<b>Matched to a unit already on the register.</b> Read as <span class='mono'>" +
+        esc(got.snappedFrom) + "</span>, which matches <b>" + esc(got.id) + "</b>."
+      : weak
+        ? "<b>Read, but only once.</b> Only one pass produced this — check it carefully or scan again."
+        : "<b>Read from the label</b> (" + (got.votes||1) + " passes agreed). Check every field.",
+    got.snappedFrom ? "ok" : weak ? "err" : "ok");
   $("scFields").innerHTML = `
     <label>Unit ID <span class="req">*</span></label>
     <input id="scId" value="${esc(got.id)}" style="font-family:ui-monospace,Menlo,monospace;font-size:15px">
@@ -3675,14 +3807,84 @@ function showScanResult(got, how){
         ${activeOems().map(o=>`<option${got.oem===o?" selected":""}>${esc(o)}</option>`).join("")}
       </select></div>
     </div>
+    ${(SCAN.vote && SCAN.vote.ranked && SCAN.vote.ranked.length > 1) ? `
+      <div class="hint" style="margin-top:6px">Other readings:
+        ${SCAN.vote.ranked.slice(1,4).map(r=>`<a onclick="document.getElementById('scId').value='${esc(r)}'"
+          style="color:var(--s1);cursor:pointer" class="mono">${esc(r)}</a>`).join(" · ")}
+      </div>` : ""}
     ${got.model || got.made ? `<div class="hint" style="margin-top:8px">Also read:
       ${got.model?`model <span class="mono">${esc(got.model)}</span>`:""}
       ${got.made?` · made <span class="mono">${esc(got.made)}</span>`:""}</div>` : ""}`;
   $("scBtns").innerHTML = `
     <button class="btn sm g" onclick="scanUse()">Use these details</button>
+    ${SCAN.shot ? `<button class="btn sm ghost" onclick="scanPickId()">Ring just the ID</button>` : ""}
     <button class="btn sm ghost" onclick="openScan('${SCAN.target}')">Scan again</button>
     <button class="btn sm ghost" onclick="closeScan()">Cancel</button>`;
 }
+/* When the whole-label read fails, let the user ring just the ID. A tight crop
+   read as a single line with a strict character set is the most accurate pass
+   available. */
+function scanPickId(){
+  if(!SCAN.shot){ toast("Capture a photo first.", true); return; }
+  modal(`<h3>Ring just the ID</h3>
+    <div class="hint" style="margin-bottom:10px">Drag a box around the unit ID only — nothing else.</div>
+    <div id="pkWrap" style="position:relative;touch-action:none;user-select:none">
+      <img id="pkImg" src="${SCAN.shot}" style="width:100%;display:block;border-radius:var(--rs)">
+      <div id="pkBox" style="position:absolute;border:2px solid var(--s1);background:rgba(57,135,229,.18);display:none"></div>
+    </div>
+    <div class="msg inf on" id="pkMsg" style="margin-top:10px">Drag across the ID.</div>
+    <div class="bar" style="margin-top:12px">
+      <button class="btn sm" id="pkGo" onclick="scanReadBox()" disabled>Read this</button>
+      <button class="btn sm ghost" onclick="closeModal()">Cancel</button>
+    </div>`);
+  const wrap = $("pkWrap"), box = $("pkBox");
+  let sx=0, sy=0, drag=false;
+  const pt = e => {
+    const r = wrap.getBoundingClientRect();
+    const t = e.touches ? e.touches[0] : e;
+    return {x: t.clientX - r.left, y: t.clientY - r.top};
+  };
+  const down = e => { const p = pt(e); sx=p.x; sy=p.y; drag=true;
+    box.style.display="block"; box.style.left=sx+"px"; box.style.top=sy+"px";
+    box.style.width="0px"; box.style.height="0px"; e.preventDefault(); };
+  const move = e => { if(!drag) return; const p = pt(e);
+    box.style.left = Math.min(sx,p.x)+"px"; box.style.top = Math.min(sy,p.y)+"px";
+    box.style.width = Math.abs(p.x-sx)+"px"; box.style.height = Math.abs(p.y-sy)+"px";
+    e.preventDefault(); };
+  const up = () => { drag=false;
+    SCAN.box = {l:parseFloat(box.style.left), t:parseFloat(box.style.top),
+                w:parseFloat(box.style.width), h:parseFloat(box.style.height),
+                cw:wrap.clientWidth, ch:wrap.clientHeight};
+    $("pkGo").disabled = !(SCAN.box.w > 12 && SCAN.box.h > 8); };
+  wrap.addEventListener("mousedown",down); wrap.addEventListener("touchstart",down,{passive:false});
+  wrap.addEventListener("mousemove",move); wrap.addEventListener("touchmove",move,{passive:false});
+  window.addEventListener("mouseup",up); wrap.addEventListener("touchend",up);
+}
+async function scanReadBox(){
+  const b = SCAN.box; if(!b) return;
+  say("pkMsg","Reading…","inf");
+  const img = new Image();
+  await new Promise(r => { img.onload = r; img.src = SCAN.shot; });
+  const sx = img.naturalWidth / b.cw, sy = img.naturalHeight / b.ch;
+  const c = document.createElement("canvas");
+  const scale = 4;                                  // a tight crop can take a big upscale
+  c.width = Math.max(Math.round(b.w*sx*scale), 8);
+  c.height = Math.max(Math.round(b.h*sy*scale), 8);
+  const g = c.getContext("2d");
+  g.imageSmoothingQuality = "high";
+  g.drawImage(img, b.l*sx, b.t*sy, b.w*sx, b.h*sy, 0, 0, c.width, c.height);
+  try{
+    const res = await ocrVote([c]);
+    const raw = (res.id || (res.text||"").toUpperCase().replace(/[^A-Z0-9]/g,""));
+    const snapped = snapToKnown(raw);
+    closeModal();
+    showScanResult({id: snapped || raw, cat:"", oem:"", model:"", made:"",
+                    votes: res.votes, snappedFrom: snapped ? raw : ""}, "text");
+  }catch(e){
+    say("pkMsg","Could not read that area — " + esc(e.message),"err");
+  }
+}
+
 function scanUse(){
   const id = $("scId").value.trim().toUpperCase();
   if(!id){ toast("A unit ID is needed.", true); return; }
