@@ -4030,7 +4030,7 @@ const SYNC = {busy:false, timer:null, poll:null, state:"off", msg:""};
 /* ---------- config / session ---------- */
 const cfg = () => S.settings.ms || (S.settings.ms = {clientId:"", tenantId:"", fileId:""});
 const configured = () => !!(cfg().clientId && cfg().tenantId);
-let AUTH = {token:"", refresh:"", exp:0, user:null};
+let AUTH = {token:"", refresh:"", exp:0, user:null, knownUser:""};
 const signedIn = () => !!(AUTH.token && AUTH.exp > Date.now() + 60000);
 
 function loadAuth(){
@@ -4039,9 +4039,16 @@ function loadAuth(){
 function saveAuth(){
   try{ localStorage.setItem("hala_ms_auth", JSON.stringify(AUTH)); }catch(e){}
 }
-function clearAuth(){
-  AUTH = {token:"", refresh:"", exp:0, user:null};
-  try{ localStorage.removeItem("hala_ms_auth"); }catch(e){}
+/* Expiry keeps who you are (so we can offer to sign you straight back in);
+   only a deliberate Sign out forgets it. */
+function clearAuth(forget){
+  const known = forget ? "" : AUTH.knownUser;
+  const who   = forget ? null : AUTH.user;
+  AUTH = {token:"", refresh:"", exp:0, user:who, knownUser:known};
+  try{
+    if(known) localStorage.setItem("hala_ms_auth", JSON.stringify(AUTH));
+    else localStorage.removeItem("hala_ms_auth");
+  }catch(e){}
 }
 
 /* ---------- status chip ---------- */
@@ -4055,9 +4062,34 @@ function setSyncState(st, msg){
     ok:      ["p-ok",   "● Synced"],
     error:   ["p-crit", "▲ Sync failed"],
   }[st] || ["p-mute","◌"];
-  el.className = "pill " + conf[0];
+  el.className = "pill " + conf[0] + (st==="signin" ? " clickable" : "");
   el.textContent = conf[1] + (st==="ok" && AUTH.user && AUTH.user.givenName ? " · " + AUTH.user.givenName : "");
-  el.title = msg || "";
+  el.title = st==="signin" ? "Tap to sign in" : (msg || "");
+  /* The chip IS the sign-in button when the session has lapsed — nobody should
+     have to go hunting through Settings to get syncing again. */
+  el.onclick = st==="signin" ? (()=> signIn())
+             : st==="off"    ? (()=> go("settings"))
+             : null;
+  el.style.cursor = (st==="signin" || st==="off") ? "pointer" : "";
+  showSignInBanner(st);
+}
+
+/* A plain banner across the top of every view while the session is lapsed, so
+   the way back in is visible wherever you happen to be standing. */
+function showSignInBanner(st){
+  let b = $("signinBar");
+  if(st !== "signin"){ if(b) b.remove(); return; }
+  if(!b){
+    b = document.createElement("div");
+    b.id = "signinBar";
+    b.style.cssText = "position:sticky;top:0;z-index:60;display:flex;gap:10px;align-items:center;" +
+      "justify-content:center;flex-wrap:wrap;padding:9px 12px;background:var(--warn);color:#1a1200;" +
+      "font-size:13px;font-weight:600";
+    b.innerHTML = "<span>Your Microsoft session has expired — nothing is syncing.</span>" +
+      "<button class='btn sm' onclick='signIn()' style='background:#1a1200;color:#fff'>Sign in</button>";
+    const host = document.body;
+    host.insertBefore(b, host.firstChild);
+  }
 }
 
 /* ============================================================
@@ -4075,7 +4107,8 @@ function randStr(n){
 const sha256 = str => crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
 const redirectUri = () => location.origin + location.pathname;
 
-async function signIn(){
+async function signIn(opts){
+  opts = opts || {};
   if(!configured()){ toast("Add the Client ID and Tenant ID under Settings first.", true); return; }
   const verifier = randStr(64);
   const challenge = b64url(await sha256(verifier));
@@ -4092,7 +4125,30 @@ async function signIn(){
     code_challenge_method: "S256",
     state,
   });
+  /* A silent attempt: if Microsoft still recognises the browser, this round-trips
+     without showing anything and the user never notices they were signed out.
+     If it does not, Microsoft returns login_required and we ask properly. */
+  if(opts.silent) q.set("prompt", "none");
+  else if(AUTH.user && AUTH.user.userPrincipalName) q.set("login_hint", AUTH.user.userPrincipalName);
   location.href = MS.authority + "/" + cfg().tenantId + "/oauth2/v2.0/authorize?" + q;
+}
+
+/* Once a day Microsoft kills a browser app's refresh token — there is no way to
+   extend it. Rather than leaving the user stranded, try the silent round-trip
+   once per browser session the moment we notice the session is gone. */
+const SILENT_KEY = "hala_silent_tried";
+function trySilentSignIn(){
+  if(!configured() || AUTH.refresh) return false;
+  if(!AUTH.knownUser) return false;                 // never signed in here before
+  if(sessionStorage.getItem(SILENT_KEY)) return false;
+  sessionStorage.setItem(SILENT_KEY, "1");
+  setSyncState("syncing", "Signing you back in…");
+  signIn({silent:true});
+  return true;
+}
+function isSilentMiss(code, desc){
+  return /login_required|interaction_required|consent_required|AADSTS50058|AADSTS50levels/i
+    .test(String(code) + " " + String(desc));
 }
 
 async function handleRedirect(){
@@ -4100,6 +4156,13 @@ async function handleRedirect(){
   if(p.get("error")){
     const desc = p.get("error_description") || p.get("error");
     history.replaceState({}, "", redirectUri());
+    /* The silent attempt simply did not work — that is expected, not an error.
+       Ask for a normal sign-in instead of frightening anyone with a dialog. */
+    if(isSilentMiss(p.get("error"), desc)){
+      setSyncState("signin", "Your session expired — sign in to carry on syncing.");
+      render();
+      return true;
+    }
     setSyncState("error", desc);
     setTimeout(()=> showAuthError(p.get("error"), desc), 400);
     return true;
@@ -4116,6 +4179,9 @@ async function handleRedirect(){
       code, redirect_uri: redirectUri(), code_verifier: verifier,
     });
     await loadProfile();
+    AUTH.knownUser = (AUTH.user && AUTH.user.userPrincipalName) || 1;
+    saveAuth();
+    sessionStorage.removeItem(SILENT_KEY);
     toast("Signed in as " + ((AUTH.user && AUTH.user.displayName) || "your Hala account"));
   }catch(e){
     setSyncState("error", e.message);
@@ -4171,7 +4237,8 @@ async function loadProfile(){
 }
 function signOut(){
   if(!confirm("Sign out?\n\nAnything not yet uploaded stays on this device and syncs when you sign back in.")) return;
-  clearAuth();
+  clearAuth(true);
+  try{ sessionStorage.removeItem(SILENT_KEY); }catch(e){}
   setSyncState(configured() ? "signin" : "off");
   render();
   toast("Signed out.");
@@ -4518,6 +4585,10 @@ async function syncRun(opts){
     // refresh token is the only genuine "signed out" case — anything else is a
     // server-side or file-state problem and must not cost the user their session.
     if(!AUTH.refresh){
+      /* Deliberately NOT redirecting here. Sending someone to Microsoft in the
+         middle of entering a receipt would be alarming, and the banner plus the
+         clickable chip both offer the way back. The silent retry happens on the
+         next open, where a redirect costs nothing. */
       setSyncState("signin", "Session expired — sign in again.");
     } else if(e.status === 423 || e.status === 409 || /locked|in use by/i.test(e.message||"")){
       setSyncState("error", "The workbook is open in Excel — close it and sync again.");
@@ -4596,7 +4667,12 @@ function startPolling(){
 }
 function syncNow(){
   if(!configured()){ toast("Add the Client ID and Tenant ID under Settings first.", true); return; }
-  if(!AUTH.refresh){ setSyncState("signin"); render(); toast("Your session expired — sign in again.", true); return; }
+  if(!AUTH.refresh){
+    // pressing Sync when the session has lapsed should just sign you in
+    setSyncState("signin"); render();
+    if(!trySilentSignIn()) signIn();
+    return;
+  }
   syncRun().then(function(r){ if(r) toast("Synced."); });
 }
 document.addEventListener("visibilitychange", function(){
@@ -4857,6 +4933,9 @@ async function boot(){
   // Microsoft 365 sync
   const cameBack = await handleRedirect();
   setSyncState(!configured() ? "off" : (AUTH.refresh ? "syncing" : "signin"));
+  /* Microsoft expires a browser app's session every 24 hours. If we can get it
+     back without troubling anyone, do that before showing anything. */
+  if(!cameBack && trySilentSignIn()) return;
   if(configured() && AUTH.refresh){
     syncRun({quiet:true});
     startPolling();
