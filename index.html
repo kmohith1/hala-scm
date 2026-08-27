@@ -3530,6 +3530,23 @@ async function openScan(target){
       <button class="btn sm ghost" onclick="closeScan()">Cancel</button>
     </div>`);
   startCamera();
+  /* Fetch the reader while the user is still framing the shot, so the wait
+     happens during aiming instead of after the photo. */
+  warmOcr();
+}
+/* Load the library and spin up the worker in the background. Failures are
+   ignored here — the real attempt reports them properly. */
+function warmOcr(){
+  if(SCAN.warming || SCAN.worker) return;
+  SCAN.warming = true;
+  (async()=>{
+    try{
+      await loadOcrLib();
+      if(!SCAN.worker && window.Tesseract)
+        SCAN.worker = await window.Tesseract.createWorker("eng", 1);
+    }catch(e){}
+    SCAN.warming = false;
+  })();
 }
 async function startCamera(){
   try{
@@ -3581,21 +3598,30 @@ function cropToGuide(video){
 }
 /* Grayscale, not binarised: thresholding measurably destroyed the serial on a
    real label, while contrast + unsharp on grayscale recovered it. */
+/* Best-performing spec first: on a real label the 2.2-contrast sharpened
+   grayscale pass alone recovered the serial, so it is what a fast scan runs. */
+const OCR_SPECS = [
+  {scale:1.0, contrast:2.2, sharpen:true},
+  {scale:1.0, contrast:1.6, sharpen:true},
+  {scale:1.3, contrast:2.6, sharpen:true},
+];
+/* Reading a huge canvas is slow on a phone and no more accurate — print this
+   size is already well above what the reader needs. */
+const OCR_MAX_W = 1100;
+
+function makeVariant(src, sp){
+  let scale = sp.scale;
+  if(src.width * scale > OCR_MAX_W) scale = OCR_MAX_W / src.width;
+  const c = document.createElement("canvas");
+  c.width = Math.round(src.width * scale);
+  c.height = Math.round(src.height * scale);
+  const g = c.getContext("2d");
+  g.imageSmoothingQuality = "high";
+  g.drawImage(src, 0, 0, c.width, c.height);
+  return enhance(c, sp.contrast, sp.sharpen);
+}
 function preVariants(src){
-  const specs = [
-    {scale:1.0, contrast:2.2, sharpen:true},
-    {scale:1.0, contrast:1.6, sharpen:true},
-    {scale:1.3, contrast:2.6, sharpen:true},
-  ];
-  return specs.map(sp => {
-    const c = document.createElement("canvas");
-    c.width = Math.round(src.width * sp.scale);
-    c.height = Math.round(src.height * sp.scale);
-    const g = c.getContext("2d");
-    g.imageSmoothingQuality = "high";
-    g.drawImage(src, 0, 0, c.width, c.height);
-    return enhance(c, sp.contrast, sp.sharpen);
-  });
+  return OCR_SPECS.map(sp => makeVariant(src, sp));
 }
 function sharpenCanvas(canvas){
   const g = canvas.getContext("2d");
@@ -3640,24 +3666,44 @@ function serialCandidates(text){
     !/^(CONTROLLER|BRUSHLESS|WORKING|CONFINED|PRODUCT|VOLTAGE|CURRENT|BATTERY)/.test(t));
 }
 
-/* Read the same picture several ways and let the readings vote. On a real
-   label the true serial won 5 votes to 3 over the model code. */
+/* The order passes are tried in: the strongest treatment of every frame before
+   the weaker treatments of any of them, so a scan that stops early still saw
+   each photo once. */
+function ocrPlan(sources){
+  const plan = [];
+  OCR_SPECS.forEach((sp, si) => sources.forEach(src => plan.push({src, sp, si})));
+  return plan;
+}
+
+/* Read the picture several ways and let the readings vote — but stop the moment
+   the answer is settled. On a real label the first pass alone is usually right,
+   so most scans cost one read, not nine. Passes only keep going while the
+   result is still in doubt. */
+const OCR_MAX_PASSES = 5;
 async function ocrVote(sources, onStep){
   const votes = {}, texts = [];
-  let done = 0;
-  const total = sources.length;
-  for(const src of sources){
-    for(const canvas of preVariants(src)){
-      const t = await runOcr(canvas);
-      texts.push(t);
-      serialCandidates(t).forEach(c => votes[c] = (votes[c]||0) + 1);
-    }
+  const plan = ocrPlan(sources).slice(0, OCR_MAX_PASSES);
+  const rank = () => Object.keys(votes).sort((a,b)=> votes[b]-votes[a] || b.length-a.length);
+  let done = 0, stopped = "";
+
+  for(const step of plan){
+    const t = await runOcr(makeVariant(step.src, step.sp));
+    texts.push(t);
+    serialCandidates(t).forEach(c => votes[c] = (votes[c]||0) + 1);
     done++;
-    if(onStep) onStep(done, total);
+    if(onStep) onStep(done, plan.length);
+
+    const r = rank();
+    if(r.length){
+      // already on the register — nothing more to learn, take it
+      if(snapToKnown(r[0]) || S.units.some(u => u.id === r[0])){ stopped = "known"; break; }
+      // two independent passes agree and nothing else is close
+      if(votes[r[0]] >= 2 && (r.length === 1 || votes[r[0]] > votes[r[1]])){ stopped = "agreed"; break; }
+    }
   }
-  const ranked = Object.keys(votes).sort((a,b)=> votes[b]-votes[a] || b.length-a.length);
+  const ranked = rank();
   return {id: ranked[0] || "", votes: votes[ranked[0]] || 0,
-          ranked, text: texts.join("\n")};
+          ranked, passes: done, stopped, text: texts.join("\n")};
 }
 
 async function scanCapture(){
@@ -3672,7 +3718,7 @@ async function scanCapture(){
   say("scMsg","Capturing…","inf");
   const frames = [cropToGuide(v)];
   for(let i=0;i<2;i++){
-    await new Promise(r => setTimeout(r, 180));
+    await new Promise(r => setTimeout(r, 90));
     const f = cropToGuide(v);
     if(f) frames.push(f);
   }
@@ -3698,7 +3744,8 @@ async function scanCapture(){
   say("scMsg","No barcode on this label — reading the text…","inf");
   try{
     const vres = await ocrVote(SCAN.frames || [crop], (d,t)=>{
-      say("scMsg","Reading the label — pass " + d + " of " + t + "…","inf");
+      say("scMsg", d === 1 ? "Reading the label…"
+        : "Checking the reading — pass " + d + "…", "inf");
     });
     SCAN.vote = vres;
     const got = parseLabel(vres.text, activeOems());
