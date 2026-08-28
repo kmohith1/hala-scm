@@ -4028,7 +4028,23 @@ const MASTER_SETS = ["parts","hubs","models","svcs","pos","claims","racks","bins
 const SYNC = {busy:false, timer:null, poll:null, state:"off", msg:""};
 
 /* ---------- config / session ---------- */
-const cfg = () => S.settings.ms || (S.settings.ms = {clientId:"", tenantId:"", fileId:""});
+/* Hala's own app registration, built in so a device is never stranded on
+   "Not configured". Neither value is a secret: a single-page app publishes its
+   client ID to every visitor by design, and sign-in still requires a Hala
+   account. Tokens can only ever come back to this exact page, because the
+   registration lists only this address as a redirect URI.
+   Safari on iOS erases a site's saved settings after about a week of not
+   opening it, which is what stranded the phone — this survives that. */
+const MS_DEFAULTS = {
+  clientId: "08269bce-6b5d-4ba2-b718-f01865874803",
+  tenantId: "cc8957c3-8255-47ab-b223-0fa2bb99e2a3",
+};
+const cfg = () => {
+  const m = S.settings.ms || (S.settings.ms = {clientId:"", tenantId:"", fileId:""});
+  if(!m.clientId) m.clientId = MS_DEFAULTS.clientId;
+  if(!m.tenantId) m.tenantId = MS_DEFAULTS.tenantId;
+  return m;
+};
 const configured = () => !!(cfg().clientId && cfg().tenantId);
 let AUTH = {token:"", refresh:"", exp:0, user:null, knownUser:""};
 const signedIn = () => !!(AUTH.token && AUTH.exp > Date.now() + 60000);
@@ -4139,7 +4155,10 @@ async function signIn(opts){
 const SILENT_KEY = "hala_silent_tried";
 function trySilentSignIn(){
   if(!configured() || AUTH.refresh) return false;
-  if(!AUTH.knownUser) return false;                 // never signed in here before
+  /* Only for a device that has signed in here before. A first-time visitor
+     should see the app and press Sign in, not be bounced to Microsoft before
+     the page has even drawn. */
+  if(!AUTH.knownUser) return false;
   if(sessionStorage.getItem(SILENT_KEY)) return false;
   sessionStorage.setItem(SILENT_KEY, "1");
   setSyncState("syncing", "Signing you back in…");
