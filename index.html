@@ -257,6 +257,13 @@ td.nm{font-variant-numeric:normal;max-width:280px}
           </div>
           <div class="hint" id="tkRackHint">Counting rack by rack is the fastest way through a warehouse — and the hardest to skip something.</div>
           <div class="sep" style="margin:14px 0"></div>
+          <label>Or Load Everything for a Vehicle Model</label>
+          <div class="bar" style="margin-bottom:4px">
+            <select id="tkModel" onchange="tkModelHint()" style="flex:1"></select>
+            <button class="btn sm" onclick="tkLoadModel()">Load</button>
+          </div>
+          <div class="hint" id="tkModelHint">Counting one vehicle's parts at a time keeps a mixed rack honest.</div>
+          <div class="sep" style="margin:14px 0"></div>
           <label>Or Add a Single Part</label>
           <div class="cb" id="cb-tk"></div>
           <div class="hint">Type any part of the name or code.</div>
@@ -273,7 +280,7 @@ td.nm{font-variant-numeric:normal;max-width:280px}
             <button class="btn g sm" onclick="tkPost()" id="tkPostBtn">Post Stock Take</button>
           </div>
           <div class="tw"><table>
-            <thead><tr><th>Rack</th><th>Part</th><th class="num">System</th><th class="num" style="width:105px">Counted</th><th class="num">Variance</th><th></th></tr></thead>
+            <thead><tr><th>Rack</th><th>Part</th><th>Model</th><th class="num">System</th><th class="num" style="width:105px">Counted</th><th class="num">Variance</th><th></th></tr></thead>
             <tbody id="tkTbl"></tbody>
           </table></div>
         </div>
@@ -306,7 +313,7 @@ td.nm{font-variant-numeric:normal;max-width:280px}
         </select></div>
       </div>
       <div class="tw"><table>
-        <thead><tr><th>Part</th><th>Code</th><th>Rack</th><th>Category</th><th class="num">On Hand</th><th class="num">Reorder Pt</th><th class="num">In Refurb</th><th class="num">Incoming</th><th>Status</th><th>Locations</th></tr></thead>
+        <thead><tr><th>Part</th><th>Code</th><th>Model</th><th>Rack</th><th>Category</th><th class="num">On Hand</th><th class="num">Reorder Pt</th><th class="num">In Refurb</th><th class="num">Incoming</th><th>Status</th><th>Locations</th></tr></thead>
         <tbody id="stTbl"></tbody>
       </table></div>
       <div class="hint" id="stFoot"></div>
@@ -1349,6 +1356,8 @@ function fillAllSelects(){
   ["stHub","lgHub"].forEach(id => fillSel(id, hubs, undefined, "All locations"));
   fillSel("isModel", models, undefined, "— not model specific —");
   fillSel("stModel", models, undefined, "All models");
+  fillSel("tkModel", models, undefined, "— choose a model —");
+  if(typeof tkModelHint === "function") tkModelHint();
   ["stCat","mCat"].forEach(id => fillSel(id, cats, undefined, "All categories"));
   fillSel("lgType", Object.keys(TX).map(k=>TX[k].lbl), undefined, "All types");
   // default the transfer source to the warehouse
@@ -1628,7 +1637,7 @@ function rTake(){
   $("tkPostBtn").disabled = !TK.length;
 
   $("tkTbl").innerHTML = !TK.length
-    ? emptyRow(6, "Nothing on the count sheet", "Load a rack on the left, or search for a single part.")
+    ? emptyRow(7, "Nothing on the count sheet", "Load a rack on the left, or search for a single part.")
     : TK.map((r,i)=>{
         const sys = qtyAt(hub, r.c);
         const v = r.q==="" ? null : Number(r.q) - sys;
@@ -1636,6 +1645,7 @@ function rTake(){
         return `<tr>
           <td>${rk?`<span class="tag wh">${esc(rk)}</span>`:`<span class="mono">—</span>`}</td>
           <td class="nm">${esc(pname(r.c))}<div class="mono">${esc(r.c)}</div></td>
+          <td>${modelCell(r.c)}</td>
           <td class="num">${nf(sys)}</td>
           <td class="num"><input type="number" min="0" step="1" value="${r.q}" style="padding:5px 7px;font-size:12.5px;text-align:right"
               oninput="tkEdit(${i},this.value)" placeholder="—"></td>
@@ -1729,6 +1739,73 @@ function tkPost(){
   toast(`Stock take posted — ${posted} lines at ${hub}.`);
 }
 
+
+/* ---------- which vehicles a part belongs to ----------
+   Parts carry model indexes; "COMMON" means it fits everything, which is worth
+   showing plainly rather than as one more model name among forty. */
+function modelsOf(code){
+  const p = PMAP[code];
+  if(!p) return [];
+  return (p.m || []).map(i => DATA.MODELS[i]).filter(Boolean);
+}
+function fitsEverything(code){
+  const ms = modelsOf(code);
+  if(!ms.length) return false;
+  // "COMMON", or listed against every vehicle we have, mean the same thing
+  return ms.includes("COMMON") || ms.length >= DATA.MODELS.length - 1;
+}
+function modelCell(code){
+  const ms = modelsOf(code);
+  if(!ms.length) return `<span class="mono">—</span>`;
+  if(fitsEverything(code)) return `<span class="tag">All models</span>`;
+  const first = ms[0];
+  return `<span class="tag" title="${esc(ms.join(", "))}">${esc(first)}</span>` +
+    (ms.length > 1 ? ` <span class="mono" title="${esc(ms.join(", "))}">+${ms.length-1}</span>` : "");
+}
+/* Parts fitted to a model, including the ones marked COMMON — a count sheet
+   that leaves out the shared consumables is not a count of that vehicle. */
+function partsForModel(model){
+  const mi = DATA.MODELS.indexOf(model);
+  const ci = DATA.MODELS.indexOf("COMMON");
+  if(mi < 0) return [];
+  return activeParts().filter(p =>
+    (p.m || []).includes(mi) || (ci >= 0 && (p.m || []).includes(ci)));
+}
+function tkModelHint(){
+  const m = $("tkModel").value;
+  const el = $("tkModelHint");
+  if(!el) return;
+  if(!m){
+    el.innerHTML = "Counting one vehicle's parts at a time keeps a mixed rack honest.";
+    return;
+  }
+  const parts = partsForModel(m).filter(p => !isSerial(p.c));
+  const total = activeParts().filter(p => !isSerial(p.c)).length;
+  el.innerHTML = `<b>${nf(parts.length)}</b> part${parts.length===1?"":"s"} fit <b>${esc(m)}</b>, ` +
+    `including the ones marked COMMON.` +
+    (total && parts.length >= total * 0.9
+      ? `<div style="color:var(--warn);margin-top:4px">That is nearly the whole catalogue — the parts
+         list does not yet say which parts belong to which vehicle. Map them under
+         <a onclick="go('master');mGo('parts')" style="color:var(--s1);cursor:pointer">Masters → Parts</a>
+         and this becomes a short, useful sheet.</div>`
+      : "");
+}
+function tkLoadModel(){
+  const m = $("tkModel").value;
+  if(!m){ say("tkMsg","Choose a vehicle model first.","err"); return; }
+  const parts = partsForModel(m).filter(p => !isSerial(p.c));
+  if(!parts.length){
+    say("tkMsg", `No parts are mapped to <b>${esc(m)}</b> yet. Map them under Masters → Parts.`, "inf");
+    return;
+  }
+  let added = 0;
+  parts.forEach(p=>{ if(!TK.some(r=>r.c===p.c)){ TK.push({c:p.c, q:""}); added++; } });
+  rTake();
+  say("tkMsg", `Loaded <b>${esc(m)}</b> — ${added} part${added===1?"":"s"} added` +
+      (added < parts.length ? `, ${parts.length-added} already on the sheet.` : "."), "ok");
+  setTimeout(()=>{ const rows=$("tkTbl").querySelectorAll("input"); if(rows[0]) rows[0].focus(); },40);
+}
+
 /* ============================================================
    INVENTORY
    ============================================================ */
@@ -1769,10 +1846,11 @@ function rStock(){
 
   const show = rows.slice(0,300);
   $("stTbl").innerHTML = !rows.length
-    ? emptyRow(10, "No parts match", "Try widening the filters above.")
+    ? emptyRow(11, "No parts match", "Try widening the filters above.")
     : show.map(r=>`<tr>
         <td class="nm">${esc(r.p.n)}</td>
         <td class="mono">${esc(r.p.c)}${r.p.sn?` <span class="tag wh" style="cursor:pointer" onclick="go('units')">BY ID</span>`:""}</td>
+        <td>${modelCell(r.p.c)}</td>
         <td>${rackOf(hub || warehouse(), r.p.c)
               ? `<span class="tag wh">${esc(rackOf(hub || warehouse(), r.p.c))}</span>`
               : `<span class="mono">—</span>`}</td>
@@ -4827,10 +4905,10 @@ function expCsv(what){
   const stamp=today();
   let rows=[], name=what;
   if(what==="stock"){
-    name="stock"; rows=[["Part","Code","Category","Location","On Hand","Reorder Point","In Refurb","Incoming"]];
+    name="stock"; rows=[["Part","Code","Model","Category","Location","On Hand","Reorder Point","In Refurb","Incoming"]];
     activeParts().forEach(p=>activeHubs().forEach(h=>{
       const q=qtyAt(h.n,p.c), w=wipAt(h.n,p.c), i=incAt(h.n,p.c);
-      if(q||w||i) rows.push([p.n,p.c,p.g,h.n,q,p.r,w,i]);
+      if(q||w||i) rows.push([p.n,p.c,modelsOf(p.c).join(" / "),p.g,h.n,q,p.r,w,i]);
     }));
   }
   else if(what==="ledger"||what==="issue"||what==="xfer"||what==="scrap"){
