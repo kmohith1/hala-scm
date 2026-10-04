@@ -1,0 +1,982 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#10243e">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2310243e'/%3E%3Cpath d='M7 22l6-7 5 4 7-9' fill='none' stroke='%23ffffff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<style>html, body { margin: 0; } [hidden] { display: none !important; } img { max-width: 100%; }</style>
+<script>window.HALA_SITE = {"data": "https://raw.githubusercontent.com/kmohith1/hala-scm/fleet-data/", "iter": 310000, "salt": "VJ3Z1Di9xK0EDta1T6ofkg==", "check": "FGSvK7T3yrvYRcvN/TPvvbOaE31DBt02VriNKrZNKA4mEO47aGI="};</script>
+<title>HALA Fleet Dashboard</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600&family=Barlow:wght@400;500;600&display=swap">
+<style>
+/* Layout: a navy band carries the title and the four fleet numbers with their 60-day trend;
+   below it, filters, running figures, two charts, a breakdown table and the vehicle list. Left-aligned throughout. */
+:root {
+  --band: #10243e; --band-2: #1a3355; --band-ink: #ffffff; --band-ink2: #b9c7da; --band-line: rgba(255,255,255,.14);
+  --bg: #f4f5f7; --surface: #ffffff; --sunk: #eef0f3;
+  --ink: #141b26; --ink2: #4a5464; --muted: #76808f;
+  --line: #e2e5ea; --line2: #cdd2da;
+  --accent: #1c5cab; --accent-wash: #e6eefa;
+  --s-rgf: #2a78d6; --s-um: #eb6834; --s-rtd: #1baf7a; --s-oth: #a4a8ae; --s-km: #4a5464;
+  --b-rgf: #5fa2ee; --b-um: #f08a5e; --b-rtd: #3fc594; --b-flt: #b9c7da;
+  --up-good: #0b6b2a; --up-bad: #b3261e; --band-good: #86e0a4; --band-bad: #ffa59c;
+  --warn-bg: #fdf0d3; --warn-ink: #6b4a00;
+  --lv1: #d99a00; --lv2: #e0703c; --lv3: #d03b3b;
+  --sans: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --cond: "Barlow Semi Condensed", "Barlow", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --band: #142033; --band-2: #1d2e48; --band-ink: #ffffff; --band-ink2: #aebdd2; --band-line: rgba(255,255,255,.12);
+    --bg: #0d1014; --surface: #161a20; --sunk: #1f242c;
+    --ink: #f1f3f5; --ink2: #bcc3cd; --muted: #8a93a1;
+    --line: #272c35; --line2: #373e49;
+    --accent: #7db0ee; --accent-wash: #1b2a40;
+    --s-rgf: #3987e5; --s-um: #d95926; --s-rtd: #199e70; --s-oth: #6b7079; --s-km: #bcc3cd;
+    --b-rgf: #5fa2ee; --b-um: #f08a5e; --b-rtd: #3fc594; --b-flt: #aebdd2;
+    --up-good: #7fd99b; --up-bad: #ff9d94; --band-good: #86e0a4; --band-bad: #ffa59c;
+    --warn-bg: #3a2c08; --warn-ink: #f6cf75;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --band: #142033; --band-2: #1d2e48; --band-ink: #ffffff; --band-ink2: #aebdd2; --band-line: rgba(255,255,255,.12);
+  --bg: #0d1014; --surface: #161a20; --sunk: #1f242c;
+  --ink: #f1f3f5; --ink2: #bcc3cd; --muted: #8a93a1;
+  --line: #272c35; --line2: #373e49;
+  --accent: #7db0ee; --accent-wash: #1b2a40;
+  --s-rgf: #3987e5; --s-um: #d95926; --s-rtd: #199e70; --s-oth: #6b7079; --s-km: #bcc3cd;
+  --b-rgf: #5fa2ee; --b-um: #f08a5e; --b-rtd: #3fc594; --b-flt: #aebdd2;
+  --up-good: #7fd99b; --up-bad: #ff9d94; --band-good: #86e0a4; --band-bad: #ffa59c;
+  --warn-bg: #3a2c08; --warn-ink: #f6cf75;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.45 var(--sans); }
+button, select, input { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.num { font-variant-numeric: tabular-nums; }
+.in { max-width: 1280px; margin: 0 auto; padding-inline: 28px; }
+
+/* ---- band */
+.band { background: var(--band); color: var(--band-ink); }
+.band .in { padding-block: 22px 26px; display: flex; flex-direction: column; gap: 22px; }
+.mast { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 8px 24px; }
+.mast h1 { font: 600 26px/1.15 var(--cond); margin: 0; letter-spacing: .005em; }
+.mast p { margin: 4px 0 0; color: var(--band-ink2); font-size: 14px; }
+.asof { text-align: right; color: var(--band-ink2); font-size: 14px; }
+.asof b { color: var(--band-ink); font-weight: 600; }
+.flag { display: inline-block; margin-left: 8px; padding: 1px 9px; border-radius: 99px; background: var(--warn-bg); color: var(--warn-ink); font-weight: 600; font-size: 13px; }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: -6px; }
+.tabs button { background: transparent; border: 1px solid var(--band-line); color: var(--band-ink2); padding: 7px 18px; border-radius: 99px; cursor: pointer; font-size: 15px; }
+.tabs button:hover { color: var(--band-ink); }
+.tabs button[aria-selected="true"] { background: var(--band-ink); color: var(--band); border-color: var(--band-ink); font-weight: 600; }
+.tabs button:focus-visible { outline: 2px solid var(--band-ink); outline-offset: 2px; }
+.kpis { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--band-line); }
+.kpi { padding: 18px 22px 0 0; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.kpi + .kpi { padding-left: 22px; border-left: 1px solid var(--band-line); }
+.kpi .nm { font-size: 14px; color: var(--band-ink2); display: flex; align-items: center; gap: 7px; }
+.kpi .nm i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.kpi b { font: 600 40px/1.05 var(--cond); letter-spacing: -.005em; }
+.kpi .sh { font-size: 14px; color: var(--band-ink2); min-height: 20px; }
+.kpi .dl { font-size: 13.5px; color: var(--band-ink2); min-height: 20px; }
+.kpi .dl .g { color: var(--band-good); font-weight: 600; } .kpi .dl .b { color: var(--band-bad); font-weight: 600; }
+.spark { position: relative; height: 54px; margin-top: 8px; }
+.spark svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.spark .dot { position: absolute; width: 9px; height: 9px; border-radius: 50%; border: 2px solid var(--band); transform: translate(-50%, -50%); pointer-events: none; }
+.spark .hl { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--band-ink2); opacity: .7; pointer-events: none; }
+.spark-x { display: flex; justify-content: space-between; font-size: 12px; color: var(--band-ink2); margin-top: 3px; opacity: .85; }
+
+/* ---- page */
+.wrap { display: flex; flex-direction: column; gap: 26px; padding-block: 20px 56px; }
+.filters { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)) auto; gap: 12px; align-items: end; }
+.fld { display: flex; flex-direction: column; gap: 4px; min-width: 0; font-size: 13px; color: var(--ink2); }
+.fld select, .fld input { width: 100%; height: 36px; padding: 0 10px; background: var(--surface); border: 1px solid var(--line2); border-radius: 6px; font-size: 14px; color: var(--ink); }
+.te-only, #app[data-tab="techs"] .veh-only { display: none; }
+#app[data-tab="techs"] .filters { grid-template-columns: repeat(2, minmax(0, 220px)) auto; justify-content: start; }
+#app[data-tab="techs"].tv2 .te-only, #app[data-tab="tickets"].tv2 .te-only { display: flex; }
+#app[data-tab="techs"].tv2 .filters { grid-template-columns: repeat(5, minmax(0, 1fr)) auto; justify-content: stretch; }
+#app[data-tab="tickets"].tv2 .filters { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.ibar { display: grid; grid-template-columns: 48px minmax(70px, 190px); align-items: center; gap: 10px; }
+.ibar b { text-align: right; font-weight: 600; }
+.ibar i { display: block; height: 12px; min-width: 2px; background: var(--s-um); border-radius: 0 4px 4px 0; }
+#ti-t tr[aria-selected="true"] td { background: var(--accent-wash); }
+.btn { height: 36px; padding: 0 14px; background: var(--surface); border: 1px solid var(--line2); border-radius: 6px; cursor: pointer; white-space: nowrap; font-size: 14px; }
+.btn:hover { background: var(--sunk); }
+.btn[disabled] { opacity: .45; cursor: default; }
+
+.view { display: flex; flex-direction: column; gap: 26px; min-width: 0; }
+.sec { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.sec > header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; }
+.sec h2 { font: 600 19px/1.25 var(--cond); margin: 0; text-wrap: balance; }
+.sec header p { margin: 0; color: var(--ink2); font-size: 14px; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; min-width: 0; }
+.pad { padding: 18px 20px; }
+
+.run { display: grid; grid-template-columns: repeat(4, 1fr); }
+.run > div { padding: 16px 20px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.run > div + div { border-left: 1px solid var(--line); }
+.run b { font: 600 28px/1.1 var(--cond); }
+.run span { font-size: 14px; }
+.run small { font-size: 13px; color: var(--ink2); }
+.kmline { border-top: 1px solid var(--line); padding: 16px 20px 14px; }
+.kmline .cap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 16px; font-size: 14px; }
+.kmline .cap span { color: var(--ink2); }
+.plot { position: relative; height: 120px; margin: 12px 0 0 44px; border-bottom: 1px solid var(--line2); }
+.plot svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.plot .gl { position: absolute; left: 0; right: 0; border-top: 1px solid var(--line); pointer-events: none; }
+.plot .gl span { position: absolute; left: -44px; top: -8px; width: 38px; text-align: right; font-size: 12px; color: var(--muted); }
+.plot .dot { position: absolute; width: 10px; height: 10px; border-radius: 50%; background: var(--s-km); border: 2px solid var(--surface); transform: translate(-50%, -50%); pointer-events: none; }
+.plot .hl { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--muted); pointer-events: none; }
+.plot-x { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin: 4px 0 0 44px; }
+
+.two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13.5px; color: var(--ink2); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; }
+.c-RGF { background: var(--s-rgf); } .c-UM { background: var(--s-um); } .c-RTD { background: var(--s-rtd); } .c-OTH { background: var(--s-oth); }
+.hbars { display: flex; flex-direction: column; gap: 12px; }
+.hrow { display: grid; grid-template-columns: 112px minmax(0, 1fr) 208px; grid-template-areas: "nm bar tot"; gap: 4px 12px; align-items: center; }
+.hrow .nm { grid-area: nm; } .hrow .tr { grid-area: bar; } .hrow .tot { grid-area: tot; }
+.hbars .tr { display: flex; gap: 2px; height: 20px; min-width: 0; }
+.hbars .tr > i { display: block; height: 100%; min-width: 2px; }
+.hbars .tr > i:last-child { border-radius: 0 4px 4px 0; }
+.hbars .tot { font-size: 13.5px; color: var(--ink2); white-space: nowrap; }
+.cols { display: flex; align-items: flex-end; gap: 2px; height: 176px; border-bottom: 1px solid var(--line2); }
+.cols .c { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; min-width: 0; gap: 4px; }
+.cols .c > i { display: block; width: 100%; max-width: 24px; border-radius: 4px 4px 0 0; background: var(--s-um); min-height: 1px; }
+.cols .c > b { font: 500 13px/1 var(--sans); color: var(--ink2); }
+.xl { display: flex; gap: 2px; margin-top: 6px; }
+.xl span { flex: 1; text-align: center; font-size: 12.5px; color: var(--muted); min-width: 0; }
+.fig-note { color: var(--ink2); font-size: 13.5px; margin: 0; }
+
+.seg { display: inline-flex; border: 1px solid var(--line2); border-radius: 6px; overflow: hidden; }
+.seg button { border: 0; background: var(--surface); padding: 6px 13px; cursor: pointer; font-size: 14px; }
+.seg button + button { border-left: 1px solid var(--line2); }
+.seg button[aria-pressed="true"] { background: var(--accent-wash); color: var(--accent); font-weight: 600; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { border: 1px solid var(--line2); background: var(--surface); border-radius: 99px; padding: 5px 13px; cursor: pointer; font-size: 14px; }
+.chip[aria-pressed="true"] { background: var(--accent-wash); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { padding: 9px 14px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--line); }
+tbody tr:last-child td { border-bottom: 0; }
+th:first-child, td:first-child, th.l, td.l { text-align: left; }
+th:first-child, td:first-child { padding-left: 20px; } th:last-child, td:last-child { padding-right: 20px; }
+thead th { font: 500 13px/1.25 var(--sans); color: var(--ink2); vertical-align: bottom; background: var(--sunk); border-bottom: 1px solid var(--line2); }
+#bd thead tr th:first-child { border-top-left-radius: 9px; } #bd thead tr th:last-child { border-top-right-radius: 9px; }
+thead th button { all: unset; cursor: pointer; display: inline-flex; gap: 4px; align-items: flex-end; }
+thead th button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+thead th[aria-sort] { color: var(--ink); font-weight: 600; }
+tbody tr.rowlink { cursor: pointer; }
+tbody tr.rowlink:hover td { background: var(--sunk); }
+.dim { color: var(--muted); }
+.vid { font: 600 14.5px/1.2 var(--cond); letter-spacing: .02em; }
+.st { display: inline-flex; align-items: center; gap: 7px; }
+.st i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: none; }
+.lv1 { background: var(--lv1); } .lv2 { background: var(--lv2); } .lv3 { background: var(--lv3); }
+.flags { display: inline-flex; flex-wrap: wrap; gap: 4px 12px; }
+#te-t .flags { display: flex; flex-direction: column; gap: 3px; white-space: nowrap; }
+.kpi.plain .spark, .kpi.plain .spark-x { display: none; } .kpi.plain { padding-bottom: 4px; }
+.tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding: 14px 20px; border-bottom: 1px solid var(--line); }
+.pager { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; justify-content: space-between; color: var(--ink2); font-size: 14px; padding: 12px 20px; border-top: 1px solid var(--line); }
+.pager div { display: flex; gap: 6px; }
+.empty { padding: 30px 12px; text-align: center; color: var(--ink2); }
+
+.defs { display: grid; grid-template-columns: max-content 1fr; gap: 10px 24px; margin: 0; font-size: 14px; }
+.defs dt { font-weight: 600; } .defs dd { margin: 0; color: var(--ink2); max-width: 78ch; }
+.foot { color: var(--muted); font-size: 13px; }
+.lock { position: fixed; inset: 0; z-index: 80; background: var(--band); color: var(--band-ink); display: flex; align-items: flex-start; justify-content: center; padding: max(12vh, 48px) 20px 20px; overflow: auto; }
+.lockbox { width: min(420px, 100%); display: flex; flex-direction: column; gap: 12px; }
+.lockbox h1 { font: 600 28px/1.15 var(--cond); margin: 0; }
+.lockbox p { margin: 0; color: var(--band-ink2); }
+.lockbox .fld { color: var(--band-ink2); margin-top: 8px; }
+.lockbox input { height: 44px; padding: 0 12px; border-radius: 6px; border: 1px solid var(--band-line); background: rgba(255,255,255,.08); color: var(--band-ink); font-size: 17px; letter-spacing: .04em; }
+.lockbox .btn { height: 44px; background: #ffffff; color: #10243e; border-color: #ffffff; font-weight: 600; font-size: 15px; }
+.lockbox .msg { min-height: 1.45em; color: #ffd0bd; }
+
+/* ---- vehicle drawer */
+.scrim { position: fixed; inset: 0; background: rgba(8, 14, 24, .5); z-index: 40; }
+.drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(640px, 100%); background: var(--surface); border-left: 1px solid var(--line); z-index: 41; overflow-y: auto; padding: calc(20px + env(safe-area-inset-top, 0px)) 24px calc(32px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 22px; }
+.drawer > * { flex: none; }   /* the drawer scrolls; nothing in it may be squeezed by a long list */
+.drawer h2 { font: 600 17px/1.25 var(--cond); margin: 0; }
+.dhead { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.plate { display: inline-block; font: 600 22px/1 var(--cond); letter-spacing: .06em; padding: 7px 12px 6px; border: 2px solid var(--ink); border-radius: 5px; }
+.dhead p { margin: 8px 0 0; color: var(--ink2); }
+.kv { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.kv div { padding: 11px 13px; display: flex; flex-direction: column; gap: 2px; min-width: 0; background: var(--surface); }
+.kv b { font: 600 20px/1.2 var(--cond); }
+.kv small { color: var(--ink2); font-size: 13px; }
+.dk { display: flex; align-items: flex-end; gap: 2px; height: 130px; border-bottom: 1px solid var(--line2); position: relative; margin-left: 46px; }
+.dk .c { flex: 1; height: 100%; display: flex; align-items: flex-end; justify-content: center; min-width: 0; }
+.dk .c > i { display: block; width: 100%; max-width: 24px; border-radius: 3px 3px 0 0; background: var(--s-rgf); }
+.dk .c.x > i { background: repeating-linear-gradient(135deg, var(--s-oth) 0 3px, transparent 3px 6px); height: 100% !important; opacity: .7; }
+.dk .gl { position: absolute; left: 0; right: 0; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); line-height: 1; pointer-events: none; }
+.dk .gl span { position: absolute; left: -46px; top: -6px; width: 40px; text-align: right; }
+.strip { display: flex; gap: 2px; height: 8px; margin: 4px 0 0 46px; }
+.strip i { flex: 1; min-width: 0; border-radius: 1px; background: var(--sunk); }
+.tl { display: flex; height: 20px; gap: 1px; border-radius: 4px; overflow: hidden; background: var(--sunk); }
+.tl i { display: block; height: 100%; min-width: 1px; }
+.tlx { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--muted); margin-top: 4px; }
+.drawer table { font-size: 13.5px; }
+.drawer th, .drawer td { padding: 7px 10px; }
+.drawer th:first-child, .drawer td:first-child { padding-left: 0; }
+.drawer thead th { background: transparent; border-radius: 0 !important; }
+.tip { position: fixed; z-index: 60; pointer-events: none; background: var(--ink); color: var(--bg); padding: 7px 10px; border-radius: 6px; font-size: 13px; line-height: 1.35; max-width: 270px; white-space: pre-line; }
+a { color: var(--accent); }
+
+@media (max-width: 980px) {
+  .filters, #app[data-tab="techs"].tv2 .filters, #app[data-tab="tickets"].tv2 .filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .two { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 720px) {
+  .in { padding-inline: 16px; }
+  .mast h1 { font-size: 22px; }
+  .asof { text-align: left; }
+  .kpis { grid-template-columns: repeat(2, 1fr); }
+  .kpi, .kpi + .kpi { padding: 16px 14px 14px 0; border-left: 0; }
+  .kpi:nth-child(even) { padding-left: 14px; border-left: 1px solid var(--band-line); }
+  .kpi:nth-child(n+3) { border-top: 1px solid var(--band-line); }
+  .kpi b { font-size: 31px; }
+  .filters, #app[data-tab="techs"] .filters, #app[data-tab="techs"].tv2 .filters, #app[data-tab="tickets"].tv2 .filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hrow { grid-template-columns: 1fr max-content; grid-template-areas: "nm tot" "bar bar"; }
+  .run { grid-template-columns: repeat(2, 1fr); }
+  .run > div + div { border-left: 0; }
+  .run > div:nth-child(even) { border-left: 1px solid var(--line); }
+  .run > div:nth-child(n+3) { border-top: 1px solid var(--line); }
+  .run b { font-size: 24px; }
+  .pad { padding: 16px; }
+  .kv { grid-template-columns: repeat(2, 1fr); }
+  .defs { grid-template-columns: 1fr; gap: 2px 0; } .defs dd { margin-bottom: 10px; }
+  .drawer { padding-inline: 16px; }
+}
+</style>
+</head>
+<body>
+<div class="band">
+  <div class="in">
+    <div class="mast">
+      <div><h1>HALA Fleet Dashboard</h1><p>Fleet status, running and maintenance, read from Cercle OS</p></div>
+      <div class="asof" id="asof">Loading fleet data…</div>
+    </div>
+    <div class="tabs" role="tablist" aria-label="Views" id="tabs">
+      <button type="button" role="tab" data-tab="fleet" aria-selected="true">Fleet</button>
+      <button type="button" role="tab" data-tab="tickets" aria-selected="false">Repeat tickets</button>
+      <button type="button" role="tab" data-tab="techs" aria-selected="false" id="tab-techs" hidden>Technicians</button>
+    </div>
+    <div class="kpis" id="kpis" aria-label="Headline numbers"></div>
+  </div>
+</div>
+
+<main class="in wrap" id="app">
+  <section class="filters" aria-label="Filters">
+    <label class="fld">City<select id="f-city"></select></label>
+    <label class="fld">Hub<select id="f-lhub"></select></label>
+    <label class="fld veh-only">Status<select id="f-tag"></select></label>
+    <label class="fld veh-only">Model<select id="f-model"></select></label>
+    <label class="fld veh-only">Client<select id="f-ten"></select></label>
+    <label class="fld veh-only">Vehicle number<input id="f-q" type="search" placeholder="e.g. HGR-701" autocomplete="off"></label>
+    <label class="fld te-only">Period<select id="f-per"></select></label>
+    <label class="fld te-only">From<input id="f-from" type="date"></label>
+    <label class="fld te-only">To<input id="f-to" type="date"></label>
+    <button class="btn" id="f-clear" type="button">Clear filters</button>
+  </section>
+
+  <div class="view" id="v-fleet">
+  <section class="sec">
+    <header><h2>Running</h2><p id="run-note"></p></header>
+    <div class="panel">
+      <div class="run" id="run"></div>
+      <div class="kmline">
+        <div class="cap"><b>Km per on-rent vehicle, per day</b><span id="km-cap"></span></div>
+        <div class="plot" id="km-plot"></div>
+        <div class="plot-x" id="km-x"></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="two">
+    <section class="sec">
+      <header><h2>Status by city</h2>
+        <div class="legend"><span><i class="c-RGF"></i>On rent</span><span><i class="c-UM"></i>Under maintenance</span><span><i class="c-RTD"></i>Ready to deploy</span><span><i class="c-OTH"></i>Other</span></div></header>
+      <div class="panel pad"><div class="hbars" id="ch-city"></div></div>
+    </section>
+    <section class="sec">
+      <header><h2>Time in maintenance</h2><p id="um-sub"></p></header>
+      <div class="panel pad"><div class="cols" id="ch-um"></div><div class="xl" id="ch-um-x"></div></div>
+    </section>
+  </div>
+
+  <section class="sec">
+    <header><h2>Breakdown</h2>
+      <div class="seg" id="bd-dim" role="group" aria-label="Break down by">
+        <button type="button" data-d="city">City</button><button type="button" data-d="lhub">Hub</button><button type="button" data-d="model">Model</button><button type="button" data-d="ten">Client</button>
+      </div></header>
+    <div class="panel"><div class="scroll"><table id="bd"></table></div></div>
+    <button class="btn" id="bd-more" type="button" hidden style="align-self:flex-start"></button>
+  </section>
+
+  <section class="sec" id="vehicles">
+    <header><h2>Vehicles</h2><p class="num" id="v-count"></p></header>
+    <div class="panel">
+      <div class="tools"><div class="chips" id="views" role="group" aria-label="Views"></div></div>
+      <div class="scroll"><table id="vt"></table></div>
+      <div class="pager"><span id="v-range" class="num"></span><div><button class="btn" id="v-prev" type="button">Previous</button><button class="btn" id="v-next" type="button">Next</button></div></div>
+    </div>
+  </section>
+
+  </div>
+
+  <div class="view" id="v-tickets" hidden>
+    <section class="sec">
+      <header><h2>Repeat tickets by issue</h2><p id="ti-note"></p></header>
+      <div class="panel"><div class="scroll"><table id="ti-t"></table></div></div>
+      <button class="btn" id="ti-more" type="button" hidden style="align-self:flex-start"></button>
+    </section>
+    <section class="sec">
+      <header><h2>Where repeat tickets come from</h2>
+        <div class="seg" id="tk-dim" role="group" aria-label="Break down by">
+          <button type="button" data-d="hub">Hub</button><button type="button" data-d="city">City</button><button type="button" data-d="model">Model</button><button type="button" data-d="ten">Client</button>
+        </div></header>
+      <div class="panel"><div class="scroll"><table id="tk-bd"></table></div></div>
+      <button class="btn" id="tk-more" type="button" hidden style="align-self:flex-start"></button>
+    </section>
+    <section class="sec">
+      <header><h2>Repeat tickets</h2><p class="num" id="tk-count"></p></header>
+      <div class="panel">
+        <div class="tools"><div class="chips" id="tk-views" role="group" aria-label="Views"></div></div>
+        <div class="scroll"><table id="tk-t"></table></div>
+        <div class="pager"><span id="tk-range" class="num"></span><div><button class="btn" id="tk-prev" type="button">Previous</button><button class="btn" id="tk-next" type="button">Next</button></div></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="view" id="v-techs" hidden>
+    <section class="sec">
+      <header><h2>Technician scorecard</h2><p id="te-note"></p></header>
+      <div class="panel">
+        <div class="tools"><div class="chips" id="te-views" role="group" aria-label="Views"></div>
+          <label class="fld" style="flex-direction:row;align-items:center;gap:8px">Find a technician<input id="te-q" type="search" autocomplete="off" style="width:200px"></label></div>
+        <div class="scroll"><table id="te-t"></table></div>
+        <div class="pager"><span id="te-range" class="num"></span><div><button class="btn" id="te-prev" type="button">Previous</button><button class="btn" id="te-next" type="button">Next</button></div></div>
+      </div>
+    </section>
+  </div>
+
+  <section class="sec">
+    <header><h2>Definitions</h2></header>
+    <div class="panel pad"><dl class="defs" id="defs"></dl></div>
+    <p class="foot" id="foot"></p>
+    <p class="foot" id="lk-row" hidden><button class="btn" id="lk-forget" type="button">Lock the dashboard on this device</button></p>
+  </section>
+</main>
+
+<div class="lock" id="lock" hidden>
+  <form class="lockbox" id="lk-form" autocomplete="on">
+    <h1>HALA Fleet Dashboard</h1>
+    <p>This dashboard is private. Enter the access passphrase to open it. This device will remember it.</p>
+    <label class="fld" for="lk-in">Access passphrase</label>
+    <input id="lk-in" type="password" autocomplete="current-password" autocapitalize="characters" spellcheck="false">
+    <button class="btn" id="lk-go" type="submit">Open dashboard</button>
+    <p class="msg" id="lk-msg" role="status"></p>
+  </form>
+</div>
+<div class="scrim" id="scrim" hidden></div>
+<aside class="drawer" id="drawer" hidden aria-label="Vehicle detail"></aside>
+<div class="tip" id="tip" hidden></div>
+
+<script>
+(() => {
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const N = n => n == null ? '–' : Math.round(n).toLocaleString('en-IN');
+const N1 = n => n == null ? '–' : (Math.round(n * 10) / 10).toLocaleString('en-IN', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const P1 = (a, b) => b ? (a / b * 100).toFixed(1) + '%' : '–';
+const pct = (a, b) => b ? Math.round(a / b * 100) + '%' : '–';
+const IST = 'Asia/Kolkata', MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const parts = (ms, o) => new Intl.DateTimeFormat('en-US', Object.assign({ timeZone: IST }, o)).formatToParts(new Date(ms)).reduce((a, x) => (a[x.type] = x.value, a), {});
+const dt = ms => { const p = parts(ms, { day: 'numeric', month: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }); return p.day + ' ' + MON[p.month - 1] + ', ' + p.hour + ':' + p.minute + ' ' + p.dayPeriod; };
+const dtY = ms => { const p = parts(ms, { day: 'numeric', month: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }); return p.day + ' ' + MON[p.month - 1] + ' ' + p.year + ', ' + p.hour + ':' + p.minute + ' ' + p.dayPeriod; };
+const dOnly = ms => { const p = parts(ms, { day: 'numeric', month: 'numeric', year: 'numeric' }); return p.day + ' ' + MON[p.month - 1] + ' ' + p.year; };
+const dayLab = k => { const a = k.split('-'); return +a[2] + ' ' + MON[a[1] - 1]; };
+const ago = ms => { const h = (Date.now() - ms) / 36e5, u = (n, w) => n + ' ' + w + (n === 1 ? '' : 's') + ' ago'; return h < 1 ? u(Math.max(1, Math.round(h * 60)), 'minute') : h < 48 ? u(Math.round(h), 'hour') : u(Math.round(h / 24), 'day'); };
+const median = a => { if (!a.length) return null; const s = a.slice().sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+const KM_CAP = 400, DAY = 864e5;
+
+let D, C, SER = null, rows = [], view = [], filt = { city: '', lhub: '', tag: '', model: '', ten: '', q: '' }, quick = 'all', sort = { k: 'km7', dir: -1 }, page = 0, bdDim = 'city', bdAll = false;
+const PER = 50, shards = new Map();
+let TK = null, tab = 'fleet', tkDim = 'hub', tkAll = false, tkQuick = 'all', tkPage = 0, vixMap = null, tkIssue = null, tiAll = false;   // tkIssue: issue picked in the by-issue table
+let teQuick = 'ranked', teSort = { k: 'rank', dir: 1 }, tePage = 0, teQ = '', teRange = null, TT = null;   // teRange: [first, last] day index, null = the whole period
+const dictOf = { city: 'city', lhub: 'hub', tag: 'tag', model: 'model', ten: 'ten' };
+const tagOf = r => D.dicts.tag[r[C.tag]];
+const cls = t => t === 'RGF' || t === 'UM' || t === 'RTD' ? t : 'OTH';
+const STATUS = { RGF: 'On rent', UM: 'Under maintenance', RTD: 'Ready to deploy' };
+const nice = t => STATUS[t] || (t ? t.charAt(0) + t.slice(1).toLowerCase().replace(/_/g, ' ') : '–');
+const blank = { city: 'Not assigned', lhub: 'No hub on record', ten: 'Not with a client', model: 'No model' };
+const label = (dim, i) => { const v = D.dicts[dictOf[dim]][i]; return dim === 'tag' ? nice(v) : (v || blank[dim]); };
+const avgKm = r => r[C.rd] > 0 ? r[C.kmR] / r[C.rd] : null;
+const withWho = r => { const t = D.dicts.ten[r[C.ten]], h = D.dicts.hub[r[C.hub]]; return tagOf(r) === 'RGF' ? (t || h || '') : (h || t || ''); };
+
+// ---------- tooltip
+const tip = $('#tip');
+const showTip = (text, x, y) => { tip.textContent = text; tip.hidden = false; const w = tip.offsetWidth, h = tip.offsetHeight; tip.style.left = Math.max(8, Math.min(innerWidth - w - 8, x + 12)) + 'px'; tip.style.top = (y + 18 + h > innerHeight ? y - h - 10 : y + 18) + 'px'; };
+document.addEventListener('pointermove', e => { if (e.target.closest && e.target.closest('[data-line]')) return; const t = e.target.closest ? e.target.closest('[data-tip]') : null; if (!t) { tip.hidden = true; return; } showTip(t.dataset.tip, e.clientX, e.clientY); });
+document.documentElement.addEventListener('pointerleave', () => { tip.hidden = true; });
+
+// ---------- line chart used for the band sparklines and the km line
+// vals: numbers or null; draws into el; returns nothing. opts: color, ring, labels(i) -> tooltip text, grid (array of tick values), fill
+function line(el, vals, o) {
+  const pts = vals.map((v, i) => v == null ? null : [i, v]).filter(Boolean);
+  if (pts.length < 2) { el.innerHTML = ''; return; }
+  let lo = Math.min(...pts.map(p => p[1])), hi = Math.max(...pts.map(p => p[1]));
+  if (o.grid) { lo = o.grid[0]; hi = o.grid[o.grid.length - 1]; } else { const pad = (hi - lo) * .12 || Math.max(1, hi * .05); lo -= pad; hi += pad; }
+  const n = vals.length - 1, X = i => i / n * 100, Y = v => 100 - (v - lo) / (hi - lo) * 100;
+  const d = pts.map((p, k) => (k ? 'L' : 'M') + X(p[0]).toFixed(2) + ' ' + Y(p[1]).toFixed(2)).join(' ');
+  const last = pts[pts.length - 1], first = pts[0];
+  el.innerHTML = (o.grid ? o.grid.map(g => '<div class="gl" style="top:' + Y(g) + '%"><span class="num">' + N(g) + '</span></div>').join('') : '') +
+    '<svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path d="' + d + ' L' + X(last[0]).toFixed(2) + ' 100 L' + X(first[0]).toFixed(2) + ' 100 Z" style="fill:' + o.color + ';opacity:.13"></path><path d="' + d + '" style="fill:none;stroke:' + o.color + ';stroke-width:2;stroke-linejoin:round;stroke-linecap:round" vector-effect="non-scaling-stroke"></path></svg>' +
+    '<span class="dot" style="left:' + X(last[0]) + '%;top:' + Y(last[1]) + '%;background:' + o.color + '"></span><span class="hl" hidden></span>';
+  el.dataset.line = '1';
+  const hl = el.querySelector('.hl');
+  el.onpointermove = e => { const b = el.getBoundingClientRect(); let i = Math.round((e.clientX - b.left) / b.width * n); i = Math.max(0, Math.min(n, i)); if (vals[i] == null) { hl.hidden = true; tip.hidden = true; return; } hl.hidden = false; hl.style.left = X(i) + '%'; showTip(o.labels(i), e.clientX, e.clientY); };
+  el.onpointerleave = () => { hl.hidden = true; tip.hidden = true; };
+}
+
+// ---------- data source. Where the data files sit beside the page they are read as they are. On the website copy (HALA_SITE is set in
+// its head) they are encrypted and sit in a folder per refresh; the key is derived from the access passphrase and kept on this device.
+const SITE = window.HALA_SITE || null, KEYNAME = 'hala_fleet_key', unb64 = t => Uint8Array.from(atob(t), c => c.charCodeAt(0));
+let sealKey = null, dataBase = '';
+async function getJSON(path) {
+  if (!SITE) { const r = await fetch(path, { cache: 'no-store' }); if (!r.ok) throw new Error(r.status); return r.json(); }
+  const r = await fetch(dataBase + path.replace(/\.json$/, '.bin')); if (!r.ok) throw new Error(r.status);
+  const b = new Uint8Array(await r.arrayBuffer()), plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b.subarray(0, 12) }, sealKey, b.subarray(12));
+  return JSON.parse(await new Response(new Blob([plain]).stream().pipeThrough(new DecompressionStream('gzip'))).text());
+}
+async function tryKey(raw) {
+  try { const k = await crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['decrypt']), c = unb64(SITE.check); await crypto.subtle.decrypt({ name: 'AES-GCM', iv: c.subarray(0, 12) }, k, c.subarray(12)); sealKey = k; return true; } catch (e) { return false; }
+}
+async function unlock() {
+  let saved = null; try { saved = localStorage.getItem(KEYNAME); } catch (e) {}
+  if (saved) { let raw = null; try { raw = unb64(saved); } catch (e) {} if (raw && await tryKey(raw)) return; }
+  $('#lock').hidden = false; $('#lk-in').focus();
+  await new Promise(done => $('#lk-form').addEventListener('submit', async e => {
+    e.preventDefault(); const btn = $('#lk-go'), msg = $('#lk-msg'), pass = $('#lk-in').value.toUpperCase().replace(/[^A-Z0-9]/g, ''); if (!pass || btn.disabled) return;
+    btn.disabled = true; msg.textContent = 'Checking';
+    try {
+      const km = await crypto.subtle.importKey('raw', new TextEncoder().encode(pass), 'PBKDF2', false, ['deriveBits']);
+      const raw = new Uint8Array(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: unb64(SITE.salt), iterations: SITE.iter }, km, 256));
+      if (await tryKey(raw)) { try { localStorage.setItem(KEYNAME, btoa(String.fromCharCode.apply(null, raw))); } catch (e2) {} $('#lock').hidden = true; $('#lk-in').value = ''; done(); return; }
+      msg.textContent = 'That passphrase is not right. Check it and try again.';
+    } catch (e1) { msg.textContent = 'This browser cannot open the dashboard. Use a current version of Chrome, Edge or Safari.'; }
+    btn.disabled = false;
+  }));
+}
+
+// ---------- load
+async function load() {
+  try {
+    if (SITE) {
+      await unlock();
+      const cur = await fetch(SITE.data + 'current.json?t=' + Date.now(), { cache: 'no-store' }).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
+      dataBase = SITE.data + cur.dir + '/';
+      $('#lk-row').hidden = false; $('#lk-forget').addEventListener('click', () => { try { localStorage.removeItem(KEYNAME); } catch (e) {} location.reload(); });
+    }
+    D = await getJSON('data.json');
+  }
+  catch (e) { $('#asof').innerHTML = '<span class="flag" style="margin:0">Data did not load</span>'; $('#kpis').innerHTML = '<div class="kpi"><span class="sh">The fleet data could not be read. Reload the page. If it stays like this, the last refresh did not publish its data.</span></div>'; return; }
+  C = {}; D.cols.forEach((c, i) => C[c] = i); rows = D.rows; rows.forEach((r, i) => { r.ix = i; });
+  header(); options(); views(); bind(); defs(); apply();
+  vixMap = new Map(rows.map(r => [r[C.vid], r.ix]));
+  const h = decodeURIComponent(location.hash.slice(1)); if (h === 'tickets') setTab('tickets'); else if (h && h !== 'technicians') openVehicle(h);
+  getJSON('tickets.json').catch(() => null).then(t => { if (t && t.rows) { TK = t; if (t.techs && (t.techs.names || (t.techs.rows && t.techs.rows.length))) { TT = null; $('#app').classList.toggle('tv2', techV2()); perInit(); $('#tab-techs').hidden = false; if (location.hash === '#technicians') setTab('techs'); } defs(); if (tab === 'tickets') tickets(); } }).catch(() => {});
+  getJSON('series.json').catch(() => null).then(s => { if (s && s.s && s.s.length === rows.length) { SER = s; if (tab === 'fleet') kpis(); running(); } }).catch(() => {});
+}
+
+function header() {
+  // refresh runs start at 10:25, 16:25 and 21:25 IST and take about half an hour; flag the data once a run that should have finished has not landed
+  const SCHED = [10 * 60 + 25, 16 * 60 + 25, 21 * 60 + 25], IST_MS = 5.5 * 36e5, nowMs = Date.now();
+  let due = -Infinity; const day0 = Math.floor((nowMs + IST_MS) / DAY) * DAY;
+  for (const off of [0, -1]) for (const mn of SCHED) { const t = day0 + off * DAY + mn * 6e4 - IST_MS; if (t <= nowMs - 50 * 6e4 && t > due) due = t; }
+  const m = D.meta, late = m.gen < due - 2 * 6e4;
+  $('#asof').innerHTML = 'Data as of <b>' + dtY(m.gen) + ' IST</b>' + (late ? '<span class="flag">Refresh overdue</span>' : '') + '<br>Updated by 11 AM, 5 PM and 10 PM';
+}
+
+function options() {
+  for (const dim of Object.keys(dictOf)) {
+    const cnt = new Map(); for (const r of rows) cnt.set(r[C[dim]], (cnt.get(r[C[dim]]) || 0) + 1);
+    const opts = [...cnt.entries()].sort((a, b) => b[1] - a[1]);
+    $('#f-' + dim).innerHTML = '<option value="">All</option>' + opts.map(([i, n]) => '<option value="' + i + '">' + esc(label(dim, i)) + ' (' + N(n) + ')</option>').join('');
+  }
+}
+
+const QUICK = {
+  all: { t: 'All vehicles', f: () => true, s: ['km7', -1] },
+  um: { t: 'Longest in maintenance', f: r => tagOf(r) === 'UM' && r[C.curDays] != null, s: ['curDays', -1] },
+  idle: { t: 'On rent, not moving', f: r => tagOf(r) === 'RGF' && r[C.km7] === 0 && r[C.kmDays] >= 7, s: ['curDays', -1] },
+  tk: { t: 'Most tickets', f: r => r[C.tk30] > 0, s: ['tk30', -1] },
+  sp: { t: 'Most maintenance spells', f: r => r[C.umN] > 0, s: ['umN', -1] }
+};
+function views() { $('#views').innerHTML = Object.entries(QUICK).map(([k, v]) => '<button type="button" class="chip" data-q="' + k + '" aria-pressed="' + (k === quick) + '">' + v.t + '</button>').join(''); }
+
+function bind() {
+  for (const dim of Object.keys(dictOf)) $('#f-' + dim).addEventListener('change', e => { filt[dim] = e.target.value; page = 0; tkPage = 0; apply(); });
+  let tm; $('#f-q').addEventListener('input', e => { clearTimeout(tm); tm = setTimeout(() => { filt.q = e.target.value.trim().toUpperCase(); page = 0; tkPage = 0; apply(); }, 150); });
+  $('#f-clear').addEventListener('click', () => { for (const k in filt) filt[k] = ''; for (const dim of Object.keys(dictOf)) $('#f-' + dim).value = ''; $('#f-q').value = ''; if (techV2()) perSet('all'); tkIssue = null; page = 0; tkPage = 0; tePage = 0; apply(); });
+  $('#views').addEventListener('click', e => { const b = e.target.closest('[data-q]'); if (!b) return; quick = b.dataset.q; const s = QUICK[quick].s; sort = { k: s[0], dir: s[1] }; page = 0; views(); table(); });
+  $('#bd-dim').addEventListener('click', e => { const b = e.target.closest('[data-d]'); if (!b) return; bdDim = b.dataset.d; bdAll = false; breakdown(); });
+  $('#bd-more').addEventListener('click', () => { bdAll = !bdAll; breakdown(); });
+  $('#bd').addEventListener('click', e => { const tr = e.target.closest('tr[data-i]'); if (!tr) return; filt[bdDim] = tr.dataset.i; $('#f-' + bdDim).value = tr.dataset.i; page = 0; apply(); scrollTo({ top: 0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); });
+  $('#vt').addEventListener('click', e => { const th = e.target.closest('[data-k]'); if (th) { const k = th.dataset.k; sort = sort.k === k ? { k, dir: -sort.dir } : { k, dir: COLS.find(c => c.k === k).txt ? 1 : -1 }; page = 0; table(); return; } const tr = e.target.closest('tr[data-v]'); if (tr) openVehicle(tr.dataset.v); });
+  $('#vt').addEventListener('keydown', e => { if (e.key !== 'Enter') return; const tr = e.target.closest('tr[data-v]'); if (tr) openVehicle(tr.dataset.v); });
+  $('#v-prev').addEventListener('click', () => { page--; table(); });
+  $('#v-next').addEventListener('click', () => { page++; table(); });
+  $('#tabs').addEventListener('click', e => { const b = e.target.closest('[data-tab]'); if (b) setTab(b.dataset.tab); });
+  $('#tk-dim').addEventListener('click', e => { const b = e.target.closest('[data-d]'); if (!b) return; tkDim = b.dataset.d; tkAll = false; tickets(); });
+  $('#tk-more').addEventListener('click', () => { tkAll = !tkAll; tickets(); });
+  $('#ti-more').addEventListener('click', () => { tiAll = !tiAll; tickets(); });
+  const pickIssue = tr => { const i = +tr.dataset.c; tkIssue = tkIssue === i ? null : i; tkPage = 0; tickets(); };
+  $('#ti-t').addEventListener('click', e => { const tr = e.target.closest('tr[data-c]'); if (tr) pickIssue(tr); });
+  $('#ti-t').addEventListener('keydown', e => { if (e.key !== 'Enter' && e.key !== ' ') return; const tr = e.target.closest('tr[data-c]'); if (tr) { e.preventDefault(); pickIssue(tr); } });
+  $('#tk-bd').addEventListener('click', e => { const tr = e.target.closest('tr[data-i]'); if (!tr) return; const f = { hub: 'lhub', city: 'city', model: 'model', ten: 'ten' }[tkDim]; if (!f || tr.dataset.i === '') return; filt[f] = tr.dataset.i; $('#f-' + f).value = tr.dataset.i; page = 0; tkPage = 0; apply(); scrollTo({ top: 0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); });
+  $('#tk-views').addEventListener('click', e => { const b = e.target.closest('[data-q]'); if (!b) return; if (b.dataset.q === 'noissue') tkIssue = null; else tkQuick = b.dataset.q; tkPage = 0; tickets(); });
+  $('#tk-t').addEventListener('click', e => { const tr = e.target.closest('tr[data-v]'); if (tr) openVehicle(tr.dataset.v); });
+  $('#tk-t').addEventListener('keydown', e => { if (e.key !== 'Enter') return; const tr = e.target.closest('tr[data-v]'); if (tr) openVehicle(tr.dataset.v); });
+  $('#te-views').addEventListener('click', e => { const b = e.target.closest('[data-q]'); if (!b) return; teQuick = b.dataset.q; tePage = 0; techs(); });
+  let tq; $('#te-q').addEventListener('input', e => { clearTimeout(tq); tq = setTimeout(() => { teQ = e.target.value.trim().toLowerCase(); tePage = 0; techs(); }, 150); });
+  $('#te-t').addEventListener('click', e => { const th = e.target.closest('[data-k]'); if (th) { const k = th.dataset.k; teSort = teSort.k === k ? { k, dir: -teSort.dir } : { k, dir: TCOLS.find(c => c.k === k).asc ? 1 : -1 }; tePage = 0; techs(); return; } const tr = e.target.closest('tr[data-t]'); if (tr) openTech(+tr.dataset.t); });
+  $('#te-t').addEventListener('keydown', e => { if (e.key !== 'Enter') return; const tr = e.target.closest('tr[data-t]'); if (tr) openTech(+tr.dataset.t); });
+  $('#f-per').addEventListener('change', e => { if (e.target.value === 'c') return; perSet(e.target.value); tePage = 0; tkPage = 0; render(); });
+  for (const id of ['f-from', 'f-to']) $('#' + id).addEventListener('change', e => {
+    const last = TK.days.length - 1; let a = TK.days.indexOf($('#f-from').value), b = TK.days.indexOf($('#f-to').value);
+    if (a < 0 || b < 0) { perSync($('#f-per').value); return; }   // a date outside the period on record: put the fields back
+    if (a > b) { if (id === 'f-from') b = a; else a = b; }
+    teRange = a === 0 && b === last ? null : [a, b];
+    perSync(!teRange ? 'all' : b === last && $('#f-per').querySelector('option[value="' + (b - a + 1) + '"]') ? String(b - a + 1) : a === b && b === last ? 't' : a === b && b === last - 1 ? 'y' : 'c'); tePage = 0; tkPage = 0; render();
+  });
+  $('#te-prev').addEventListener('click', () => { tePage--; techs(); });
+  $('#te-next').addEventListener('click', () => { tePage++; techs(); });
+  $('#tk-prev').addEventListener('click', () => { tkPage--; tickets(); });
+  $('#tk-next').addEventListener('click', () => { tkPage++; tickets(); });
+  $('#scrim').addEventListener('click', closeVehicle);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#drawer').hidden) closeVehicle(); });
+}
+
+function setTab(t) {
+  tab = t; document.querySelectorAll('#tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === t));
+  $('#v-fleet').hidden = t !== 'fleet'; $('#v-tickets').hidden = t !== 'tickets'; $('#v-techs').hidden = t !== 'techs'; $('#app').dataset.tab = t;
+  try { history.replaceState(null, '', tabHash() || location.pathname + location.search); } catch (e) {}
+  render();
+}
+const tabHash = () => tab === 'tickets' ? '#tickets' : tab === 'techs' ? '#technicians' : '';
+function render() { if (tab === 'tickets') tickets(); else if (tab === 'techs') techs(); else kpis(); }
+function apply() {
+  view = rows.filter(r => (filt.city === '' || r[C.city] == filt.city) && (filt.lhub === '' || r[C.lhub] == filt.lhub) && (filt.tag === '' || r[C.tag] == filt.tag) && (filt.model === '' || r[C.model] == filt.model) && (filt.ten === '' || r[C.ten] == filt.ten) && (!filt.q || r[C.vid].toUpperCase().includes(filt.q)));
+  running(); cityChart(); umChart(); breakdown(); table();
+  render();
+}
+
+function agg(list) {
+  const a = { n: list.length, RGF: 0, UM: 0, RTD: 0, OTH: 0, umNew: 0, umDays: [], km7: 0, km14: 0, kmR: 0, rd: 0, kmN: 0, idle: 0, tk30: 0, tk14k: 0 };
+  for (const r of list) {
+    const t = cls(tagOf(r)); a[t]++;
+    if (t === 'UM' && r[C.rentN] === 0 && r[C.age] <= 30) a.umNew++;
+    if (t === 'UM' && r[C.curDays] != null) a.umDays.push(r[C.curDays]);
+    if (r[C.km7] != null) { a.kmN++; a.km7 += r[C.km7]; a.km14 += r[C.km14]; a.kmR += r[C.kmR]; a.rd += r[C.rd]; a.tk14k += r[C.tk14]; if (t === 'RGF' && r[C.km7] === 0 && r[C.kmDays] >= 7) a.idle++; }
+    a.tk30 += r[C.tk30];
+  }
+  a.umMed = median(a.umDays); a.avg = a.rd ? a.kmR / a.rd : null; a.tkKm = a.km14 > 0 ? a.tk14k / a.km14 * 1000 : null;
+  return a;
+}
+
+// ---------- band: four fleet numbers, each with its 60-day line
+function trend() { // per day: counts of R, U, T and fleet size over the vehicles in view
+  if (!SER) return null; const n = SER.tdays.length, R = new Array(n).fill(0), U = R.slice(), T = R.slice(), F = R.slice();
+  for (const r of view) { const s = SER.s[r.ix]; for (let i = 0; i < n; i++) { const c = s.charCodeAt(i); if (c === 46) continue; F[i]++; if (c === 82) R[i]++; else if (c === 85) U[i]++; else if (c === 84) T[i]++; } }
+  return { R, U, T, F };
+}
+function kpis() {
+  const a = agg(view), t = trend();
+  const delta = (arr, upGood, share) => { if (!t) return '&nbsp;'; const n = arr.length, now = arr[n - 1], was = arr[n - 8];
+    if (share) { const p0 = t.F[n - 8] ? was / t.F[n - 8] * 100 : 0, p1 = t.F[n - 1] ? now / t.F[n - 1] * 100 : 0, d = p1 - p0; if (Math.abs(d) < .05) return 'Share unchanged in 7 days'; return '<span class="' + ((d > 0) === upGood ? 'g' : 'b') + '">' + (d > 0 ? '▲' : '▼') + ' ' + Math.abs(d).toFixed(1) + ' pts</span> in 7 days'; }
+    const d = now - was; if (!d) return 'Unchanged in 7 days'; return '<span' + (upGood == null ? '' : ' class="' + ((d > 0) === upGood ? 'g' : 'b') + '"') + '>' + (d > 0 ? '▲' : '▼') + ' ' + N(Math.abs(d)) + '</span> in 7 days'; };
+  const K = (key, name, val, sh, dl, id) => '<div class="kpi"><span class="nm">' + (key ? '<i style="background:var(--b-' + key + ')"></i>' : '') + name + '</span><b class="num">' + val + '</b><span class="sh">' + sh + '</span><span class="dl">' + dl + '</span><div class="spark" id="sp-' + id + '"></div><div class="spark-x">' + (t ? '<span>' + dayLab(SER.tdays[0]) + '</span><span>' + dayLab(SER.tdays[SER.tdays.length - 1]) + '</span>' : '<span>&nbsp;</span>') + '</div></div>';
+  $('#kpis').innerHTML =
+    K('', 'Fleet', N(a.n), a.OTH ? N(a.OTH) + ' in other statuses' : 'vehicles', t ? delta(t.F, null) : '&nbsp;', 'f') +
+    K('rgf', 'On rent', N(a.RGF), P1(a.RGF, a.n) + ' of fleet', t ? delta(t.R, true, true) : '&nbsp;', 'r') +
+    K('um', 'Under maintenance', N(a.UM), P1(a.UM, a.n) + ' of fleet' + (a.umNew ? ', incl. ' + N(a.umNew) + ' new, never deployed' : ''), t ? delta(t.U, false, true) : '&nbsp;', 'u') +
+    K('rtd', 'Ready to deploy', N(a.RTD), P1(a.RTD, a.n) + ' of fleet', t ? delta(t.T, null) : '&nbsp;', 't');
+  if (!t) return;
+  const lab = (name, arr) => i => dayLab(SER.tdays[i]) + '\n' + name + ': ' + N(arr[i]) + (name === 'Fleet' ? '' : ' (' + P1(arr[i], t.F[i]) + ')');
+  line($('#sp-f'), t.F, { color: 'var(--b-flt)', labels: lab('Fleet', t.F) });
+  line($('#sp-r'), t.R, { color: 'var(--b-rgf)', labels: lab('On rent', t.R) });
+  line($('#sp-u'), t.U, { color: 'var(--b-um)', labels: lab('Under maintenance', t.U) });
+  line($('#sp-t'), t.T, { color: 'var(--b-rtd)', labels: lab('Ready to deploy', t.T) });
+}
+
+// ---------- running: km figures and the daily km line
+function running() {
+  const a = agg(view), R = (b, s, sm) => '<div><b class="num">' + b + '</b><span>' + s + '</span><small>' + sm + '</small></div>';
+  $('#run').innerHTML =
+    R(a.avg == null ? '–' : N(a.avg) + ' km', 'Average per rental day', a.kmN ? 'Per vehicle, on the days it was on rent' : 'Km not loaded yet') +
+    R(a.kmN ? N(a.km7) + ' km' : '–', 'Run in the last 7 days', a.kmN ? N(a.kmN) + ' vehicles with km data' : '&nbsp;') +
+    R(a.kmN ? N(a.idle) : '–', 'On rent, not moving', '0 km in the last 7 days') +
+    R(N(a.tk30), 'Tickets resolved, 30 days', a.tkKm != null ? N1(a.tkKm) + ' per 1,000 km run' : '&nbsp;');
+  const cov = D.meta.kmCandidates ? D.meta.kmVehicles / D.meta.kmCandidates : 1;
+  $('#run-note').textContent = cov < .9 ? 'Km is loaded for ' + N(D.meta.kmVehicles) + ' of ' + N(D.meta.kmCandidates) + ' active vehicles so far' : '';
+  const plot = $('#km-plot');
+  if (!SER) { plot.innerHTML = ''; $('#km-cap').textContent = 'Loading…'; $('#km-x').innerHTML = ''; return; }
+  // average km per vehicle that was on rent that day and has km on record for it; complete days only
+  const kd = SER.kdays, nK = kd.length, off = SER.tdays.indexOf(kd[nK - 1]) - (nK - 1), vals = [], cnt = [];
+  for (let i = 0; i < nK - 1; i++) { let sum = 0, n = 0; const ti = i + off;
+    for (const r of view) { const k = SER.k[r.ix]; if (!k) continue; const v = k[i]; if (v < 0 || v > KM_CAP) continue; if (ti >= 0 && SER.s[r.ix].charCodeAt(ti) !== 82) continue; sum += v; n++; }
+    vals.push(n >= 20 ? sum / n : null); cnt.push(n); }
+  let first = vals.findIndex(v => v != null); const fd = D.meta.kmFirstDay; if (first >= 0 && fd) { const cut = new Date(Date.parse(fd + 'T00:00:00Z') + 2 * DAY).toISOString().slice(0, 10); while (first < nK - 1 && kd[first] < cut) first++; }
+  const use = first < 0 ? [] : vals.slice(first), days = first < 0 ? [] : kd.slice(first, nK - 1), cn = first < 0 ? [] : cnt.slice(first);
+  if (use.filter(v => v != null).length < 2) { plot.innerHTML = '<div class="empty" style="padding-top:44px">Not enough km on record for this selection yet.</div>'; plot.onpointermove = null; delete plot.dataset.line; $('#km-cap').textContent = ''; $('#km-x').innerHTML = ''; return; }
+  const hi = Math.max(...use.filter(v => v != null)), top = Math.max(50, Math.ceil(hi / 50) * 50);
+  line(plot, use, { color: 'var(--s-km)', grid: [0, top / 2, top], labels: i => dayLab(days[i]) + '\n' + N(use[i]) + ' km per vehicle\n' + N(cn[i]) + ' vehicles on rent with km' });
+  const lastV = use.filter(v => v != null).pop();
+  $('#km-cap').textContent = N(lastV) + ' km on ' + dayLab(days[days.length - 1]) + ', the latest full day';
+  $('#km-x').innerHTML = '<span>' + dayLab(days[0]) + '</span><span>' + dayLab(days[days.length - 1]) + '</span>';
+}
+
+// ---------- repeat tickets: same rules as the Vehicle Ticket Analyzer workbook
+const WIN = ['First ticket', 'Within 24 hours', '24 to 48 hours', 'After 48 hours', 'Raised before the last one closed', 'Not counted as a service'];
+const LVL = ['', 'Escalated', 'High', 'Critical'], LVL_TIP = ['', '2nd service in a row, each raised within 48 hours of the last', '3rd service in a row, each raised within 48 hours of the last', '4th or later service in a row, each raised within 48 hours of the last'];
+const hubName = i => { const h = D.dicts.hub[i]; return !h || h === '-' ? 'No hub assigned' : h; };
+function tkScope() { // tickets of the vehicles the filters select; the Hub filter means the hub the ticket was assigned to
+  const vf = filt.city !== '' || filt.tag !== '' || filt.model !== '' || filt.ten !== '' || !!filt.q, ok = new Uint8Array(rows.length);
+  for (const r of rows) if ((filt.city === '' || r[C.city] == filt.city) && (filt.tag === '' || r[C.tag] == filt.tag) && (filt.model === '' || r[C.model] == filt.model) && (filt.ten === '' || r[C.ten] == filt.ten) && (!filt.q || r[C.vid].toUpperCase().includes(filt.q))) ok[r.ix] = 1;
+  const pass = (vi, h) => (filt.lhub === '' || h == filt.lhub) && (vi >= 0 ? ok[vi] === 1 : !vf);
+  return { list: TK.rows.filter(t => pass(t[0], t[5])), rep: TK.rep.filter(t => pass(vixMap.has(t[1]) ? vixMap.get(t[1]) : -1, t[10])) };
+}
+function tAgg(list) {
+  const a = { n: 0, w24: 0, w48: 0, esc: 0, notSvc: 0, noCon: 0, veh: new Set() };
+  for (const t of list) { a.n++; if (t[2] === 1) a.w24++; else if (t[2] === 2) a.w48++; else if (t[2] === 5) a.notSvc++; if (t[3] > 0) { a.esc++; a.veh.add(t[0]); } if (t[6] === 2) a.noCon++; }
+  a.rep = a.w24 + a.w48; a.escVeh = a.veh.size; return a;
+}
+function tickets() {
+  if (!TK) { $('#kpis').innerHTML = '<div class="kpi"><span class="sh">Loading ticket data…</span></div>'; return; }
+  const n = TK.days.length, d0 = teRange ? teRange[0] : 0, d1 = teRange ? teRange[1] : n - 1, nd = d1 - d0 + 1, dayOf = sec => new Date(sec * 1000 + 19800000).toISOString().slice(0, 10);
+  const sc0 = tkScope(), sc = nd === n ? sc0 : { list: sc0.list.filter(t => t[1] >= d0 && t[1] <= d1), rep: sc0.rep.filter(t => { const k = dayOf(t[3]); return k >= TK.days[d0] && k <= TK.days[d1]; }) }, a = tAgg(sc.list);
+  const catName = i => (D.dicts.tcat || [])[i] || 'Not classified', weak = i => (TK.weak || ['General Service', 'Consumables & Fasteners', 'Not classified']).includes(catName(i)), hasPrev = !!(TK.rep.length && TK.rep[0].length > 13);
+  // ---- band
+  const per = f => { const s = new Array(n).fill(0); for (const t of sc.list) if (f(t)) s[t[1]]++; return s; };
+  const all = per(() => true), rp = per(t => t[2] === 1 || t[2] === 2), w24 = per(t => t[2] === 1), es = per(t => t[3] > 0);
+  const rate = all.map((x, i) => x >= 20 ? rp[i] / x * 100 : null), sum = (arr, i0, i1) => { let s = 0; for (let i = i0; i <= i1; i++) s += arr[i]; return s; };
+  const w1 = nd >= 14 ? sum(all, d1 - 6, d1) : 0, w0 = nd >= 14 ? sum(all, d1 - 13, d1 - 7) : 0;
+  let dl = '&nbsp;'; if (w1 >= 50 && w0 >= 50) { const d = sum(rp, d1 - 6, d1) / w1 * 100 - sum(rp, d1 - 13, d1 - 7) / w0 * 100; dl = Math.abs(d) < .05 ? 'Rate unchanged on the week before' : '<span class="' + (d > 0 ? 'b' : 'g') + '">' + (d > 0 ? '▲' : '▼') + ' ' + Math.abs(d).toFixed(1) + ' pts</span> on the week before'; }
+  const K = (key, name, val, sh, dlt, id) => '<div class="kpi"><span class="nm">' + (key ? '<i style="background:var(--b-' + key + ')"></i>' : '') + name + '</span><b class="num">' + val + '</b><span class="sh">' + sh + '</span><span class="dl">' + dlt + '</span><div class="spark" id="sp-' + id + '"></div><div class="spark-x"><span>' + dayLab(TK.days[d0]) + '</span><span>' + dayLab(TK.days[d1]) + '</span></div></div>';
+  const cut = arr => arr.slice(d0, d1 + 1), spark = (id, arr, o) => { if (nd >= 3) line($('#sp-' + id), cut(arr), o); else { $('#sp-' + id).parentNode.classList.add('plain'); } };
+  $('#kpis').innerHTML =
+    K('', 'Tickets resolved, ' + (nd === 1 ? dM(TK.days[d0]) : nd + ' days'), N(a.n), 'Return service left out', N(a.notSvc) + ' not counted as a service', 'ta') +
+    K('um', 'Repeat within 48 hours', N(a.rep), P1(a.rep, a.n) + ' of tickets', dl, 'tr') +
+    K('um', 'Of these, within 24 hours', N(a.w24), P1(a.w24, a.n) + ' of tickets', N(a.w48) + ' more in 24 to 48 hours', 'tw') +
+    K('', 'Escalated vehicles', N(a.escVeh), '3 or more back-to-back services', N(a.esc) + ' tickets in those chains', 'te');
+  const dl2 = i => dayLab(TK.days[d0 + i]);
+  spark('ta', all, { color: 'var(--b-flt)', labels: i => dl2(i) + '\n' + N(all[d0 + i]) + ' tickets resolved' });
+  spark('tr', rate, { color: 'var(--b-um)', labels: i => dl2(i) + '\n' + rate[d0 + i].toFixed(1) + '% repeat within 48 hours\n' + N(rp[d0 + i]) + ' of ' + N(all[d0 + i]) + ' tickets' });
+  spark('tw', w24, { color: 'var(--b-um)', labels: i => dl2(i) + '\n' + N(w24[d0 + i]) + ' raised within 24 hours' });
+  spark('te', es, { color: 'var(--b-flt)', labels: i => dl2(i) + '\n' + N(es[d0 + i]) + ' tickets in escalation chains' });
+  // ---- by issue: what the returning tickets were for
+  const gi = new Map(); for (const t of sc.list) { let o = gi.get(t[4]); if (!o) gi.set(t[4], o = { n: 0, w24: 0, w48: 0, same: 0 }); o.n++; if (t[2] === 1) o.w24++; else if (t[2] === 2) o.w48++; if ((t[2] === 1 || t[2] === 2) && (t[9] & 16)) o.same++; }
+  let il = [...gi.entries()].map(([i, o]) => { o.rep = o.w24 + o.w48; return [i, o]; }).sort((x, y) => y[1].rep - x[1].rep || y[1].n - x[1].n); const itot = il.length, imax = Math.max(1, ...il.map(x => x[1].rep)), hasSame = !!TK.src;
+  if (tkIssue != null && !gi.has(tkIssue)) tkIssue = null;
+  if (!tiAll) il = il.filter((x, k) => k < 12 || x[0] === tkIssue);
+  $('#ti-t').innerHTML = '<thead><tr><th class="l">Issue</th><th class="l">Repeat tickets</th><th>Within<br>24 hours</th><th>In 24 to<br>48 hours</th>' + (hasSame ? '<th>Same issue as<br>the service before</th>' : '') + '<th>Share of<br>repeats</th><th>All<br>tickets</th><th>Repeat<br>rate</th></tr></thead><tbody>' +
+    (il.length ? il.map(([i, o]) => '<tr class="rowlink" tabindex="0" data-c="' + i + '" aria-selected="' + (tkIssue === i) + '" data-tip="' + esc(tkIssue === i ? 'Show every issue again' : 'List these tickets below') + '"><td class="l">' + esc(catName(i)) + '</td><td class="l"><div class="ibar num"><b>' + N(o.rep) + '</b><i style="width:' + (o.rep / imax * 100).toFixed(1) + '%"></i></div></td><td class="num">' + N(o.w24) + '</td><td class="num">' + N(o.w48) + '</td>' + (hasSame ? '<td class="num">' + N(o.same) + '</td>' : '') + '<td class="num">' + P1(o.rep, a.rep) + '</td><td class="num">' + N(o.n) + '</td><td class="num">' + P1(o.rep, o.n) + '</td></tr>').join('') : '<tr><td class="empty" colspan="8" style="text-align:center">No tickets match these filters.</td></tr>') + '</tbody>';
+  const imore = $('#ti-more'); imore.hidden = itot <= 12; imore.textContent = tiAll ? 'Show the largest 12' : 'Show all ' + itot;
+  $('#ti-note').textContent = 'What the returning ticket was for. Select an issue to list its tickets below.';
+  // ---- breakdown
+  document.querySelectorAll('#tk-dim button').forEach(b => b.setAttribute('aria-pressed', b.dataset.d === tkDim));
+  const keyOf = { hub: t => t[5], cat: t => t[4], city: t => t[0] < 0 ? -1 : rows[t[0]][C.city], model: t => t[0] < 0 ? -1 : rows[t[0]][C.model], ten: t => t[0] < 0 ? -1 : rows[t[0]][C.ten] }[tkDim];
+  const nameOf = i => i < 0 ? 'Vehicle no longer in the fleet list' : tkDim === 'hub' ? hubName(i) : tkDim === 'cat' ? ((D.dicts.tcat || [])[i] || 'Not classified') : label(tkDim, i);
+  const g = new Map(); for (const t of sc.list) { const k = keyOf(t); let l = g.get(k); if (!l) g.set(k, l = []); l.push(t); }
+  let list = [...g.entries()].map(([i, l]) => [i, tAgg(l)]).sort((x, y) => y[1].n - x[1].n); const total = list.length; if (!tkAll) list = list.slice(0, 12);
+  const canFilter = tkDim !== 'cat';
+  $('#tk-bd').innerHTML = '<thead><tr><th>' + { hub: 'Hub', city: 'City', model: 'Model', cat: 'Issue', ten: 'Client' }[tkDim] + '</th><th>Tickets</th><th>Repeat within<br>24 hours</th><th>Repeat in<br>24 to 48 hours</th><th>Repeat<br>rate</th><th>Escalated<br>vehicles</th><th>Tickets in<br>escalations</th><th>Not counted<br>as a service</th><th>Rider not<br>reached</th></tr></thead><tbody>' +
+    (list.length ? list.map(([i, x]) => '<tr' + (canFilter && i >= 0 ? ' class="rowlink" data-i="' + i + '" data-tip="Show only ' + esc(nameOf(i)) + '"' : '') + '><td class="l">' + esc(nameOf(i)) + '</td><td class="num">' + N(x.n) + '</td><td class="num">' + N(x.w24) + '</td><td class="num">' + N(x.w48) + '</td><td class="num">' + P1(x.rep, x.n) + '</td><td class="num">' + N(x.escVeh) + '</td><td class="num">' + N(x.esc) + '</td><td class="num">' + N(x.notSvc) + '</td><td class="num">' + N(x.noCon) + '</td></tr>').join('') : '<tr><td class="empty" colspan="9" style="text-align:center">No tickets match these filters.</td></tr>') + '</tbody>';
+  const more = $('#tk-more'); more.hidden = total <= 12; more.textContent = tkAll ? 'Show the largest 12' : 'Show all ' + total;
+  // ---- the repeat tickets themselves, newest first
+  const sameAs = t => hasPrev && t[13] === t[9] && !weak(t[9]);
+  const Q = { all: ['All repeats', () => true], d1: ['Within 24 hours', t => t[7] === 1], ...(hasPrev ? { same: ['Same issue again', sameAs] } : {}), esc: ['In an escalation', t => t[8] > 0], crit: ['Critical', t => t[8] === 3] };
+  if (!Q[tkQuick]) tkQuick = 'all';
+  $('#tk-views').innerHTML = Object.entries(Q).map(([k, v]) => '<button type="button" class="chip" data-q="' + k + '" aria-pressed="' + (k === tkQuick) + '">' + v[0] + '</button>').join('') + (tkIssue != null ? '<button type="button" class="chip" data-q="noissue" aria-pressed="true">' + esc(catName(tkIssue)) + ' only. Show every issue</button>' : '');
+  const rl = sc.rep.filter(t => Q[tkQuick][1](t) && (tkIssue == null || t[9] === tkIssue)).sort((x, y) => y[2] - x[2]), pages = Math.max(1, Math.ceil(rl.length / PER)); tkPage = Math.min(Math.max(0, tkPage), pages - 1);
+  const sl = rl.slice(tkPage * PER, tkPage * PER + PER), hasTech = !!(TK.techs && TK.rep.length && TK.rep[0].length > 12);
+  $('#tk-t').innerHTML = '<thead><tr><th>Ticket</th><th class="l">Vehicle</th><th class="l">Hub</th><th class="l">Issue</th>' + (hasPrev ? '<th class="l">Issue at the<br>service before</th>' : '') + '<th class="l">Raised</th><th class="l">Previous service closed</th>' + (hasTech ? '<th class="l">Previous service by</th>' : '') + '<th>Hours<br>between</th><th class="l">Escalation</th></tr></thead><tbody>' +
+    (sl.length ? sl.map(t => '<tr class="rowlink" tabindex="0" data-v="' + esc(t[1]) + '"><td class="l num">' + esc(t[0]) + '</td><td class="l"><span class="vid">' + esc(t[1]) + '</span></td><td class="l">' + esc(hubName(t[10])) + '</td><td class="l">' + esc((D.dicts.tcat || [])[t[9]] || '–') + '</td>' + (hasPrev ? '<td class="l">' + (sameAs(t) ? '<b style="font-weight:600">Same issue</b>' : t[13] >= 0 ? '<span class="dim">' + esc(catName(t[13])) + '</span>' : '–') + '</td>' : '') + '<td class="l">' + dt(t[2] * 1000) + '</td><td class="l"' + (t[4] ? ' data-tip="' + esc('Previous ticket ' + t[4]) + '"' : '') + '>' + (t[5] ? dt(t[5] * 1000) : '–') + '</td>' + (hasTech ? '<td class="l">' + esc(t[12] >= 0 ? techName(t[12]) : '–') + '</td>' : '') + '<td class="num">' + N1(t[6]) + '</td><td class="l">' + (t[8] ? '<span class="st" data-tip="' + LVL_TIP[t[8]] + '"><i class="lv' + t[8] + '"></i>' + LVL[t[8]] + '</span>' : '<span class="dim">None</span>') + '</td></tr>').join('') : '<tr><td class="empty" colspan="10" style="text-align:center">No repeat tickets match. Clear a filter or choose another view.</td></tr>') + '</tbody>';
+  $('#tk-count').textContent = N(rl.length) + ' tickets' + (nd === n ? '' : nd === 1 ? ', ' + dM(TK.days[d0]) : ', ' + dM(TK.days[d0]) + ' to ' + dM(TK.days[d1]));
+  $('#tk-range').textContent = rl.length ? N(tkPage * PER + 1) + ' to ' + N(Math.min(rl.length, tkPage * PER + PER)) + ' of ' + N(rl.length) : '';
+  $('#tk-prev').disabled = tkPage <= 0; $('#tk-next').disabled = tkPage >= pages - 1;
+}
+
+// ---------- technician scorecard: same rules as the workbook's Technician Scorecard sheet
+const TF = [[4, 'High repeat rate', 'lv3'], [8, 'Slow to close', 'lv2'], [16, 'Closes by sending riders to the hub', 'lv2'], [32, 'Often not acknowledging', 'lv1']];
+const techV2 = () => !!(TK && TK.techs && TK.techs.names);   // per-ticket technician data, so the scorecard can be built for any dates
+const techName = i => { if (techV2()) return i === TK.techs.none ? 'No technician on the ticket' : (TK.techs.names[i] || '–'); const r = TK.techs.rows[i]; return !r ? '–' : (r[16] & 1) ? 'No technician on the ticket' : r[0]; };
+const dM = d => { const a = String(d).split('-'); return +a[2] + ' ' + MON[+a[1] - 1]; };
+function techTable() {
+  const T = TK.techs;
+  if (!T.names) { if (!TT) { T.rows.forEach((r, i) => { r.ix = i; }); TT = { rows: T.rows, fleet: T.fleet, nd: 30, from: T.from || TK.days[0], to: T.to || TK.days[TK.days.length - 1] }; } return TT; }
+  const last = TK.days.length - 1, d0 = teRange ? teRange[0] : 0, d1 = teRange ? teRange[1] : last, key = d0 + ':' + d1;
+  if (TT && TT.key === key) return TT;
+  const G = T.names.map((_, i) => ({ i, all: 0, res: 0, c24: 0, c48: 0, same: 0, esc: 0, hubC: 0, hubSE: 0, nc: 0, drops: 0, recv: 0, hH: [], tH: [], hubs: new Map(), cities: new Map() }));
+  const bump = (m, k) => m.set(k, (m.get(k) || 0) + 1), top = m => { let b = -1, n = 0; for (const [k, v] of m) if (v > n) { n = v; b = k; } return b; };
+  const allH = [], allT = [];
+  for (const t of TK.rows) {
+    if (t[1] < d0 || t[1] > d1) continue; const g = G[t[7]]; if (!g) continue;
+    g.all++; bump(g.hubs, t[5]); if (t[0] >= 0 && rows[t[0]]) bump(g.cities, rows[t[0]][C.city]);
+    if (t[2] !== 5) { g.res++; if (t[9] & 4) g.recv++; if (t[8]) { if (t[8] === 1) g.c24++; else g.c48++; if (t[9] & 1) g.same++; if (t[9] & 8) g.esc++; } /* this service came back */ if (t[10] >= 0) { g.hH.push(t[10] / 3600); allH.push(t[10] / 3600); } if (t[11] >= 0) { g.tH.push(t[11] / 3600); allT.push(t[11] / 3600); } }
+    if (t[6] === 1) { g.hubC++; if (t[9] & 2) g.hubSE++; } else if (t[6] === 2) g.nc++;
+  }
+  for (const [d, i, n] of T.drops || []) if (d >= d0 && d <= d1 && G[i]) G[i].drops += n;
+  const nd = d1 - d0 + 1, min = nd >= 30 ? T.min : Math.max(5, Math.round(T.min * nd / 30));   // the ranking threshold shrinks with the period
+  const L = G.filter(g => g.all || g.drops || g.c24 || g.c48);
+  let totRes = 0, totCb = 0; for (const g of L) { totRes += g.res; totCb += g.c24 + g.c48; }
+  const rate = totRes ? totCb / totRes : 0, fH = median(allH) || 0, fT = median(allT) || 0, rateOf = g => g.res ? (g.c24 + g.c48) / g.res : 0, r1 = x => Math.round(x * 10) / 10;
+  L.sort((a, b) => ((b.res >= min) - (a.res >= min)) || (rateOf(b) - rateOf(a)) || ((b.c24 + b.c48) - (a.c24 + a.c48)));
+  let rank = 0;
+  const out = L.map(g => {
+    const mH = median(g.hH), mT = median(g.tH); let fl = 0, rk = 0;
+    if (g.i === T.none) fl |= 1; else if (g.res < min) fl |= 2;
+    else { rk = ++rank; if (rate > 0 && rateOf(g) >= T.mult * rate) fl |= 4; if (mH != null && fH > 0 && mH >= 2 * fH && mH - fH >= 2) fl |= 8; }
+    if (g.i !== T.none && g.all > 0 && g.hubSE >= 3 && g.hubSE / g.all >= T.hubPct) fl |= 16;
+    if (g.res + g.drops > 0 && g.drops >= 5 && g.drops / (g.res + g.drops) >= 0.25) fl |= 32;
+    const city = top(g.cities), r = [T.names[g.i], top(g.hubs), city >= 0 ? (D.dicts.city[city] || '') : '', g.all, g.res, g.c24, g.c48, g.same, g.esc, g.hubC, g.hubSE, g.nc, g.drops, g.recv, mH == null ? null : r1(mH), mT == null ? null : r1(mT), fl, rk];
+    r.ix = g.i; return r;
+  });
+  return TT = { key, rows: out, fleet: { rate, medH: r1(fH), medT: r1(fT), ranked: rank, min, mult: T.mult, hubPct: T.hubPct }, nd, from: TK.days[d0], to: TK.days[d1] };
+}
+const tcatName = i => (D.dicts.tcat || [])[i] || 'Not classified', tcatWeak = i => (TK.weak || ['General Service', 'Consumables & Fasteners', 'Not classified']).includes(tcatName(i));
+function techIssues() { // comebacks in the period, by the technician who closed the service before and by issue: tech -> issue -> [comebacks, same issue again]
+  const X = techTable(); if (X.iss) return X.iss; const m = new Map(), dayOf = sec => new Date(sec * 1000 + 19800000).toISOString().slice(0, 10);
+  if (techV2() && TK.rep.length && TK.rep[0].length > 12) for (const t of TK.rep) {
+    if (t[7] !== 1 && t[7] !== 2) continue; const k = dayOf(t[5]); if (k < X.from || k > X.to) continue;
+    let g = m.get(t[12]); if (!g) m.set(t[12], g = new Map()); const e = g.get(t[9]) || [0, 0]; e[0]++; if (t.length > 13 && t[13] === t[9] && !tcatWeak(t[9])) e[1]++; g.set(t[9], e);
+  }
+  return X.iss = m;
+}
+const topIssue = id => { const g = techIssues().get(id); if (!g) return null; let b = null; for (const [c, e] of g) if (!b || e[0] > b[1]) b = [c, e[0]]; return b; };
+function perInit() {
+  if (!techV2()) return; const n = TK.days.length, last = n - 1;
+  const opts = [['all', 'Last ' + n + ' days']].concat(n > 14 ? [['14', 'Last 14 days']] : [], n > 7 ? [['7', 'Last 7 days']] : [], n > 1 ? [['y', dM(TK.days[last - 1])]] : [], [['t', dM(TK.days[last]) + ', latest day'], ['c', 'Chosen dates']]);
+  $('#f-per').innerHTML = opts.map(o => '<option value="' + o[0] + '">' + o[1] + '</option>').join('');
+  for (const id of ['#f-from', '#f-to']) { $(id).min = TK.days[0]; $(id).max = TK.days[last]; }
+  perSet('all');
+}
+function perSet(v) { const last = TK.days.length - 1; teRange = v === 'all' ? null : v === 'y' ? [last - 1, last - 1] : v === 't' ? [last, last] : [last - (+v) + 1, last]; perSync(v); }
+function perSync(v) { const r = teRange || [0, TK.days.length - 1]; $('#f-from').value = TK.days[r[0]]; $('#f-to').value = TK.days[r[1]]; $('#f-per').value = v; }
+const tRate = r => r[4] ? (r[5] + r[6]) / r[4] : null;
+const TCOLS = [
+  { k: 'rank', h: 'Rank', asc: 1, get: r => r[17] || null, cell: r => r[17] ? N(r[17]) : '<span class="dim">–</span>' },
+  { k: 'name', h: 'Technician', txt: 1, asc: 1, get: r => techName(r.ix), cell: r => '<b style="font-weight:600">' + esc(techName(r.ix)) + '</b>' },
+  { k: 'hub', h: 'Main hub', txt: 1, asc: 1, get: r => hubName(r[1]), cell: r => esc(hubName(r[1])) },
+  { k: 'res', h: 'Tickets<br>serviced', get: r => r[4], cell: r => N(r[4]) },
+  { k: 'c24', h: 'Back within<br>24 hours', get: r => r[5], cell: r => N(r[5]) },
+  { k: 'c48', h: 'Back in 24<br>to 48 hours', get: r => r[6], cell: r => N(r[6]) },
+  { k: 'rate', h: 'Repeat<br>rate', get: tRate, cell: r => tRate(r) == null ? '–' : (tRate(r) * 100).toFixed(1) + '%' },
+  { k: 'x', h: 'Times the<br>overall rate', get: r => tRate(r) == null || !TT.fleet.rate ? null : tRate(r) / TT.fleet.rate, cell: r => tRate(r) == null || !TT.fleet.rate ? '–' : (tRate(r) / TT.fleet.rate).toFixed(2) },
+  { k: 'flags', h: 'Flags', txt: 1, asc: 1, get: r => TF.filter(f => r[16] & f[0]).map(f => f[1]).join(', ') || null, cell: r => { const f = TF.filter(x => r[16] & x[0]); return f.length ? '<span class="flags">' + f.map(x => '<span class="st"><i class="' + x[2] + '"></i>' + x[1] + '</span>').join('') + '</span>' : (r[16] & 2) ? '<span class="dim">Fewer than ' + TT.fleet.min + ' tickets</span>' : '<span class="dim">None</span>'; } },
+  { k: 'same', h: 'Same issue<br>again', get: r => r[7], cell: r => N(r[7]) },
+  { k: 'top', h: 'Most common<br>comeback issue', txt: 1, asc: 1, v2: 1, get: r => { const b = topIssue(r.ix); return b ? tcatName(b[0]) : null; }, cell: r => { const b = topIssue(r.ix); return b ? esc(tcatName(b[0])) + ' <span class="dim">' + N(b[1]) + ' of ' + N(r[5] + r[6]) + '</span>' : '<span class="dim">–</span>'; } },
+  { k: 'esc', h: 'Comebacks that<br>escalated', get: r => r[8], cell: r => N(r[8]) },
+  { k: 'hubSE', h: 'Closed by sending<br>the rider to a hub', get: r => r[10], cell: r => N(r[10]) },
+  { k: 'nc', h: 'Closed, rider<br>not reached', get: r => r[11], cell: r => N(r[11]) },
+  { k: 'drops', h: 'Dropped, not<br>acknowledged', get: r => r[12], cell: r => N(r[12]) },
+  { k: 'recv', h: 'Received after<br>a hand-off', get: r => r[13], cell: r => N(r[13]) },
+  { k: 'medH', h: 'Median hours,<br>allocated to resolved', get: r => r[14], cell: r => N1(r[14]) },
+  { k: 'medT', h: 'Median hours,<br>raised to resolved', get: r => r[15], cell: r => N1(r[15]) }
+];
+function techScope() { // City and Hub filter by the technician's main hub; the other filters do not apply to people
+  const hubCity = new Map(); for (const r of rows) { const h = r[C.lhub]; if (!hubCity.has(h)) hubCity.set(h, new Map()); const m = hubCity.get(h); m.set(r[C.city], (m.get(r[C.city]) || 0) + 1); }
+  const cityOfHub = h => { const m = hubCity.get(h); if (!m) return -1; let b = -1, n = 0; for (const [k, v] of m) if (v > n) { n = v; b = k; } return b; };
+  return techTable().rows.filter(r => (filt.lhub === '' || r[1] == filt.lhub) && (filt.city === '' || (r[2] ? D.dicts.city.indexOf(r[2]) : cityOfHub(r[1])) == filt.city));
+}
+function techs() {
+  if (!TK || !TK.techs) return;
+  const X = techTable(), F = X.fleet, all = techScope(), named = all.filter(r => !(r[16] & 1)), ranked = named.filter(r => r[17]);
+  const span = X.from === X.to ? 'on ' + dM(X.from) : 'from ' + dM(X.from) + ' to ' + dM(X.to);
+  const res = all.reduce((s, r) => s + r[4], 0), cb = all.reduce((s, r) => s + r[5] + r[6], 0), cnt = b => named.filter(r => r[16] & b).length;
+  const noSE = all.filter(r => r[16] & 1).reduce((s, r) => s + r[4], 0), scoped = filt.lhub !== '' || filt.city !== '';
+  const K = (name, val, sh, dl) => '<div class="kpi plain"><span class="nm">' + name + '</span><b class="num">' + val + '</b><span class="sh">' + sh + '</span><span class="dl">' + dl + '</span></div>';
+  $('#kpis').innerHTML =
+    K('Technicians ranked', N(ranked.length), F.min + ' or more tickets serviced ' + (X.nd === 1 ? 'that day' : 'in ' + X.nd + ' days'), N(named.length - ranked.length) + ' more with fewer tickets') +
+    K('Repeat rate', res ? (cb / res * 100).toFixed(1) + '%' : '–', 'Vehicles back within 48 hours, per ticket serviced', N(cb) + ' comebacks on ' + N(res) + ' tickets') +
+    K('High repeat rate', N(cnt(4)), 'technicians at ' + F.mult + ' times the overall rate or more', (scoped ? 'Overall rate, all hubs: ' : 'Overall rate ') + (F.rate * 100).toFixed(1) + '%') +
+    K('Slow to close', N(cnt(8)), 'technicians at twice the median time or more', N(cnt(32)) + ' often not acknowledging, ' + N(cnt(16)) + ' closing by hub referral');
+  const Q = { ranked: ['Ranked', r => r[17] > 0], hi: ['High repeat rate', r => r[16] & 4], slow: ['Slow to close', r => r[16] & 8], ack: ['Often not acknowledging', r => r[16] & 32], hub: ['Closes by hub referral', r => r[16] & 16], low: ['Fewer than ' + F.min + ' tickets', r => r[16] & 2], all: ['All', () => true] };
+  $('#te-views').innerHTML = Object.entries(Q).map(([k, v]) => '<button type="button" class="chip" data-q="' + k + '" aria-pressed="' + (k === teQuick) + '">' + v[0] + '</button>').join('');
+  const col = TCOLS.find(c => c.k === teSort.k) || TCOLS[0];
+  const list = all.filter(r => Q[teQuick][1](r) && (!teQ || techName(r.ix).toLowerCase().includes(teQ)));
+  list.sort((a, b) => { const x = col.get(a), y = col.get(b); if (x == null && y == null) return 0; if (x == null) return 1; if (y == null) return -1; return (col.txt ? String(x).localeCompare(String(y), 'en', { numeric: true }) : x - y) * teSort.dir; });
+  const pages = Math.max(1, Math.ceil(list.length / PER)); tePage = Math.min(Math.max(0, tePage), pages - 1);
+  const sl = list.slice(tePage * PER, tePage * PER + PER);
+  $('#te-t').innerHTML = '<thead><tr>' + TCOLS.map(c => '<th' + (c.txt ? ' class="l"' : '') + (teSort.k === c.k ? ' aria-sort="' + (teSort.dir > 0 ? 'ascending' : 'descending') + '"' : '') + '><button type="button" data-k="' + c.k + '">' + c.h + (teSort.k === c.k ? '<span aria-hidden="true">' + (teSort.dir > 0 ? '▲' : '▼') + '</span>' : '') + '</button></th>').join('') + '</tr></thead><tbody>' +
+    (sl.length ? sl.map(r => '<tr class="rowlink" tabindex="0" data-t="' + r.ix + '">' + TCOLS.map(c => '<td class="' + (c.txt ? 'l' : 'num') + '">' + c.cell(r) + '</td>').join('') + '</tr>').join('') : '<tr><td class="empty" colspan="' + TCOLS.length + '" style="text-align:center">No technicians match. Clear a filter, widen the dates or choose another view.</td></tr>') + '</tbody>';
+  $('#te-note').textContent = 'Tickets resolved ' + span + '. A comeback counts against the technician who closed the previous ticket' + (techV2() ? ', on the day he closed it' : '') + '. Rank 1 is the highest repeat rate.' + (noSE ? ' ' + N(noSE) + ' tickets had no technician on them.' : '') + (techV2() && X.to >= TK.days[Math.max(0, TK.days.length - 3)] ? ' Services closed in the last three days can still come back, so their repeat rate is not final.' : '');
+  $('#te-range').textContent = list.length ? N(tePage * PER + 1) + ' to ' + N(Math.min(list.length, tePage * PER + PER)) + ' of ' + N(list.length) : '';
+  $('#te-prev').disabled = tePage <= 0; $('#te-next').disabled = tePage >= pages - 1;
+}
+function openTech(i) {
+  const X = techTable(), r = X.rows.find(x => x.ix === i); if (!r) return; const dr = $('#drawer'), F = X.fleet, rate = tRate(r);
+  const dayOf = sec => new Date(sec * 1000 + 19800000).toISOString().slice(0, 10), inPer = t => !techV2() || (dayOf(t[5]) >= X.from && dayOf(t[5]) <= X.to);   // by the day he closed the service that came back
+  const K = (b, s2) => '<div><b class="num">' + b + '</b><small>' + s2 + '</small></div>';
+  const fl = TF.filter(x => r[16] & x[0]);
+  const hasTech = TK.rep.length && TK.rep[0].length > 12, cbs = hasTech ? TK.rep.filter(t => t[12] === i && (t[7] === 1 || t[7] === 2) && inPer(t)).sort((a, b) => b[2] - a[2]) : [];
+  dr.innerHTML = '<div class="dhead"><div><h2 style="font-size:22px" id="d-plate">' + esc(techName(i)) + '</h2><p>' + esc(hubName(r[1])) + (r[2] ? ', ' + esc(r[2]) : '') + (techV2() ? ' · ' + (X.from === X.to ? dM(X.from) : dM(X.from) + ' to ' + dM(X.to)) : '') + '</p><p style="margin-top:6px">' + (fl.length ? '<span class="flags">' + fl.map(x => '<span class="st"><i class="' + x[2] + '"></i>' + x[1] + '</span>').join('') + '</span>' : r[17] ? 'Ranked ' + N(r[17]) + ' of ' + N(F.ranked) + ' by repeat rate, no flags' : 'Not ranked: fewer than ' + F.min + ' tickets serviced') + '</p></div><button class="btn" type="button" id="d-close">Close</button></div>' +
+    '<div class="kv">' + K(N(r[4]), 'Tickets serviced') + K(N(r[5] + r[6]), 'Comebacks within 48 hours') + K(rate == null ? '–' : (rate * 100).toFixed(1) + '%', 'Repeat rate') + K(rate == null || !F.rate ? '–' : (rate / F.rate).toFixed(2), 'Times the overall rate') +
+    K(N(r[7]), 'Same issue again') + K(N(r[8]), 'Comebacks that escalated') + K(N(r[10]), 'Closed by hub referral') + K(N(r[11]), 'Closed, rider not reached') +
+    K(N(r[12]), 'Dropped, not acknowledged') + K(N(r[13]), 'Received after a hand-off') + K(N1(r[14]), 'Median hours, allocated to resolved') + K(N1(r[15]), 'Median hours, raised to resolved') + '</div>' +
+    (hasTech && cbs.length ? (() => { const g = techIssues().get(i), l = g ? [...g.entries()].sort((x, y) => y[1][0] - x[1][0]) : []; return l.length ? '<section><h2>What came back</h2><div class="scroll"><table><thead><tr><th class="l">Issue of the returning ticket</th><th>Comebacks</th><th>Same issue as<br>his service</th></tr></thead><tbody>' + l.map(([c, e]) => '<tr><td class="l">' + esc(tcatName(c)) + '</td><td class="num">' + N(e[0]) + '</td><td class="num">' + N(e[1]) + '</td></tr>').join('') + '</tbody></table></div></section>' : ''; })() : '') +
+    (hasTech ? '<section><h2>Vehicles that came back within 48 hours</h2>' + (cbs.length ? '<div class="scroll"><table><thead><tr><th class="l">Vehicle</th><th class="l">Came back</th><th>Hours after<br>his closure</th><th class="l">Issue</th><th class="l">Escalation</th></tr></thead><tbody>' + cbs.slice(0, 100).map(t => '<tr><td class="l"><span class="vid">' + esc(t[1]) + '</span></td><td class="l">' + dt(t[2] * 1000) + '</td><td class="num">' + N1(t[6]) + '</td><td class="l">' + esc((D.dicts.tcat || [])[t[9]] || '–') + '</td><td class="l">' + (t[8] ? '<span class="st"><i class="lv' + t[8] + '"></i>' + LVL[t[8]] + '</span>' : '<span class="dim">None</span>') + '</td></tr>').join('') + '</tbody></table></div>' + (cbs.length > 100 ? '<p class="dim" style="margin:8px 0 0">Showing the latest 100 of ' + N(cbs.length) + '.</p>' : '') : '<p class="dim" style="margin:6px 0 0">None in this period.</p>') + '</section>' : '');
+  dr.hidden = false; $('#scrim').hidden = false; dr.scrollTop = 0; $('#d-close').addEventListener('click', closeVehicle); $('#d-close').focus();
+}
+
+// ---------- status by city
+function cityChart() {
+  const g = new Map();
+  for (const r of view) { let o = g.get(r[C.city]); if (!o) g.set(r[C.city], o = { RGF: 0, UM: 0, RTD: 0, OTH: 0, n: 0 }); o[cls(tagOf(r))]++; o.n++; }
+  const list = [...g.entries()].sort((a, b) => b[1].n - a[1].n), max = Math.max(1, ...list.map(x => x[1].n));
+  const NM = { RGF: 'On rent', UM: 'Under maintenance', RTD: 'Ready to deploy', OTH: 'Other' };
+  $('#ch-city').innerHTML = list.length ? list.map(([i, o]) => {
+    const nm = label('city', i);
+    const seg = ['RGF', 'UM', 'RTD', 'OTH'].filter(k => o[k]).map(k => '<i class="c-' + k + '" style="width:' + (o[k] / max * 100) + '%" data-tip="' + esc(nm + '\n' + NM[k] + ': ' + N(o[k]) + ' (' + P1(o[k], o.n) + ')') + '"></i>').join('');
+    return '<div class="hrow"><span class="nm">' + esc(nm) + '</span><div class="tr">' + seg + '</div><span class="tot num">' + N(o.n) + ' vehicles, ' + pct(o.RGF, o.n) + ' on rent</span></div>';
+  }).join('') : '<div class="empty">No vehicles match these filters.</div>';
+}
+
+// ---------- time in maintenance
+const BUCKETS = [['0 to 2', 0, 3], ['3 to 7', 3, 8], ['8 to 14', 8, 15], ['15 to 30', 15, 31], ['31 to 60', 31, 61], ['61 to 90', 61, 91], ['Over 90', 91, 1e9]];
+function umChart() {
+  const b = BUCKETS.map(() => 0); let unk = 0, tot = 0;
+  for (const r of view) { if (tagOf(r) !== 'UM') continue; tot++; const d = r[C.curDays]; if (d == null) { unk++; continue; } const i = BUCKETS.findIndex(x => d >= x[1] && d < x[2]); b[i < 0 ? 0 : i]++; }
+  const max = Math.max(1, ...b);
+  $('#ch-um').innerHTML = b.map((n, i) => '<div class="c" data-tip="' + esc(BUCKETS[i][0] + ' days in maintenance\n' + N(n) + ' vehicles, ' + pct(n, tot - unk) + ' of those with a start date') + '"><b class="num">' + N(n) + '</b><i style="height:' + (n / max * 82) + '%"></i></div>').join('');
+  $('#ch-um-x').innerHTML = BUCKETS.map(x => '<span>' + x[0] + '</span>').join('');
+  $('#um-sub').textContent = tot ? 'Days since each vehicle entered maintenance' + (unk ? '; ' + N(unk) + ' of ' + N(tot) + ' have no start date on record' : '') : 'No vehicles in maintenance for this selection';
+}
+
+// ---------- breakdown
+function breakdown() {
+  document.querySelectorAll('#bd-dim button').forEach(b => b.setAttribute('aria-pressed', b.dataset.d === bdDim));
+  const g = new Map(); for (const r of view) { const k = r[C[bdDim]]; let a = g.get(k); if (!a) g.set(k, a = []); a.push(r); }
+  let list = [...g.entries()].map(([i, l]) => [i, agg(l)]).sort((a, b) => b[1].n - a[1].n);
+  const total = list.length; if (!bdAll) list = list.slice(0, 12);
+  const head = '<thead><tr><th>' + { city: 'City', lhub: 'Hub', model: 'Model', ten: 'Client' }[bdDim] + '</th><th>Vehicles</th><th>On rent</th><th>Under<br>maintenance</th><th>Ready to<br>deploy</th><th>On rent,<br>share</th><th>Median days in<br>maintenance</th><th>Km, last<br>7 days</th><th>Km per<br>rental day</th><th>On rent,<br>not moving</th><th>Tickets,<br>30 days</th><th>Tickets per<br>1,000 km</th></tr></thead>';
+  $('#bd').innerHTML = head + '<tbody>' + list.map(([i, a]) => '<tr class="rowlink" data-i="' + i + '" data-tip="Show only ' + esc(label(bdDim, i)) + '"><td class="l">' + esc(label(bdDim, i)) + '</td><td class="num">' + N(a.n) + '</td><td class="num">' + N(a.RGF) + '</td><td class="num">' + N(a.UM) + '</td><td class="num">' + N(a.RTD) + '</td><td class="num">' + pct(a.RGF, a.n) + '</td><td class="num">' + (a.umMed == null ? '–' : N(a.umMed)) + '</td><td class="num">' + (a.kmN ? N(a.km7) : '–') + '</td><td class="num">' + (a.avg == null ? '–' : N(a.avg)) + '</td><td class="num">' + (a.kmN ? N(a.idle) : '–') + '</td><td class="num">' + N(a.tk30) + '</td><td class="num">' + (a.tkKm == null ? '–' : N1(a.tkKm)) + '</td></tr>').join('') + '</tbody>';
+  const more = $('#bd-more'); more.hidden = total <= 12; more.textContent = bdAll ? 'Show the largest 12' : 'Show all ' + total;
+}
+
+// ---------- vehicle table
+const COLS = [
+  { k: 'vid', h: 'Vehicle', txt: 1, get: r => r[C.vid], cell: r => '<span class="vid">' + esc(r[C.vid]) + '</span>' },
+  { k: 'model', h: 'Model', txt: 1, get: r => D.dicts.model[r[C.model]], cell: r => esc(D.dicts.model[r[C.model]]) },
+  { k: 'city', h: 'City', txt: 1, get: r => D.dicts.city[r[C.city]], cell: r => esc(D.dicts.city[r[C.city]] || '–') },
+  { k: 'tag', h: 'Status', txt: 1, get: r => nice(tagOf(r)), cell: r => '<span class="st"><i class="c-' + cls(tagOf(r)) + '"></i>' + esc(nice(tagOf(r))) + '</span>' },
+  { k: 'with', h: 'Client or hub', txt: 1, get: r => withWho(r), cell: r => esc(withWho(r) || '–') },
+  { k: 'curDays', h: 'Days in<br>this status', get: r => r[C.curDays], cell: r => N(r[C.curDays]) },
+  { k: 'km7', h: 'Km, last<br>7 days', get: r => r[C.km7], cell: r => N(r[C.km7]) },
+  { k: 'avg', h: 'Km per<br>rental day', get: avgKm, cell: r => N(avgKm(r)) },
+  { k: 'rent30', h: 'Rental days,<br>last 30', get: r => r[C.rent30], cell: r => N(r[C.rent30]) },
+  { k: 'rentN', h: 'Rentals,<br>all time', get: r => r[C.rentN], cell: r => N(r[C.rentN]) },
+  { k: 'um30', h: 'Maintenance days,<br>last 30', get: r => r[C.um30], cell: r => N(r[C.um30]) },
+  { k: 'umAll', h: 'Maintenance days,<br>all time', get: r => r[C.umAll], cell: r => N(r[C.umAll]) },
+  { k: 'umN', h: 'Maintenance<br>spells', get: r => r[C.umN], cell: r => N(r[C.umN]) },
+  { k: 'tk30', h: 'Tickets,<br>30 days', get: r => r[C.tk30], cell: r => N(r[C.tk30]) },
+  { k: 'age', h: 'Age,<br>days', get: r => r[C.age], cell: r => N(r[C.age]) }
+];
+function table() {
+  const q = QUICK[quick], col = COLS.find(c => c.k === sort.k) || COLS[0];
+  const list = view.filter(q.f);
+  list.sort((a, b) => { const x = col.get(a), y = col.get(b); if (x == null && y == null) return 0; if (x == null) return 1; if (y == null) return -1; return (col.txt ? String(x).localeCompare(String(y), 'en', { numeric: true }) : x - y) * sort.dir; });
+  const pages = Math.max(1, Math.ceil(list.length / PER)); page = Math.min(Math.max(0, page), pages - 1);
+  const slice = list.slice(page * PER, page * PER + PER);
+  const head = '<thead><tr>' + COLS.map(c => '<th' + (c.txt ? ' class="l"' : '') + (sort.k === c.k ? ' aria-sort="' + (sort.dir > 0 ? 'ascending' : 'descending') + '"' : '') + '><button type="button" data-k="' + c.k + '">' + c.h + (sort.k === c.k ? '<span aria-hidden="true">' + (sort.dir > 0 ? '▲' : '▼') + '</span>' : '') + '</button></th>').join('') + '</tr></thead>';
+  $('#vt').innerHTML = head + '<tbody>' + (slice.length ? slice.map(r => '<tr class="rowlink" tabindex="0" data-v="' + esc(r[C.vid]) + '">' + COLS.map(c => '<td class="' + (c.txt ? 'l' : 'num') + '">' + c.cell(r) + '</td>').join('') + '</tr>').join('') : '<tr><td class="empty" colspan="' + COLS.length + '" style="text-align:center">No vehicles match. Clear a filter or choose another view.</td></tr>') + '</tbody>';
+  $('#v-count').textContent = list.length === rows.length ? N(rows.length) + ' vehicles' : N(list.length) + ' of ' + N(rows.length) + ' vehicles';
+  $('#v-range').textContent = list.length ? N(page * PER + 1) + ' to ' + N(Math.min(list.length, page * PER + PER)) + ' of ' + N(list.length) : '';
+  $('#v-prev').disabled = page <= 0; $('#v-next').disabled = page >= pages - 1;
+}
+
+// ---------- vehicle drawer
+const shardOf = v => { let h = 0; for (let i = 0; i < v.length; i++) h = (h * 31 + v.charCodeAt(i)) % 65521; return h % D.shards; };
+async function detail(v) {
+  const i = shardOf(v); if (!shards.has(i)) shards.set(i, getJSON('d/' + String(i).padStart(2, '0') + '.json').catch(() => ({})));
+  return (await shards.get(i))[v] || null;
+}
+function closeVehicle() { $('#drawer').hidden = true; $('#scrim').hidden = true; try { history.replaceState(null, '', tabHash() || location.pathname + location.search); } catch (e) {} }
+async function openVehicle(v) {
+  const r = rows.find(x => x[C.vid].toUpperCase() === String(v).toUpperCase()); if (!r) return;
+  v = r[C.vid]; try { history.replaceState(null, '', '#' + encodeURIComponent(v)); } catch (e) {}
+  const dr = $('#drawer'), t = tagOf(r), fl = r[C.flags];
+  const head = '<div class="dhead"><div><span class="plate" id="d-plate">' + esc(v) + '</span><p>' + esc(D.dicts.model[r[C.model]]) + ', ' + esc(D.dicts.city[r[C.city]] || 'city not assigned') + '</p><p style="margin-top:2px"><span class="st"><i class="c-' + cls(t) + '"></i><b>' + esc(nice(t)) + '</b></span>' + (withWho(r) ? ' with ' + esc(withWho(r)) : '') + (r[C.curDays] != null ? ', for ' + N(r[C.curDays]) + ' days' : '') + '</p></div><button class="btn" type="button" id="d-close">Close</button></div>';
+  const K = (b, s) => '<div><b class="num">' + b + '</b><small>' + s + '</small></div>';
+  const kv = '<div class="kv">' + K(N(r[C.km7]), 'Km, last 7 days') + K(r[C.km30] == null ? '–' : N(r[C.km30]), 'Km, last ' + (r[C.kmDays] || 30) + ' days') + K(N(avgKm(r)), 'Km per rental day') + K(N(r[C.tk30]), 'Tickets, 30 days') + K(N(r[C.rent30]), 'Rental days, last 30') + K(N(r[C.rentAll]), 'Rental days, all time') + K(N(r[C.rentN]), 'Rentals, all time') + K(N(r[C.age]), 'Age, days') + K(N(r[C.um30]), 'Maintenance days, last 30') + K(N(r[C.umAll]), 'Maintenance days, all time') + K(N(r[C.umN]), 'Maintenance spells') + K(r[C.ping] ? ago(r[C.ping] * 1000) : '–', 'Last signal') + '</div>';
+  const warn = (fl & 2) ? '<p class="dim" style="margin:0">Cercle OS has no status history for this vehicle, so rental and maintenance history are blank.</p>' : (fl & 1) ? '<p class="dim" style="margin:0">The last entry in the status history does not match the current status, so days in this status is not shown.</p>' : '';
+  dr.innerHTML = head + kv + warn + '<div id="d-body"><p class="dim">Loading history…</p></div><p style="margin:0"><a href="https://console.cercleos.io/vehicles/' + encodeURIComponent(v) + '" target="_blank" rel="noopener">Open ' + esc(v) + ' in Cercle OS</a></p>';
+  dr.hidden = false; $('#scrim').hidden = false; dr.scrollTop = 0; $('#d-close').addEventListener('click', closeVehicle); $('#d-close').focus();
+  const d = await detail(v); if (dr.hidden || !$('#d-plate') || $('#d-plate').textContent !== v) return;
+  $('#d-body').outerHTML = '<div id="d-body" style="display:flex;flex-direction:column;gap:22px">' + body(r, d) + '</div>';
+}
+function body(r, d) {
+  if (!d) return '<p class="dim">No history on record for this vehicle.</p>';
+  const now = D.meta.gen, sp = (d.s || []).map((s, i, a) => ({ tag: D.dicts.tag[s[0]], s: s[1] * 1000, e: i + 1 < a.length ? a[i + 1][1] * 1000 : (d.e ? d.e * 1000 : now), open: i + 1 === a.length && !d.e, hub: D.dicts.hub[s[2]], ten: D.dicts.ten[s[3]] }));
+  const days = D.days, k = d.k, kmOf = i => !k ? null : k[i] <= -1000 ? { x: -k[i] - 1000 } : k[i] > KM_CAP ? { x: k[i] } : k[i] < 0 ? null : { v: k[i] };
+  let out = '';
+  if (k) {
+    const vals = days.map((_, i) => kmOf(i)), max = Math.max(50, ...vals.map(o => o && o.v != null ? o.v : 0)), top = Math.ceil(max / 50) * 50;
+    const dayTag = i => { const a = Date.parse(days[i] + 'T00:00:00Z'), b = a + DAY; let best = '', bo = 0; for (const s of sp) { const o = Math.min(s.e, b) - Math.max(s.s, a); if (o > bo) { bo = o; best = s.tag; } } return best; };
+    out += '<section><h2>Km per day, last 30 days</h2><div class="dk" style="margin-top:14px">' + [1, .5].map(f => '<div class="gl" style="bottom:' + f * 100 + '%"><span class="num">' + N(top * f) + ' km</span></div>').join('') +
+      vals.map((o, i) => { const tg = dayTag(i); return '<div class="c' + (o && o.x ? ' x' : '') + '" data-tip="' + esc(dayLab(days[i]) + (tg ? ', ' + nice(tg).toLowerCase() : '') + '\n' + (!o ? 'No km on record' : o.x ? N(o.x) + ' km reported; left out as a transport or GPS jump' : N(o.v) + ' km')) + '"><i style="height:' + (o && o.v != null ? o.v / top * 100 : 0) + '%"></i></div>'; }).join('') + '</div>' +
+      '<div class="strip">' + days.map((_, i) => { const tg = dayTag(i); return '<i class="' + (tg ? 'c-' + cls(tg) : '') + '" data-tip="' + esc(dayLab(days[i]) + ': ' + (tg ? nice(tg).toLowerCase() : 'no status on record')) + '"></i>'; }).join('') + '</div>' +
+      '<div class="tlx" style="margin-left:46px"><span>' + dayLab(days[0]) + '</span><span>Bars show km; the strip shows status that day</span><span>' + dayLab(days[days.length - 1]) + '</span></div></section>';
+  } else out += '<section><h2>Km per day</h2><p class="dim" style="margin:6px 0 0">No km is loaded for this vehicle. Km is read for vehicles that were on rent or sent a signal in the last 16 days.</p></section>';
+  if (!sp.length) return out + '<p class="dim">No status history in the last 180 days.</p>';
+  const t0 = now - 180 * DAY, seg = sp.filter(s => s.e > t0), first = Math.max(t0, seg[0].s);
+  out += '<section><h2>Status, last 180 days</h2><div class="tl" style="margin-top:10px">' + (first > t0 ? '<i style="width:' + (first - t0) / (now - t0) * 100 + '%;background:transparent"></i>' : '') + seg.map(s => { const a = Math.max(s.s, t0); return '<i class="c-' + cls(s.tag) + '" style="width:' + (s.e - a) / (now - t0) * 100 + '%" data-tip="' + esc(nice(s.tag) + (s.tag === 'RGF' && s.ten ? ' with ' + s.ten : s.hub ? ' at ' + s.hub : '') + '\n' + dt(s.s) + ' to ' + (s.open ? 'now' : dt(s.e)) + '\n' + N1((s.e - s.s) / DAY) + ' days') + '"></i>'; }).join('') + '</div><div class="tlx"><span>' + dOnly(t0) + '</span><span>' + dOnly(now) + '</span></div></section>';
+  const kmIn = s => { if (!k) return null; let sum = 0, n = 0; days.forEach((dk, i) => { const a = Date.parse(dk + 'T00:00:00Z'); if (Math.min(s.e, a + DAY) - Math.max(s.s, a) > 0) { const o = kmOf(i); if (o && o.v != null) { sum += o.v; n++; } } }); return n ? { sum, n } : null; };
+  const rent = sp.filter(s => s.tag === 'RGF').reverse(), um = sp.filter(s => s.tag === 'UM').reverse();
+  const tbl = (hd, rws) => '<div class="scroll"><table><thead><tr>' + hd.map((h, i) => '<th' + (i < 2 ? ' class="l"' : '') + '>' + h + '</th>').join('') + '</tr></thead><tbody>' + rws.join('') + '</tbody></table></div>';
+  out += '<section><h2>Rentals, last 180 days</h2>' + (rent.length ? tbl(['From', 'To', 'Days', 'Client', 'Km', 'Km per day'], rent.map(s => { const q = kmIn(s); return '<tr><td class="l">' + dt(s.s) + '</td><td class="l">' + (s.open ? 'On rent now' : dt(s.e)) + '</td><td class="num">' + N1((s.e - s.s) / DAY) + '</td><td' + (s.hub ? ' data-tip="' + esc('Deployed from ' + s.hub) + '"' : '') + '>' + esc(s.ten || '–') + '</td><td class="num"' + (q ? ' data-tip="' + esc('Km on record for ' + q.n + ' of these days') + '"' : '') + '>' + (q ? N(q.sum) : '–') + '</td><td class="num">' + (q ? N(q.sum / q.n) : '–') + '</td></tr>'; })) : '<p class="dim" style="margin:6px 0 0">No rentals in the last 180 days.</p>') + '</section>';
+  out += '<section><h2>Maintenance spells, last 180 days</h2>' + (um.length ? tbl(['From', 'To', 'Days', 'Hub'], um.map(s => '<tr><td class="l">' + dt(s.s) + '</td><td class="l">' + (s.open ? 'In maintenance now' : dt(s.e)) + '</td><td class="num">' + N1((s.e - s.s) / DAY) + '</td><td>' + esc(s.hub || '–') + '</td></tr>')) : '<p class="dim" style="margin:6px 0 0">No maintenance spells in the last 180 days.</p>') + '</section>';
+  return out;
+}
+
+function defs() {
+  const m = D.meta, nolog = rows.filter(r => r[C.flags] & 2).length, mis = rows.filter(r => r[C.flags] & 1).length;
+  const xs = C.kmX != null ? rows.reduce((s, r) => s + (r[C.kmX] || 0), 0) : 0;
+  const L = [
+    ['Status', 'The vehicle\'s current tag in Cercle OS: on rent (RGF), under maintenance (UM) or ready to deploy (RTD). Staff, missing, theft, litigation and similar tags are grouped as other. Under maintenance includes new vehicles, which Cercle OS tags UM from the day they are added until they are first made ready to deploy.'],
+    ['Days in status, rentals, maintenance days', 'Counted from Cercle\'s record of every tag change since March 2024. A rental is one unbroken stretch on rent; a maintenance spell is one unbroken stretch under maintenance.'],
+    ['Change in 7 days', 'Each figure compared with the same time of day seven days earlier. For on rent and under maintenance it is the change in share of fleet, in percentage points.'],
+    ['Km', 'Cercle\'s daily distance for each vehicle. A km day runs from 5:30 AM to 5:30 AM. Cercle keeps 15 days, so this dashboard has been storing each day since ' + (m.kmFirstDay ? dayLab(m.kmFirstDay) + ' ' + m.kmFirstDay.slice(0, 4) : 'its first refresh') + '. A day above ' + KM_CAP + ' km for one vehicle is treated as a transport or GPS jump and left out' + (xs ? ' (' + N(xs) + ' vehicle-days so far)' : '') + '.'],
+    ['Km per rental day', 'Km run on days the vehicle was on rent, divided by the number of those days, over the days with km on record (up to 30).'],
+    ['On rent, not moving', 'On rent with 0 km recorded on each of the last 7 days.'],
+    ['Tickets', 'Service tickets resolved in the last 30 days, not counting return-service tickets. Tickets per 1,000 km uses the last 14 days of both.'],
+    ['Repeat ticket', 'A ticket raised within 48 hours of the previous service on the same vehicle being resolved. Counted on tickets resolved in the last 30 days, with return-service tickets left out. The repeat rate is repeat tickets as a share of all those tickets.'],
+    ['Escalation', 'Three or more services on one vehicle, each raised within 48 hours of the one before. The second service is marked escalated, the third high and the fourth or later critical.'],
+    ['Not counted as a service', 'Tickets closed by advising the rider to visit a hub with nothing fitted or charged, and block or unblock, rental extension, payment and wrongly raised tickets. They are never repeats, and the next ticket is measured from the last real service. Tickets closed because the rider could not be reached do count.'],
+    ['Issue', 'Each ticket gets one issue, from the best evidence, in the ticket analyzer\'s order: first the ticket\'s notes, description and reported reason, matched to the analyzer\'s keyword rules; then the parts fitted, the highest value first, which also replace a generic answer such as General Service; last the rider\'s reported reason.' + (TK && TK.src ? ' Of the ' + N(TK.src.reduce((x, y) => x + y, 0)) + ' tickets, ' + N(TK.src[1]) + ' were classified from the ticket\'s words, ' + N(TK.src[2] + TK.src[3]) + ' from the parts fitted, ' + N(TK.src[4]) + ' from the reported reason, and ' + N(TK.src[0]) + ' could not be classified.' : '') + ' The team\'s manual labels in the workbook are not available here. A repeat is the same issue when it carries the same specific issue as the service before it; generic ones such as General Service never count as the same.'],
+    ...(TK && TK.techs ? [
+    ['Technician', 'The service engineer who held the ticket last. Tickets with no engineer on them are grouped together and not ranked.'],
+    ['Comeback and repeat rate', 'A comeback is a vehicle raising a new ticket within 48 hours of a technician resolving the previous one; it counts against that technician. Repeat rate is his comebacks divided by the tickets he serviced. Technicians who serviced ' + (TK.techs.fleet || TK.techs).min + ' or more tickets in 30 days are ranked, highest rate first' + (techV2() ? '; for a shorter period the bar drops in proportion, never below 5' : '') + '.'],
+    ...(techV2() ? [['Period', 'The Repeat tickets and Technicians tabs can be narrowed to one day or a range within the ' + TK.days.length + ' days on record. A ticket belongs to the day it was resolved, India time. On the Technicians tab a comeback belongs to the day the technician closed the service that came back. The overall rate and medians are worked out again for the dates chosen, across all hubs. Services closed in the last three days can still come back, so their repeat rate is not final.']] : []),
+    ['Technician flags', 'High repeat rate: ' + (TK.techs.fleet || TK.techs).mult + ' times the overall rate or more. Slow to close: median time from allocation to resolution at least twice the overall median and at least 2 hours longer. Closes by hub referral: he himself closed ' + Math.round((TK.techs.fleet || TK.techs).hubPct * 100) + '% or more of his tickets by sending the rider to a hub, at least 3 tickets. Often not acknowledging: 5 or more tickets moved off him unacknowledged, a quarter or more of his load.']] : []),
+    ['Hub', 'On the Fleet tab, the hub on the vehicle\'s latest tag change: where it was deployed from if it is on rent, or where it is parked otherwise. On the Repeat tickets tab, the hub the ticket was assigned to.'],
+    ['Gaps in the record', N(nolog) + ' vehicles have no tag history in Cercle OS and ' + N(mis) + ' have a current tag that differs from the last recorded change. They are counted at their current status, and their days in status are left blank.']
+  ];
+  $('#defs').innerHTML = L.map(x => '<dt>' + x[0] + '</dt><dd>' + x[1] + '</dd>').join('');
+  $('#foot').textContent = 'Source: Cercle OS, read ' + dtY(m.gen) + ' IST. Km for one vehicle can be up to about a day and a half behind, because km is read for part of the fleet on each refresh.';
+}
+
+load();
+})();
+</script>
+</body>
+</html>
