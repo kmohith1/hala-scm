@@ -463,14 +463,14 @@ async function tryKey(raw) {
 async function unlock() {
   let saved = null; try { saved = localStorage.getItem(KEYNAME); } catch (e) {}
   if (saved) { let raw = null; try { raw = unb64(saved); } catch (e) {} if (raw && await tryKey(raw)) return; }
-  $('#lock').hidden = false; $('#lk-in').focus();
+  $('#lock').hidden = false; document.documentElement.style.overflow = 'hidden'; $('#lk-in').focus();
   await new Promise(done => $('#lk-form').addEventListener('submit', async e => {
     e.preventDefault(); const btn = $('#lk-go'), msg = $('#lk-msg'), pass = $('#lk-in').value.toUpperCase().replace(/[^A-Z0-9]/g, ''); if (!pass || btn.disabled) return;
     btn.disabled = true; msg.textContent = 'Checking';
     try {
       const km = await crypto.subtle.importKey('raw', new TextEncoder().encode(pass), 'PBKDF2', false, ['deriveBits']);
       const raw = new Uint8Array(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: unb64(SITE.salt), iterations: SITE.iter }, km, 256));
-      if (await tryKey(raw)) { try { localStorage.setItem(KEYNAME, btoa(String.fromCharCode.apply(null, raw))); } catch (e2) {} $('#lock').hidden = true; $('#lk-in').value = ''; done(); return; }
+      if (await tryKey(raw)) { try { localStorage.setItem(KEYNAME, btoa(String.fromCharCode.apply(null, raw))); } catch (e2) {} $('#lock').hidden = true; document.documentElement.style.overflow = ''; $('#lk-in').value = ''; done(); return; }
       msg.textContent = 'That passphrase is not right. Check it and try again.';
     } catch (e1) { msg.textContent = 'This browser cannot open the dashboard. Use a current version of Chrome, Edge or Safari.'; }
     btn.disabled = false;
