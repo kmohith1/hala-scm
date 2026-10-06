@@ -97,10 +97,10 @@ button, select, input { font: inherit; color: inherit; }
 .filters { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)) auto; gap: 12px; align-items: end; }
 .fld { display: flex; flex-direction: column; gap: 4px; min-width: 0; font-size: 13px; color: var(--ink2); }
 .fld select, .fld input { width: 100%; height: 36px; padding: 0 10px; background: var(--surface); border: 1px solid var(--line2); border-radius: 6px; font-size: 14px; color: var(--ink); }
-.te-only, #app[data-tab="techs"] .veh-only { display: none; }
+.te-only, #app[data-tab="techs"] .veh-only, #app[data-tab="hubs"] .veh-only { display: none; }
 #app[data-tab="techs"] .filters { grid-template-columns: repeat(2, minmax(0, 220px)) auto; justify-content: start; }
-#app[data-tab="techs"].tv2 .te-only, #app[data-tab="tickets"].tv2 .te-only { display: flex; }
-#app[data-tab="techs"].tv2 .filters { grid-template-columns: repeat(5, minmax(0, 1fr)) auto; justify-content: stretch; }
+#app[data-tab="techs"].tv2 .te-only, #app[data-tab="hubs"].tv2 .te-only, #app[data-tab="tickets"].tv2 .te-only { display: flex; }
+#app[data-tab="techs"].tv2 .filters, #app[data-tab="hubs"].tv2 .filters { grid-template-columns: repeat(5, minmax(0, 1fr)) auto; justify-content: stretch; }
 #app[data-tab="tickets"].tv2 .filters { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .ibar { display: grid; grid-template-columns: 48px minmax(70px, 190px); align-items: center; gap: 10px; }
 .ibar b { text-align: right; font-weight: 600; }
@@ -232,7 +232,7 @@ tr.rowlink[data-v] .vid { color: var(--accent); text-decoration: underline; text
 a { color: var(--accent); }
 
 @media (max-width: 980px) {
-  .filters, #app[data-tab="techs"].tv2 .filters, #app[data-tab="tickets"].tv2 .filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .filters, #app[data-tab="techs"].tv2 .filters, #app[data-tab="hubs"].tv2 .filters, #app[data-tab="tickets"].tv2 .filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .two { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 720px) {
@@ -244,7 +244,7 @@ a { color: var(--accent); }
   .kpi:nth-child(even) { padding-left: 14px; border-left: 1px solid var(--band-line); }
   .kpi:nth-child(n+3) { border-top: 1px solid var(--band-line); }
   .kpi b { font-size: 31px; }
-  .filters, #app[data-tab="techs"] .filters, #app[data-tab="techs"].tv2 .filters, #app[data-tab="tickets"].tv2 .filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .filters, #app[data-tab="techs"] .filters, #app[data-tab="techs"].tv2 .filters, #app[data-tab="hubs"].tv2 .filters, #app[data-tab="tickets"].tv2 .filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hrow { grid-template-columns: 1fr max-content; grid-template-areas: "nm tot" "bar bar"; }
   .run { grid-template-columns: repeat(2, 1fr); }
   .run > div + div { border-left: 0; }
@@ -268,6 +268,7 @@ a { color: var(--accent); }
     <div class="tabs" role="tablist" aria-label="Views" id="tabs">
       <button type="button" role="tab" data-tab="fleet" aria-selected="true">Fleet</button>
       <button type="button" role="tab" data-tab="tickets" aria-selected="false">Repeat tickets</button>
+      <button type="button" role="tab" data-tab="hubs" aria-selected="false" id="tab-hubs" hidden>Hubs</button>
       <button type="button" role="tab" data-tab="techs" aria-selected="false" id="tab-techs" hidden>Technicians</button>
     </div>
     <div class="kpis" id="kpis" aria-label="Headline numbers"></div>
@@ -357,6 +358,16 @@ a { color: var(--accent); }
     </section>
   </div>
 
+  <div class="view" id="v-hubs" hidden>
+    <section class="sec">
+      <header><h2>Hub scorecard</h2><p id="hu-note"></p></header>
+      <div class="panel">
+        <div class="tools"><div class="chips" id="hu-views" role="group" aria-label="Views"></div></div>
+        <div class="scroll"><table id="hu-t"></table></div>
+      </div>
+    </section>
+  </div>
+
   <div class="view" id="v-techs" hidden>
     <section class="sec">
       <header><h2>Technician scorecard</h2><p id="te-note"></p></header>
@@ -412,7 +423,7 @@ const KM_CAP = 400, DAY = 864e5;
 let D, C, SER = null, rows = [], view = [], filt = { city: '', lhub: '', tag: '', model: '', ten: '', q: '' }, quick = 'all', sort = { k: 'km7', dir: -1 }, page = 0, bdDim = 'city', bdAll = false;
 const PER = 50, shards = new Map();
 let TK = null, tab = 'fleet', tkDim = 'hub', tkAll = false, tkQuick = 'all', tkPage = 0, vixMap = null, tkIssue = null, tiAll = false;   // tkIssue: issue picked in the by-issue table
-let teQuick = 'ranked', teSort = { k: 'rank', dir: 1 }, tePage = 0, teQ = '', teRange = null, TT = null;   // teRange: [first, last] day index, null = the whole period
+let teQuick = 'ranked', teSort = { k: 'rank', dir: 1 }, tePage = 0, teQ = '', teRange = null, TT = null, HT = null, huQuick = 'all', huSort = { k: 'rank', dir: 1 }, repHubs = null;   // teRange: [first, last] day index, null = the whole period
 const dictOf = { city: 'city', lhub: 'hub', tag: 'tag', model: 'model', ten: 'ten' };
 const tagOf = r => D.dicts.tag[r[C.tag]];
 const cls = t => t === 'RGF' || t === 'UM' || t === 'RTD' ? t : 'OTH';
@@ -493,8 +504,8 @@ async function load() {
   C = {}; D.cols.forEach((c, i) => C[c] = i); rows = D.rows; rows.forEach((r, i) => { r.ix = i; });
   header(); options(); views(); bind(); defs(); apply();
   vixMap = new Map(rows.map(r => [r[C.vid], r.ix]));
-  const h = decodeURIComponent(location.hash.slice(1)); if (h === 'tickets') setTab('tickets'); else if (h && h !== 'technicians') openVehicle(h);
-  getJSON('tickets.json').catch(() => null).then(t => { if (t && t.rows) { TK = t; if (t.techs && (t.techs.names || (t.techs.rows && t.techs.rows.length))) { TT = null; $('#app').classList.toggle('tv2', techV2()); perInit(); $('#tab-techs').hidden = false; if (location.hash === '#technicians') setTab('techs'); } defs(); if (tab === 'tickets') tickets(); } }).catch(() => {});
+  const h = decodeURIComponent(location.hash.slice(1)); if (h === 'tickets') setTab('tickets'); else if (h && h !== 'technicians' && h !== 'hubs') openVehicle(h);
+  getJSON('tickets.json').catch(() => null).then(t => { if (t && t.rows) { TK = t; if (t.techs && (t.techs.names || (t.techs.rows && t.techs.rows.length))) { TT = null; $('#app').classList.toggle('tv2', techV2()); perInit(); $('#tab-techs').hidden = false; if (location.hash === '#technicians') setTab('techs'); if (techV2()) { HT = null; repHubs = null; $('#tab-hubs').hidden = false; if (location.hash === '#hubs') setTab('hubs'); } } defs(); if (tab === 'tickets') tickets(); } }).catch(() => {});
   getJSON('series.json').catch(() => null).then(s => { if (s && s.s && s.s.length === rows.length) { SER = s; if (tab === 'fleet') kpis(); running(); } }).catch(() => {});
 }
 
@@ -551,6 +562,12 @@ function bind() {
   let tq; $('#te-q').addEventListener('input', e => { clearTimeout(tq); tq = setTimeout(() => { teQ = e.target.value.trim().toLowerCase(); tePage = 0; techs(); }, 150); });
   $('#te-t').addEventListener('click', e => { const th = e.target.closest('[data-k]'); if (th) { const k = th.dataset.k; teSort = teSort.k === k ? { k, dir: -teSort.dir } : { k, dir: TCOLS.find(c => c.k === k).asc ? 1 : -1 }; tePage = 0; techs(); return; } const tr = e.target.closest('tr[data-t]'); if (tr) openTech(+tr.dataset.t); });
   $('#te-t').addEventListener('keydown', e => { if (e.key !== 'Enter') return; const tr = e.target.closest('tr[data-t]'); if (tr) openTech(+tr.dataset.t); });
+  $('#hu-views').addEventListener('click', e => { const b = e.target.closest('[data-q]'); if (!b) return; huQuick = b.dataset.q; hubs(); });
+  $('#hu-t').addEventListener('click', e => { const th = e.target.closest('[data-k]'); if (th) { const k = th.dataset.k; huSort = huSort.k === k ? { k, dir: -huSort.dir } : { k, dir: HCOLS.find(c => c.k === k).asc ? 1 : -1 }; hubs(); return; } const tr = e.target.closest('tr[data-h]'); if (tr) openHub(+tr.dataset.h); });
+  $('#hu-t').addEventListener('keydown', e => { if (e.key !== 'Enter') return; const tr = e.target.closest('tr[data-h]'); if (tr) openHub(+tr.dataset.h); });
+  const inDrawer = e => { const tr = e.target.closest('tr[data-dt], tr[data-dv]'); if (!tr) return; if (tr.dataset.dt != null) openTech(+tr.dataset.dt); else openVehicle(tr.dataset.dv); };
+  $('#drawer').addEventListener('click', inDrawer);
+  $('#drawer').addEventListener('keydown', e => { if (e.key === 'Enter') inDrawer(e); });
   $('#f-per').addEventListener('change', e => { if (e.target.value === 'c') return; perSet(e.target.value); tePage = 0; tkPage = 0; render(); });
   for (const id of ['f-from', 'f-to']) $('#' + id).addEventListener('change', e => {
     const last = TK.days.length - 1; let a = TK.days.indexOf($('#f-from').value), b = TK.days.indexOf($('#f-to').value);
@@ -569,12 +586,12 @@ function bind() {
 
 function setTab(t) {
   tab = t; document.querySelectorAll('#tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === t));
-  $('#v-fleet').hidden = t !== 'fleet'; $('#v-tickets').hidden = t !== 'tickets'; $('#v-techs').hidden = t !== 'techs'; $('#app').dataset.tab = t;
+  $('#v-fleet').hidden = t !== 'fleet'; $('#v-tickets').hidden = t !== 'tickets'; $('#v-techs').hidden = t !== 'techs'; $('#v-hubs').hidden = t !== 'hubs'; $('#app').dataset.tab = t;
   try { history.replaceState(null, '', tabHash() || location.pathname + location.search); } catch (e) {}
   render();
 }
-const tabHash = () => tab === 'tickets' ? '#tickets' : tab === 'techs' ? '#technicians' : '';
-function render() { if (tab === 'tickets') tickets(); else if (tab === 'techs') techs(); else kpis(); }
+const tabHash = () => tab === 'tickets' ? '#tickets' : tab === 'techs' ? '#technicians' : tab === 'hubs' ? '#hubs' : '';
+function render() { if (tab === 'tickets') tickets(); else if (tab === 'techs') techs(); else if (tab === 'hubs') hubs(); else kpis(); }
 function apply() {
   view = rows.filter(r => (filt.city === '' || r[C.city] == filt.city) && (filt.lhub === '' || r[C.lhub] == filt.lhub) && (filt.tag === '' || r[C.tag] == filt.tag) && (filt.model === '' || r[C.model] == filt.model) && (filt.ten === '' || r[C.ten] == filt.ten) && (!filt.q || r[C.vid].toUpperCase().includes(filt.q)));
   running(); cityChart(); umChart(); breakdown(); table();
@@ -839,6 +856,114 @@ function openTech(i) {
   dr.hidden = false; $('#scrim').hidden = false; dr.scrollTop = 0; $('#d-close').addEventListener('click', closeVehicle); $('#d-close').focus();
 }
 
+// ---------- hub scorecard: the technician scorecard's rules, added up by the hub each ticket was assigned to
+const HF = [[4, 'High repeat rate', 'lv3'], [8, 'Slow to close', 'lv2']], HUB_MIN = 50, HUB_MULT = 1.25;
+const hubKey = i => { const h = D.dicts.hub[i]; return !h || h === '-' ? -1 : i; }, hubLab = k => k < 0 ? 'No hub on the ticket' : D.dicts.hub[k];
+const bumpM = (m, k) => m.set(k, (m.get(k) || 0) + 1), topM = m => { let b = -1, n = 0; for (const [k, v] of m) if (v > n) { n = v; b = k; } return b; };
+function hubTable() {
+  const last = TK.days.length - 1, d0 = teRange ? teRange[0] : 0, d1 = teRange ? teRange[1] : last, key = d0 + ':' + d1;
+  if (HT && HT.key === key) return HT;
+  const G = new Map(), allT = [];
+  for (const t of TK.rows) {
+    if (t[1] < d0 || t[1] > d1) continue;
+    const k = hubKey(t[5]); let g = G.get(k);
+    if (!g) G.set(k, g = { h: k, all: 0, res: 0, c24: 0, c48: 0, same: 0, esc: 0, hubC: 0, nc: 0, rin: 0, tH: [], aH: [], techs: new Map(), cats: new Map(), cities: new Map() });
+    g.all++; if (t[0] >= 0 && rows[t[0]]) bumpM(g.cities, rows[t[0]][C.city]);
+    if (t[2] === 1 || t[2] === 2) g.rin++;   // this ticket is itself a repeat, whichever hub closed the service before it
+    if (t[6] === 1) g.hubC++; else if (t[6] === 2) g.nc++;
+    if (t[2] === 5) continue;
+    g.res++; const cb = t[8] ? 1 : 0, same = cb && (t[9] & 1) ? 1 : 0;   // cb: this service came back within 48 hours
+    let e = g.techs.get(t[7]); if (!e) g.techs.set(t[7], e = [0, 0]); e[0]++; e[1] += cb;
+    let c = g.cats.get(t[4]); if (!c) g.cats.set(t[4], c = [0, 0, 0]); c[0]++; c[1] += cb; c[2] += same;
+    if (cb) { if (t[8] === 1) g.c24++; else g.c48++; g.same += same; if (t[9] & 8) g.esc++; }
+    if (t[10] >= 0) g.aH.push(t[10] / 3600);
+    if (t[11] >= 0) { g.tH.push(t[11] / 3600); allT.push(t[11] / 3600); }
+  }
+  const nd = d1 - d0 + 1, min = nd >= 30 ? HUB_MIN : Math.max(10, Math.round(HUB_MIN * nd / 30)), L = [...G.values()], r1 = x => Math.round(x * 10) / 10;
+  let totRes = 0, totCb = 0; for (const g of L) { g.cb = g.c24 + g.c48; g.rate = g.res ? g.cb / g.res : null; totRes += g.res; totCb += g.cb; }
+  const rate = totRes ? totCb / totRes : 0, fT = median(allT) || 0, hi = new Map();
+  for (const r of techTable().rows) if (r[16] & 4) bumpM(hi, hubKey(r[1]));   // technicians flagged for a high repeat rate, by their main hub
+  L.sort((a, b) => ((a.h < 0) - (b.h < 0)) || ((b.res >= min) - (a.res >= min)) || ((b.rate || 0) - (a.rate || 0)) || (b.cb - a.cb));
+  let rank = 0;
+  for (const g of L) {
+    const mT = median(g.tH), mA = median(g.aH); g.fl = 0; g.rk = 0;
+    if (g.h < 0) g.fl |= 1; else if (g.res < min) g.fl |= 2;
+    else { g.rk = ++rank; if (rate > 0 && g.rate >= HUB_MULT * rate) g.fl |= 4; if (mT != null && fT > 0 && mT >= 2 * fT && mT - fT >= 2) g.fl |= 8; }
+    g.medT = mT == null ? null : r1(mT); g.medA = mA == null ? null : r1(mA); g.city = topM(g.cities); g.hiT = hi.get(g.h) || 0;
+    g.nTech = [...g.techs.keys()].filter(i => i !== TK.techs.none).length;
+    let b = null; for (const [c, e] of g.cats) if (e[1] > 0 && (!b || e[1] > b[1])) b = [c, e[1]]; g.top = b;
+  }
+  return HT = { key, rows: L, fleet: { rate, medT: r1(fT), ranked: rank, min }, nd, from: TK.days[d0], to: TK.days[d1] };
+}
+// which hub closed the service each repeat ticket came back from. The repeat list names the earlier ticket's technician and closing time, not its hub,
+// so the earlier ticket is found among the period's tickets by vehicle, day closed, technician and comeback window; null where that is not unique.
+function repHub() {
+  if (repHubs) return repHubs; const m = new Map(), dayIx = new Map(TK.days.map((d, i) => [d, i])), dayOf = sec => new Date(sec * 1000 + 19800000).toISOString().slice(0, 10);
+  for (const t of TK.rows) if (t[8]) { const k = t[0] + '|' + t[1] + '|' + t[7] + '|' + t[8], h = hubKey(t[5]); m.set(k, m.has(k) && m.get(k) !== h ? -2 : h); }
+  return repHubs = TK.rep.map(t => { if ((t[7] !== 1 && t[7] !== 2) || t.length < 13) return null; const d = dayIx.get(dayOf(t[5])); if (d == null) return null; const h = m.get((vixMap.has(t[1]) ? vixMap.get(t[1]) : -1) + '|' + d + '|' + t[12] + '|' + t[7]); return h == null || h === -2 ? null : h; });
+}
+const hDim = '<span class="dim">–</span>', hCity = g => g.h >= 0 && g.city >= 0 ? (D.dicts.city[g.city] || '') : '';
+const HCOLS = [
+  { k: 'rank', h: 'Rank', asc: 1, get: g => g.rk || null, cell: g => g.rk ? N(g.rk) : hDim },
+  { k: 'name', h: 'Hub', txt: 1, asc: 1, get: g => hubLab(g.h), cell: g => '<b style="font-weight:600">' + esc(hubLab(g.h)) + '</b>' },
+  { k: 'city', h: 'City', txt: 1, asc: 1, get: g => hCity(g) || null, cell: g => hCity(g) ? esc(hCity(g)) : hDim },
+  { k: 'res', h: 'Tickets<br>serviced', get: g => g.res, cell: g => N(g.res) },
+  { k: 'c24', h: 'Back within<br>24 hours', get: g => g.c24, cell: g => N(g.c24) },
+  { k: 'c48', h: 'Back in 24<br>to 48 hours', get: g => g.c48, cell: g => N(g.c48) },
+  { k: 'rate', h: 'Repeat<br>rate', get: g => g.rate, cell: g => g.rate == null ? '–' : (g.rate * 100).toFixed(1) + '%' },
+  { k: 'x', h: 'Times the<br>overall rate', get: g => g.rate == null || !HT.fleet.rate ? null : g.rate / HT.fleet.rate, cell: g => g.rate == null || !HT.fleet.rate ? '–' : (g.rate / HT.fleet.rate).toFixed(2) },
+  { k: 'flags', h: 'Flags', txt: 1, asc: 1, get: g => HF.filter(f => g.fl & f[0]).map(f => f[1]).join(', ') || null, cell: g => { const f = HF.filter(x => g.fl & x[0]); return f.length ? '<span class="flags">' + f.map(x => '<span class="st"><i class="' + x[2] + '"></i>' + x[1] + '</span>').join('') + '</span>' : (g.fl & 2) ? '<span class="dim">Fewer than ' + HT.fleet.min + ' tickets</span>' : (g.fl & 1) ? '<span class="dim">Not ranked</span>' : '<span class="dim">None</span>'; } },
+  { k: 'same', h: 'Same issue<br>again', get: g => g.same, cell: g => N(g.same) },
+  { k: 'top', h: 'What came<br>back most', txt: 1, asc: 1, get: g => g.top ? tcatName(g.top[0]) : null, cell: g => g.top ? esc(tcatName(g.top[0])) + ' <span class="dim">' + N(g.top[1]) + ' of ' + N(g.cb) + '</span>' : hDim },
+  { k: 'esc', h: 'Comebacks that<br>escalated', get: g => g.esc, cell: g => N(g.esc) },
+  { k: 'rin', h: 'Repeat tickets<br>it received', get: g => g.rin, cell: g => N(g.rin) },
+  { k: 'hubC', h: 'Closed by sending<br>the rider to a hub', get: g => g.hubC, cell: g => N(g.hubC) },
+  { k: 'nc', h: 'Closed, rider<br>not reached', get: g => g.nc, cell: g => N(g.nc) },
+  { k: 'nTech', h: 'Technicians', get: g => g.nTech, cell: g => N(g.nTech) },
+  { k: 'hiT', h: 'Technicians with a<br>high repeat rate', get: g => g.hiT, cell: g => N(g.hiT) },
+  { k: 'medT', h: 'Median hours,<br>raised to resolved', get: g => g.medT, cell: g => N1(g.medT) },
+  { k: 'medA', h: 'Median hours,<br>allocated to resolved', get: g => g.medA, cell: g => N1(g.medA) }
+];
+const hubScope = () => hubTable().rows.filter(g => (filt.lhub === '' || g.h == filt.lhub) && (filt.city === '' || (g.h >= 0 && g.city == filt.city)));
+function hubs() {
+  if (!TK || !techV2()) return;
+  const X = hubTable(), F = X.fleet, all = hubScope(), named = all.filter(g => g.h >= 0), ranked = named.filter(g => g.rk);
+  const span = X.from === X.to ? 'on ' + dM(X.from) : 'from ' + dM(X.from) + ' to ' + dM(X.to);
+  const res = all.reduce((s, g) => s + g.res, 0), cb = all.reduce((s, g) => s + g.cb, 0), cnt = b => named.filter(g => g.fl & b).length;
+  const none = all.filter(g => g.h < 0).reduce((s, g) => s + g.all, 0), scoped = filt.lhub !== '' || filt.city !== '';
+  const K = (name, val, sh, dl) => '<div class="kpi plain"><span class="nm">' + name + '</span><b class="num">' + val + '</b><span class="sh">' + sh + '</span><span class="dl">' + dl + '</span></div>';
+  $('#kpis').innerHTML =
+    K('Hubs ranked', N(ranked.length), F.min + ' or more tickets serviced ' + (X.nd === 1 ? 'that day' : 'in ' + X.nd + ' days'), N(named.length - ranked.length) + ' more with fewer tickets') +
+    K('Repeat rate', res ? (cb / res * 100).toFixed(1) + '%' : '–', 'Vehicles back within 48 hours, per ticket serviced', N(cb) + ' comebacks on ' + N(res) + ' tickets') +
+    K('High repeat rate', N(cnt(4)), 'hubs at ' + HUB_MULT + ' times the overall rate or more', (scoped ? 'Overall rate, all hubs: ' : 'Overall rate ') + (F.rate * 100).toFixed(1) + '%') +
+    K('Slow to close', N(cnt(8)), 'hubs at twice the median time or more', 'Overall median ' + N1(F.medT) + ' hours, raised to resolved');
+  const Q = { all: ['All hubs', () => true], hi: ['High repeat rate', g => g.fl & 4], slow: ['Slow to close', g => g.fl & 8], low: ['Fewer than ' + F.min + ' tickets', g => g.fl & 2] };
+  if (!Q[huQuick]) huQuick = 'all';
+  $('#hu-views').innerHTML = Object.entries(Q).map(([k, v]) => '<button type="button" class="chip" data-q="' + k + '" aria-pressed="' + (k === huQuick) + '">' + v[0] + '</button>').join('');
+  const col = HCOLS.find(c => c.k === huSort.k) || HCOLS[0], list = all.filter(g => Q[huQuick][1](g));
+  list.sort((a, b) => { const x = col.get(a), y = col.get(b); if (x == null && y == null) return 0; if (x == null) return 1; if (y == null) return -1; return (col.txt ? String(x).localeCompare(String(y), 'en', { numeric: true }) : x - y) * huSort.dir; });
+  $('#hu-t').innerHTML = '<thead><tr>' + HCOLS.map(c => '<th' + (c.txt ? ' class="l"' : '') + (huSort.k === c.k ? ' aria-sort="' + (huSort.dir > 0 ? 'ascending' : 'descending') + '"' : '') + '><button type="button" data-k="' + c.k + '">' + c.h + (huSort.k === c.k ? '<span aria-hidden="true">' + (huSort.dir > 0 ? '▲' : '▼') + '</span>' : '') + '</button></th>').join('') + '</tr></thead><tbody>' +
+    (list.length ? list.map(g => '<tr class="rowlink" tabindex="0" data-h="' + g.h + '">' + HCOLS.map(c => '<td class="' + (c.txt ? 'l' : 'num') + '">' + c.cell(g) + '</td>').join('') + '</tr>').join('') : '<tr><td class="empty" colspan="' + HCOLS.length + '" style="text-align:center">No hubs match. Clear a filter, widen the dates or choose another view.</td></tr>') + '</tbody>';
+  $('#hu-note').textContent = 'Tickets resolved ' + span + ', by the hub each ticket was assigned to. A comeback counts against the hub that closed the previous ticket, on the day it closed it. Rank 1 is the highest repeat rate. Select a hub for its issues, technicians and the vehicles that came back.' + (none ? ' ' + N(none) + ' tickets had no hub on them.' : '') + (X.to >= TK.days[Math.max(0, TK.days.length - 3)] ? ' Services closed in the last three days can still come back, so their repeat rate is not final.' : '');
+}
+function openHub(h) {
+  const X = hubTable(), g = X.rows.find(x => x.h === h); if (!g) return; const dr = $('#drawer'), F = X.fleet;
+  const dayOf = sec => new Date(sec * 1000 + 19800000).toISOString().slice(0, 10), RH = repHub();
+  const K = (b, s2) => '<div><b class="num">' + b + '</b><small>' + s2 + '</small></div>', fl = HF.filter(x => g.fl & x[0]);
+  const cats = [...g.cats.entries()].filter(x => x[1][1] > 0).sort((x, y) => y[1][1] - x[1][1] || y[1][0] - x[1][0]);
+  const TR = new Map(techTable().rows.map(r => [r.ix, r])), tl = [...g.techs.entries()].filter(x => x[0] !== TK.techs.none).sort((x, y) => y[1][1] - x[1][1] || y[1][0] - x[1][0]);
+  const noSE = g.techs.get(TK.techs.none);
+  const cbs = TK.rep.filter((t, i) => RH[i] === h && dayOf(t[5]) >= X.from && dayOf(t[5]) <= X.to).sort((a, b) => b[2] - a[2]);
+  dr.innerHTML = '<div class="dhead"><div><h2 style="font-size:22px" id="d-plate">' + esc(hubLab(h)) + '</h2><p>' + (hCity(g) ? esc(hCity(g)) + ' · ' : '') + (X.from === X.to ? dM(X.from) : dM(X.from) + ' to ' + dM(X.to)) + '</p><p style="margin-top:6px">' + (fl.length ? '<span class="flags">' + fl.map(x => '<span class="st"><i class="' + x[2] + '"></i>' + x[1] + '</span>').join('') + '</span>' : g.rk ? 'Ranked ' + N(g.rk) + ' of ' + N(F.ranked) + ' by repeat rate, no flags' : (g.fl & 1) ? 'Tickets with no hub on them are not ranked' : 'Not ranked: fewer than ' + F.min + ' tickets serviced') + '</p></div><button class="btn" type="button" id="d-close">Close</button></div>' +
+    '<div class="kv">' + K(N(g.res), 'Tickets serviced') + K(N(g.cb), 'Comebacks within 48 hours') + K(g.rate == null ? '–' : (g.rate * 100).toFixed(1) + '%', 'Repeat rate') + K(g.rate == null || !F.rate ? '–' : (g.rate / F.rate).toFixed(2), 'Times the overall rate') +
+    K(N(g.same), 'Same issue again') + K(N(g.esc), 'Comebacks that escalated') + K(N(g.rin), 'Repeat tickets it received') + K(N(g.hubC), 'Closed by sending the rider to a hub') +
+    K(N(g.nc), 'Closed, rider not reached') + K(N(g.nTech), 'Technicians') + K(N1(g.medT), 'Median hours, raised to resolved') + K(N1(g.medA), 'Median hours, allocated to resolved') + '</div>' +
+    '<section><h2>What came back, by issue</h2>' + (cats.length ? '<div class="scroll"><table><thead><tr><th class="l">Issue of the service<br>that came back</th><th>Serviced</th><th>Came<br>back</th><th>Repeat<br>rate</th><th>Same issue<br>again</th></tr></thead><tbody>' + cats.slice(0, 15).map(([c, e]) => '<tr><td class="l">' + esc(tcatName(c)) + '</td><td class="num">' + N(e[0]) + '</td><td class="num">' + N(e[1]) + '</td><td class="num">' + P1(e[1], e[0]) + '</td><td class="num">' + N(e[2]) + '</td></tr>').join('') + '</tbody></table></div>' + (cats.length > 15 ? '<p class="dim" style="margin:8px 0 0">Showing the largest 15 of ' + N(cats.length) + ' issues.</p>' : '') : '<p class="dim" style="margin:6px 0 0">Nothing came back in this period.</p>') + '</section>' +
+    '<section><h2>Technicians on its tickets</h2>' + (tl.length ? '<div class="scroll"><table><thead><tr><th class="l">Technician</th><th>Serviced<br>here</th><th>Came<br>back</th><th>Repeat<br>rate</th><th class="l">Flags, all his tickets</th></tr></thead><tbody>' + tl.slice(0, 40).map(([i, e]) => { const r = TR.get(i), f = r ? TF.filter(x => r[16] & x[0]) : []; return '<tr class="rowlink" tabindex="0" data-dt="' + i + '" data-tip="Open his scorecard"><td class="l">' + esc(techName(i)) + '</td><td class="num">' + N(e[0]) + '</td><td class="num">' + N(e[1]) + '</td><td class="num">' + P1(e[1], e[0]) + '</td><td class="l">' + (f.length ? '<span class="flags">' + f.map(x => '<span class="st"><i class="' + x[2] + '"></i>' + x[1] + '</span>').join('') + '</span>' : '<span class="dim">None</span>') + '</td></tr>'; }).join('') + '</tbody></table></div>' + (tl.length > 40 ? '<p class="dim" style="margin:8px 0 0">Showing 40 of ' + N(tl.length) + ', most comebacks first.</p>' : '') + (noSE ? '<p class="dim" style="margin:8px 0 0">' + N(noSE[0]) + ' more tickets here had no technician on them; ' + N(noSE[1]) + ' came back.</p>' : '') : '<p class="dim" style="margin:6px 0 0">' + (noSE ? N(noSE[0]) + ' tickets, none with a technician on them; ' + N(noSE[1]) + ' came back.' : 'None in this period.') + '</p>') + '</section>' +
+    '<section><h2>Vehicles that came back within 48 hours</h2>' + (cbs.length ? '<div class="scroll"><table><thead><tr><th class="l">Vehicle</th><th class="l">Came back</th><th>Hours after<br>closure</th><th class="l">Issue</th><th class="l">Previous service by</th><th class="l">Escalation</th></tr></thead><tbody>' + cbs.slice(0, 100).map(t => '<tr class="rowlink" tabindex="0" data-dv="' + esc(t[1]) + '"><td class="l"><span class="vid">' + esc(t[1]) + '</span></td><td class="l">' + dt(t[2] * 1000) + '</td><td class="num">' + N1(t[6]) + '</td><td class="l">' + esc(tcatName(t[9])) + '</td><td class="l">' + esc(t[12] >= 0 ? techName(t[12]) : '–') + '</td><td class="l">' + (t[8] ? '<span class="st"><i class="lv' + t[8] + '"></i>' + LVL[t[8]] + '</span>' : '<span class="dim">None</span>') + '</td></tr>').join('') + '</tbody></table></div>' + (cbs.length > 100 ? '<p class="dim" style="margin:8px 0 0">Showing the latest 100 of ' + N(cbs.length) + '.</p>' : '') : '<p class="dim" style="margin:6px 0 0">None in this period.</p>') + '</section>';
+  dr.hidden = false; $('#scrim').hidden = false; dr.scrollTop = 0; $('#d-close').addEventListener('click', closeVehicle); $('#d-close').focus();
+}
+
 // ---------- status by city
 function cityChart() {
   const g = new Map();
@@ -993,9 +1118,10 @@ function defs() {
     ...(TK && TK.techs ? [
     ['Technician', 'The service engineer who held the ticket last. Tickets with no engineer on them are grouped together and not ranked.'],
     ['Comeback and repeat rate', 'A comeback is a vehicle raising a new ticket within 48 hours of a technician resolving the previous one; it counts against that technician. Repeat rate is his comebacks divided by the tickets he serviced. Technicians who serviced ' + (TK.techs.fleet || TK.techs).min + ' or more tickets in 30 days are ranked, highest rate first' + (techV2() ? '; for a shorter period the bar drops in proportion, never below 5' : '') + '.'],
-    ...(techV2() ? [['Period', 'The Repeat tickets and Technicians tabs can be narrowed to one day or a range within the ' + TK.days.length + ' days on record. A ticket belongs to the day it was resolved, India time. On the Technicians tab a comeback belongs to the day the technician closed the service that came back. The overall rate and medians are worked out again for the dates chosen, across all hubs. Services closed in the last three days can still come back, so their repeat rate is not final.']] : []),
+    ...(techV2() ? [['Period', 'The Repeat tickets, Hubs and Technicians tabs can be narrowed to one day or a range within the ' + TK.days.length + ' days on record. A ticket belongs to the day it was resolved, India time. On the Hubs and Technicians tabs a comeback belongs to the day the service that came back was closed. The overall rate and medians are worked out again for the dates chosen, across all hubs. Services closed in the last three days can still come back, so their repeat rate is not final.']] : []),
     ['Technician flags', 'High repeat rate: ' + (TK.techs.fleet || TK.techs).mult + ' times the overall rate or more. Slow to close: median time from allocation to resolution at least twice the overall median and at least 2 hours longer. Closes by hub referral: he himself closed ' + Math.round((TK.techs.fleet || TK.techs).hubPct * 100) + '% or more of his tickets by sending the rider to a hub, at least 3 tickets. Often not acknowledging: 5 or more tickets moved off him unacknowledged, a quarter or more of his load.']] : []),
-    ['Hub', 'On the Fleet tab, the hub on the vehicle\'s latest tag change: where it was deployed from if it is on rent, or where it is parked otherwise. On the Repeat tickets tab, the hub the ticket was assigned to.'],
+    ...(TK && techV2() ? [['Hub scorecard', 'The technician scorecard added up by hub: every ticket goes to the hub it was assigned to, and a comeback counts against the hub that closed the previous ticket, wherever the vehicle went next. Repeat rate is a hub\'s comebacks divided by the tickets it serviced. Hubs that serviced ' + HUB_MIN + ' or more tickets in 30 days are ranked, highest rate first; for a shorter period the bar drops in proportion, never below 10. High repeat rate: ' + HUB_MULT + ' times the overall rate or more. Slow to close: median time from a ticket being raised to resolved at least twice the overall median and at least 2 hours longer. Repeat tickets it received counts the returning tickets the hub handled, whichever hub closed the service before. Tickets with no hub on them are shown together and not ranked.']] : []),
+    ['Hub', 'On the Fleet tab, the hub on the vehicle\'s latest tag change: where it was deployed from if it is on rent, or where it is parked otherwise. On the Repeat tickets and Hubs tabs, the hub the ticket was assigned to.'],
     ['Gaps in the record', N(nolog) + ' vehicles have no tag history in Cercle OS and ' + N(mis) + ' have a current tag that differs from the last recorded change. They are counted at their current status, and their days in status are left blank.']
   ];
   $('#defs').innerHTML = L.map(x => '<dt>' + x[0] + '</dt><dd>' + x[1] + '</dd>').join('');
