@@ -97,7 +97,7 @@ button, select, input { font: inherit; color: inherit; }
 .kpi-action:hover { background: var(--band-2); }
 .kpi-action:focus-visible { outline-color: var(--band-ink); outline-offset: -3px; }
 .kpi-action .nm::after { content: 'View daily counts ↗'; margin-left: auto; font-size: 11px; }
-.fleet-history { width: min(620px, calc(100% - 24px)); max-height: min(85vh, 800px); padding: 0; border: 1px solid var(--line2); border-radius: 14px; background: var(--surface); color: var(--ink); box-shadow: 0 24px 80px rgba(0,0,0,.35); }
+.fleet-history { width: min(800px, calc(100% - 24px)); max-height: min(85vh, 800px); padding: 0; border: 1px solid var(--line2); border-radius: 14px; background: var(--surface); color: var(--ink); box-shadow: 0 24px 80px rgba(0,0,0,.35); }
 .fleet-history::backdrop { background: rgba(8,14,24,.68); }
 .fleet-history header { display: flex; gap: 16px; justify-content: space-between; align-items: flex-start; padding: 22px 24px 14px; }
 .fleet-history h2 { margin: 0; font: 600 25px/1.2 var(--cond); }
@@ -429,7 +429,7 @@ a { color: var(--accent); }
     <button type="button" class="btn" id="fleet-history-close" aria-label="Close daily fleet count" autofocus>Close</button>
   </header>
   <div id="fleet-history-body" class="history-scroll" aria-live="polite"></div>
-  <footer>Daily increase is the net change from the previous day. The first date has no earlier day for comparison. Today's count is as of the latest refresh.</footer>
+  <footer>Daily increase is the net change from the previous day. The first date has no earlier day for comparison. Counts and additions use the Cercle OS onboarding date for each calendar day (IST). Today's count includes vehicles available at the latest refresh.</footer>
 </dialog>
 
 <script>
@@ -496,7 +496,7 @@ let sealKey = null, dataBase = '';
 async function getJSON(path) {
   if (!SITE) { const r = await fetch(path, { cache: 'no-store' }); if (!r.ok) throw new Error(r.status); return r.json(); }
   const r = await fetch(dataBase + path.replace(/\.json$/, '.bin')); if (!r.ok) throw new Error(r.status);
-  const b = new Uint8Array(await r.arrayBuffer()), plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b.subarray(0, 12) }, sealKey, b.subarray(12));
+  const b = path.endsWith('.b64') ? unb64((await r.text()).trim()) : new Uint8Array(await r.arrayBuffer()), plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b.subarray(0, 12) }, sealKey, b.subarray(12));
   return JSON.parse(await new Response(new Blob([plain]).stream().pipeThrough(new DecompressionStream('gzip'))).text());
 }
 async function tryKey(raw) {
@@ -536,7 +536,7 @@ async function load() {
   vixMap = new Map(rows.map(r => [r[C.vid], r.ix]));
   const h = decodeURIComponent(location.hash.slice(1)); if (h === 'tickets') setTab('tickets'); else if (h && h !== 'technicians' && h !== 'hubs') openVehicle(h);
   getJSON('tickets.json').catch(() => null).then(t => { if (t && t.rows) { TK = t; if (t.techs && (t.techs.names || (t.techs.rows && t.techs.rows.length))) { TT = null; $('#app').classList.toggle('tv2', techV2()); perInit(); $('#tab-techs').hidden = false; if (location.hash === '#technicians') setTab('techs'); if (techV2()) { HT = null; repHubs = null; $('#tab-hubs').hidden = false; if (location.hash === '#hubs') setTab('hubs'); } } defs(); if (tab === 'tickets') tickets(); } }).catch(() => {});
-  getJSON('series.json').catch(() => null).then(s => { if (s && s.s && s.s.length === rows.length) { SER = s; if (tab === 'fleet') kpis(); running(); } }).catch(() => {});
+  getJSON('series.json').catch(() => null).then(async s => { if (s && !s.f && SITE) { const dates = await getJSON('onboarding.b64'); if (dates.gen !== D.meta.gen) throw new Error('Fleet dates do not match this refresh'); s.onboarding = rows.map(r => dates.dates[r[C.vid]]); if (s.onboarding.some(day => !/^\d{4}-\d{2}-\d{2}$/.test(day || ''))) throw new Error('Fleet onboarding dates are incomplete'); s.f = s.onboarding.map(born => s.tdays.map(day => day >= born ? '1' : '.').join('')); } if (s && s.s && s.f && s.onboarding && s.s.length === rows.length && s.f.length === rows.length && s.onboarding.length === rows.length) { SER = s; if (tab === 'fleet') kpis(); running(); } }).catch(() => {});
 }
 
 function header() {
@@ -660,8 +660,8 @@ function agg(list) {
 
 // ---------- band: four fleet numbers, each with its 60-day line
 function trend() { // per day: counts of R, U, T and fleet size over the vehicles in view
-  if (!SER) return null; const n = SER.tdays.length, R = new Array(n).fill(0), U = R.slice(), T = R.slice(), F = R.slice();
-  for (const r of view) { const s = SER.s[r.ix]; for (let i = 0; i < n; i++) { const c = s.charCodeAt(i); if (c === 46) continue; F[i]++; if (c === 82) R[i]++; else if (c === 85) U[i]++; else if (c === 84) T[i]++; } }
+  if (!SER || !SER.f) return null; const n = SER.tdays.length, R = new Array(n).fill(0), U = R.slice(), T = R.slice(), F = R.slice();
+  for (const r of view) { const s = SER.s[r.ix], f = SER.f[r.ix]; for (let i = 0; i < n; i++) { if (f.charAt(i) !== '.') F[i]++; const c = s.charCodeAt(i); if (c === 46) continue; if (c === 82) R[i]++; else if (c === 85) U[i]++; else if (c === 84) T[i]++; } }
   return { R, U, T, F };
 }
 function kpis() {
@@ -696,7 +696,7 @@ function renderFleetHistory(t) {
   $('#fleet-history-title').textContent = 'Daily fleet count';
   $('#fleet-history-back').hidden = true;
   const filtered = Object.values(filt).some(Boolean);
-  $('#fleet-history-note').textContent = (filtered ? 'For the vehicles matching your current filters. ' : 'All fleet vehicles. ') + 'Latest refresh: ' + dtY(D.meta.gen) + ' IST.';
+  $('#fleet-history-note').textContent = (filtered ? 'For the vehicles matching your current filters. ' : 'All fleet vehicles. ') + 'Based on Cercle OS onboarding dates. Latest refresh: ' + dtY(D.meta.gen) + ' IST.';
   if (!t || !SER.tdays.length) {
     $('#fleet-history-body').innerHTML = '<div class="empty">Daily history is unavailable or still loading. Please try again shortly.</div>';
     return;
@@ -714,7 +714,7 @@ function renderFleetHistory(t) {
 function renderFleetChange(i, t) {
   const changes = [];
   for (const r of view) {
-    const s = SER.s[r.ix], was = s.charAt(i - 1) !== '.', now = s.charAt(i) !== '.';
+    const s = SER.f[r.ix], was = s.charAt(i - 1) !== '.', now = s.charAt(i) !== '.';
     if (was !== now) changes.push({ r, added: now });
   }
   changes.sort((a, b) => Number(b.added) - Number(a.added) || String(a.r[C.vid]).localeCompare(String(b.r[C.vid]), 'en', { numeric: true }));
@@ -728,8 +728,8 @@ function renderFleetChange(i, t) {
     $('#fleet-history-body').innerHTML = '<div class="empty">No vehicles were added or removed between these daily counts.</div>';
     return;
   }
-  const entries = changes.map(({ r, added }) => '<tr><td class="vid">' + esc(r[C.vid]) + '</td><td class="history-model">' + esc(label('model', r[C.model])) + '</td><td class="l">' + esc(label('city', r[C.city])) + '</td>' + (removed ? '<td class="' + (added ? 'increase' : 'decrease') + '">' + (added ? 'Added' : 'Removed') + '</td>' : '') + '</tr>');
-  $('#fleet-history-body').innerHTML = '<table aria-label="Vehicles behind the daily fleet increase"><thead><tr><th scope="col">Vehicle number</th><th scope="col" class="l">Model</th><th scope="col" class="l">City</th>' + (removed ? '<th scope="col">Change</th>' : '') + '</tr></thead><tbody>' + entries.join('') + '</tbody></table>';
+  const entries = changes.map(({ r, added }) => '<tr><td class="vid">' + esc(r[C.vid]) + '</td><td class="history-model">' + esc(label('model', r[C.model])) + '</td><td class="l">' + esc(label('city', r[C.city])) + '</td><td class="l">' + esc(dayLab(SER.onboarding[r.ix]) + ' ' + SER.onboarding[r.ix].slice(0, 4)) + '</td>' + (removed ? '<td class="' + (added ? 'increase' : 'decrease') + '">' + (added ? 'Added' : 'Removed') + '</td>' : '') + '</tr>');
+  $('#fleet-history-body').innerHTML = '<table aria-label="Vehicles behind the daily fleet increase"><thead><tr><th scope="col">Vehicle number</th><th scope="col" class="l">Model</th><th scope="col" class="l">City</th><th scope="col" class="l">Onboarding date</th>' + (removed ? '<th scope="col">Change</th>' : '') + '</tr></thead><tbody>' + entries.join('') + '</tbody></table>';
   $('#fleet-history-body').scrollTop = 0;
 }
 
