@@ -105,6 +105,10 @@ button, select, input { font: inherit; color: inherit; }
 .fleet-history .history-scroll { max-height: 52vh; overflow: auto; border-top: 1px solid var(--line); }
 .fleet-history thead th { position: sticky; top: 0; z-index: 1; }
 .fleet-history td, .fleet-history th { padding-block: 11px; }
+.fleet-history .history-change { border: 0; padding: 2px 4px; background: transparent; color: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; border-radius: 3px; font-weight: inherit; }
+.fleet-history .history-change:hover { background: var(--sunk); }
+.fleet-history .history-back { border: 0; background: transparent; padding: 0; margin-bottom: 12px; color: var(--accent); cursor: pointer; font-size: 13px; }
+.fleet-history .history-model { text-align: left; white-space: normal; overflow-wrap: anywhere; }
 .fleet-history .increase { color: var(--up-good); }
 .fleet-history .decrease { color: var(--up-bad); }
 .fleet-history .latest td { background: var(--accent-wash); font-weight: 600; }
@@ -421,7 +425,7 @@ a { color: var(--accent); }
 <div class="tip" id="tip" hidden></div>
 <dialog class="fleet-history" id="fleet-history" aria-labelledby="fleet-history-title" aria-describedby="fleet-history-note">
   <header>
-    <div><h2 id="fleet-history-title">Daily fleet count</h2><p id="fleet-history-note"></p></div>
+    <div><button type="button" class="history-back" id="fleet-history-back" hidden>← Back to daily counts</button><h2 id="fleet-history-title">Daily fleet count</h2><p id="fleet-history-note"></p></div>
     <button type="button" class="btn" id="fleet-history-close" aria-label="Close daily fleet count" autofocus>Close</button>
   </header>
   <div id="fleet-history-body" class="history-scroll" aria-live="polite"></div>
@@ -566,6 +570,14 @@ function bind() {
   $('#kpis').addEventListener('keydown', e => {
     if ((e.key === 'Enter' || e.key === ' ') && e.target.closest('[data-fleet-history]')) { e.preventDefault(); openFleetHistory(); }
   });
+  $('#fleet-history-body').addEventListener('click', e => {
+    const b = e.target.closest('[data-fleet-day]');
+    if (b) { fleetHistoryDay = +b.dataset.fleetDay; renderFleetHistory(trend()); $('#fleet-history-back').focus(); }
+  });
+  $('#fleet-history-back').addEventListener('click', () => {
+    const day = fleetHistoryDay; fleetHistoryDay = null; renderFleetHistory(trend());
+    const b = $('#fleet-history-body').querySelector('[data-fleet-day="' + day + '"]'); if (b) b.focus();
+  });
   $('#fleet-history-close').addEventListener('click', () => $('#fleet-history').close());
   $('#fleet-history').addEventListener('click', e => {
     const d = e.currentTarget, r = d.getBoundingClientRect();
@@ -672,12 +684,17 @@ function kpis() {
   line($('#sp-t'), t.T, { color: 'var(--b-rtd)', labels: lab('Ready to deploy', t.T) });
 }
 
+let fleetHistoryDay = null;
 function openFleetHistory() {
+  fleetHistoryDay = null;
   renderFleetHistory(trend());
   tip.hidden = true;
   if (!$('#fleet-history').open) $('#fleet-history').showModal();
 }
 function renderFleetHistory(t) {
+  if (fleetHistoryDay != null && t && SER && fleetHistoryDay > 0 && fleetHistoryDay < SER.tdays.length) { renderFleetChange(fleetHistoryDay, t); return; }
+  $('#fleet-history-title').textContent = 'Daily fleet count';
+  $('#fleet-history-back').hidden = true;
   const filtered = Object.values(filt).some(Boolean);
   $('#fleet-history-note').textContent = (filtered ? 'For the vehicles matching your current filters. ' : 'All fleet vehicles. ') + 'Latest refresh: ' + dtY(D.meta.gen) + ' IST.';
   if (!t || !SER.tdays.length) {
@@ -688,9 +705,32 @@ function renderFleetHistory(t) {
     const change = i ? t.F[i] - t.F[i - 1] : null;
     const text = change == null ? '–' : (change > 0 ? '+' : change < 0 ? '−' : '') + N(Math.abs(change));
     const date = dayLab(day) + ' ' + day.slice(0, 4);
-    return '<tr' + (i === SER.tdays.length - 1 ? ' class="latest"' : '') + '><td>' + date + '</td><td class="num">' + N(t.F[i]) + '</td><td class="num ' + (change > 0 ? 'increase' : change < 0 ? 'decrease' : 'dim') + '">' + text + '</td></tr>';
+    const button = change == null ? text : '<button type="button" class="history-change" data-fleet-day="' + i + '" aria-label="View vehicles for ' + esc(date) + ', daily increase ' + text + '">' + text + '</button>';
+    return '<tr' + (i === SER.tdays.length - 1 ? ' class="latest"' : '') + '><td>' + date + '</td><td class="num">' + N(t.F[i]) + '</td><td class="num ' + (change > 0 ? 'increase' : change < 0 ? 'decrease' : 'dim') + '">' + button + '</td></tr>';
   }).reverse();
   $('#fleet-history-body').innerHTML = '<table aria-label="Daily fleet totals and increases"><thead><tr><th scope="col">Date</th><th scope="col">Fleet count</th><th scope="col">Daily increase</th></tr></thead><tbody>' + entries.join('') + '</tbody></table>';
+}
+
+function renderFleetChange(i, t) {
+  const changes = [];
+  for (const r of view) {
+    const s = SER.s[r.ix], was = s.charAt(i - 1) !== '.', now = s.charAt(i) !== '.';
+    if (was !== now) changes.push({ r, added: now });
+  }
+  changes.sort((a, b) => Number(b.added) - Number(a.added) || String(a.r[C.vid]).localeCompare(String(b.r[C.vid]), 'en', { numeric: true }));
+  const added = changes.filter(x => x.added).length, removed = changes.length - added;
+  const day = SER.tdays[i], date = dayLab(day) + ' ' + day.slice(0, 4), delta = t.F[i] - t.F[i - 1];
+  const change = (delta > 0 ? '+' : delta < 0 ? '−' : '') + N(Math.abs(delta));
+  $('#fleet-history-title').textContent = (removed ? 'Fleet changes' : 'Vehicles added') + ' · ' + date;
+  $('#fleet-history-back').hidden = false;
+  $('#fleet-history-note').textContent = N(added) + ' added · ' + N(removed) + ' removed · Net increase: ' + change + (Object.values(filt).some(Boolean) ? '. For your selected filters.' : '. All fleet vehicles.');
+  if (!changes.length) {
+    $('#fleet-history-body').innerHTML = '<div class="empty">No vehicles were added or removed between these daily counts.</div>';
+    return;
+  }
+  const entries = changes.map(({ r, added }) => '<tr><td class="vid">' + esc(r[C.vid]) + '</td><td class="history-model">' + esc(label('model', r[C.model])) + '</td>' + (removed ? '<td class="' + (added ? 'increase' : 'decrease') + '">' + (added ? 'Added' : 'Removed') + '</td>' : '') + '</tr>');
+  $('#fleet-history-body').innerHTML = '<table aria-label="Vehicles behind the daily fleet increase"><thead><tr><th scope="col">Vehicle number</th><th scope="col" class="l">Model</th>' + (removed ? '<th scope="col">Change</th>' : '') + '</tr></thead><tbody>' + entries.join('') + '</tbody></table>';
+  $('#fleet-history-body').scrollTop = 0;
 }
 
 // ---------- running: km figures and the daily km line
