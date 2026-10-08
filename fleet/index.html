@@ -92,6 +92,24 @@ button, select, input { font: inherit; color: inherit; }
 .spark .hl { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--band-ink2); opacity: .7; pointer-events: none; }
 .spark-x { display: flex; justify-content: space-between; font-size: 12px; color: var(--band-ink2); margin-top: 3px; opacity: .85; }
 
+/* ---- daily fleet popup */
+.kpi-action { cursor: pointer; border-radius: 6px; }
+.kpi-action:hover { background: var(--band-2); }
+.kpi-action:focus-visible { outline-color: var(--band-ink); outline-offset: -3px; }
+.kpi-action .nm::after { content: 'View daily counts ↗'; margin-left: auto; font-size: 11px; }
+.fleet-history { width: min(620px, calc(100% - 24px)); max-height: min(85vh, 800px); padding: 0; border: 1px solid var(--line2); border-radius: 14px; background: var(--surface); color: var(--ink); box-shadow: 0 24px 80px rgba(0,0,0,.35); }
+.fleet-history::backdrop { background: rgba(8,14,24,.68); }
+.fleet-history header { display: flex; gap: 16px; justify-content: space-between; align-items: flex-start; padding: 22px 24px 14px; }
+.fleet-history h2 { margin: 0; font: 600 25px/1.2 var(--cond); }
+.fleet-history p { margin: 7px 0 0; font-size: 13px; color: var(--ink2); }
+.fleet-history .history-scroll { max-height: 52vh; overflow: auto; border-top: 1px solid var(--line); }
+.fleet-history thead th { position: sticky; top: 0; z-index: 1; }
+.fleet-history td, .fleet-history th { padding-block: 11px; }
+.fleet-history .increase { color: var(--up-good); }
+.fleet-history .decrease { color: var(--up-bad); }
+.fleet-history .latest td { background: var(--accent-wash); font-weight: 600; }
+.fleet-history footer { padding: 13px 24px 18px; color: var(--ink2); font-size: 12px; border-top: 1px solid var(--line); }
+
 /* ---- page */
 .wrap { display: flex; flex-direction: column; gap: 26px; padding-block: 20px 56px; }
 .filters { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)) auto; gap: 12px; align-items: end; }
@@ -401,6 +419,14 @@ a { color: var(--accent); }
 <div class="scrim" id="scrim" hidden></div>
 <aside class="drawer" id="drawer" hidden aria-label="Vehicle detail"></aside>
 <div class="tip" id="tip" hidden></div>
+<dialog class="fleet-history" id="fleet-history" aria-labelledby="fleet-history-title" aria-describedby="fleet-history-note">
+  <header>
+    <div><h2 id="fleet-history-title">Daily fleet count</h2><p id="fleet-history-note"></p></div>
+    <button type="button" class="btn" id="fleet-history-close" aria-label="Close daily fleet count" autofocus>Close</button>
+  </header>
+  <div id="fleet-history-body" class="history-scroll" aria-live="polite"></div>
+  <footer>Daily increase is the net change from the previous day. The first date has no earlier day for comparison. Today's count is as of the latest refresh.</footer>
+</dialog>
 
 <script>
 (() => {
@@ -536,6 +562,15 @@ const QUICK = {
 function views() { $('#views').innerHTML = Object.entries(QUICK).map(([k, v]) => '<button type="button" class="chip" data-q="' + k + '" aria-pressed="' + (k === quick) + '">' + v.t + '</button>').join(''); }
 
 function bind() {
+  $('#kpis').addEventListener('click', e => { if (e.target.closest('[data-fleet-history]')) openFleetHistory(); });
+  $('#kpis').addEventListener('keydown', e => {
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.closest('[data-fleet-history]')) { e.preventDefault(); openFleetHistory(); }
+  });
+  $('#fleet-history-close').addEventListener('click', () => $('#fleet-history').close());
+  $('#fleet-history').addEventListener('click', e => {
+    const d = e.currentTarget, r = d.getBoundingClientRect();
+    if (e.target === d && (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom)) d.close();
+  });
   for (const dim of Object.keys(dictOf)) $('#f-' + dim).addEventListener('change', e => { filt[dim] = e.target.value; page = 0; tkPage = 0; apply(); });
   let tm; $('#f-q').addEventListener('input', e => { clearTimeout(tm); tm = setTimeout(() => { filt.q = e.target.value.trim().toUpperCase(); page = 0; tkPage = 0; apply(); }, 150); });
   $('#f-clear').addEventListener('click', () => { for (const k in filt) filt[k] = ''; for (const dim of Object.keys(dictOf)) $('#f-' + dim).value = ''; $('#f-q').value = ''; if (techV2()) perSet('all'); tkIssue = null; page = 0; tkPage = 0; tePage = 0; apply(); });
@@ -622,18 +657,40 @@ function kpis() {
   const delta = (arr, upGood, share) => { if (!t) return '&nbsp;'; const n = arr.length, now = arr[n - 1], was = arr[n - 8];
     if (share) { const p0 = t.F[n - 8] ? was / t.F[n - 8] * 100 : 0, p1 = t.F[n - 1] ? now / t.F[n - 1] * 100 : 0, d = p1 - p0; if (Math.abs(d) < .05) return 'Share unchanged in 7 days'; return '<span class="' + ((d > 0) === upGood ? 'g' : 'b') + '">' + (d > 0 ? '▲' : '▼') + ' ' + Math.abs(d).toFixed(1) + ' pts</span> in 7 days'; }
     const d = now - was; if (!d) return 'Unchanged in 7 days'; return '<span' + (upGood == null ? '' : ' class="' + ((d > 0) === upGood ? 'g' : 'b') + '"') + '>' + (d > 0 ? '▲' : '▼') + ' ' + N(Math.abs(d)) + '</span> in 7 days'; };
-  const K = (key, name, val, sh, dl, id) => '<div class="kpi"><span class="nm">' + (key ? '<i style="background:var(--b-' + key + ')"></i>' : '') + name + '</span><b class="num">' + val + '</b><span class="sh">' + sh + '</span><span class="dl">' + dl + '</span><div class="spark" id="sp-' + id + '"></div><div class="spark-x">' + (t ? '<span>' + dayLab(SER.tdays[0]) + '</span><span>' + dayLab(SER.tdays[SER.tdays.length - 1]) + '</span>' : '<span>&nbsp;</span>') + '</div></div>';
+  const K = (key, name, val, sh, dl, id) => '<div class="kpi' + (id === 'f' ? ' kpi-action" role="button" tabindex="0" data-fleet-history aria-haspopup="dialog" aria-controls="fleet-history" aria-label="View daily fleet count and daily increase' : '') + '"><span class="nm">' + (key ? '<i style="background:var(--b-' + key + ')"></i>' : '') + name + '</span><b class="num">' + val + '</b><span class="sh">' + sh + '</span><span class="dl">' + dl + '</span><div class="spark" id="sp-' + id + '"></div><div class="spark-x">' + (t ? '<span>' + dayLab(SER.tdays[0]) + '</span><span>' + dayLab(SER.tdays[SER.tdays.length - 1]) + '</span>' : '<span>&nbsp;</span>') + '</div></div>';
   $('#kpis').innerHTML =
     K('', 'Fleet', N(a.n), a.OTH ? N(a.OTH) + ' in other statuses' : 'vehicles', t ? delta(t.F, null) : '&nbsp;', 'f') +
     K('rgf', 'On rent', N(a.RGF), P1(a.RGF, a.n) + ' of fleet', t ? delta(t.R, true, true) : '&nbsp;', 'r') +
     K('um', 'Under maintenance', N(a.UM), P1(a.UM, a.n) + ' of fleet' + (a.umNew ? ', incl. ' + N(a.umNew) + ' new, never deployed' : ''), t ? delta(t.U, false, true) : '&nbsp;', 'u') +
     K('rtd', 'Ready to deploy', N(a.RTD), P1(a.RTD, a.n) + ' of fleet', t ? delta(t.T, null) : '&nbsp;', 't');
+  if ($('#fleet-history').open) renderFleetHistory(t);
   if (!t) return;
   const lab = (name, arr) => i => dayLab(SER.tdays[i]) + '\n' + name + ': ' + N(arr[i]) + (name === 'Fleet' ? '' : ' (' + P1(arr[i], t.F[i]) + ')');
   line($('#sp-f'), t.F, { color: 'var(--b-flt)', labels: lab('Fleet', t.F) });
   line($('#sp-r'), t.R, { color: 'var(--b-rgf)', labels: lab('On rent', t.R) });
   line($('#sp-u'), t.U, { color: 'var(--b-um)', labels: lab('Under maintenance', t.U) });
   line($('#sp-t'), t.T, { color: 'var(--b-rtd)', labels: lab('Ready to deploy', t.T) });
+}
+
+function openFleetHistory() {
+  renderFleetHistory(trend());
+  tip.hidden = true;
+  if (!$('#fleet-history').open) $('#fleet-history').showModal();
+}
+function renderFleetHistory(t) {
+  const filtered = Object.values(filt).some(Boolean);
+  $('#fleet-history-note').textContent = (filtered ? 'For the vehicles matching your current filters. ' : 'All fleet vehicles. ') + 'Latest refresh: ' + dtY(D.meta.gen) + ' IST.';
+  if (!t || !SER.tdays.length) {
+    $('#fleet-history-body').innerHTML = '<div class="empty">Daily history is unavailable or still loading. Please try again shortly.</div>';
+    return;
+  }
+  const entries = SER.tdays.map((day, i) => {
+    const change = i ? t.F[i] - t.F[i - 1] : null;
+    const text = change == null ? '–' : (change > 0 ? '+' : change < 0 ? '−' : '') + N(Math.abs(change));
+    const date = dayLab(day) + ' ' + day.slice(0, 4);
+    return '<tr' + (i === SER.tdays.length - 1 ? ' class="latest"' : '') + '><td>' + date + '</td><td class="num">' + N(t.F[i]) + '</td><td class="num ' + (change > 0 ? 'increase' : change < 0 ? 'decrease' : 'dim') + '">' + text + '</td></tr>';
+  }).reverse();
+  $('#fleet-history-body').innerHTML = '<table aria-label="Daily fleet totals and increases"><thead><tr><th scope="col">Date</th><th scope="col">Fleet count</th><th scope="col">Daily increase</th></tr></thead><tbody>' + entries.join('') + '</tbody></table>';
 }
 
 // ---------- running: km figures and the daily km line
