@@ -728,8 +728,8 @@ function renderFleetChange(i, t) {
     $('#fleet-history-body').innerHTML = '<div class="empty">No vehicles were added or removed between these daily counts.</div>';
     return;
   }
-  const entries = changes.map(({ r, added }) => '<tr><td class="vid">' + esc(r[C.vid]) + '</td><td class="history-model">' + esc(label('model', r[C.model])) + '</td>' + (removed ? '<td class="' + (added ? 'increase' : 'decrease') + '">' + (added ? 'Added' : 'Removed') + '</td>' : '') + '</tr>');
-  $('#fleet-history-body').innerHTML = '<table aria-label="Vehicles behind the daily fleet increase"><thead><tr><th scope="col">Vehicle number</th><th scope="col" class="l">Model</th>' + (removed ? '<th scope="col">Change</th>' : '') + '</tr></thead><tbody>' + entries.join('') + '</tbody></table>';
+  const entries = changes.map(({ r, added }) => '<tr><td class="vid">' + esc(r[C.vid]) + '</td><td class="history-model">' + esc(label('model', r[C.model])) + '</td><td class="l">' + esc(label('city', r[C.city])) + '</td>' + (removed ? '<td class="' + (added ? 'increase' : 'decrease') + '">' + (added ? 'Added' : 'Removed') + '</td>' : '') + '</tr>');
+  $('#fleet-history-body').innerHTML = '<table aria-label="Vehicles behind the daily fleet increase"><thead><tr><th scope="col">Vehicle number</th><th scope="col" class="l">Model</th><th scope="col" class="l">City</th>' + (removed ? '<th scope="col">Change</th>' : '') + '</tr></thead><tbody>' + entries.join('') + '</tbody></table>';
   $('#fleet-history-body').scrollTop = 0;
 }
 
