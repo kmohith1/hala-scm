@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://login.microsoftonline.com https://halamobility.sharepoint.com; img-src data:; base-uri 'none'; form-action 'none'">
+<title>Motor Tracker — Log inward / outward</title>
+<style>
+:root{
+  --navy:#16273e; --ink-2:#475569; --mute:#64748b;
+  --teal:#00756f; --teal-d:#00605b; --teal-soft:#e0f2ef; --teal-tint:#edf7f6;
+  --bg:#f2f5fa; --card:#ffffff; --line:#d1dbe5; --line-soft:#e2e8f0; --field-dis:#f1f5f9;
+  --warn-bg:#fff7e6; --warn-line:#f0c36d; --warn-ink:#7a4b00;
+  --err-bg:#fdecec; --err-line:#e9a3a3; --err-ink:#9b1c1c;
+  --sans:"Segoe UI",system-ui,-apple-system,Roboto,Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--navy);font-family:var(--sans);font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased}
+button,input,select{font:inherit;color:inherit}
+[hidden]{display:none !important}
+.wrap{max-width:1120px;margin:0 auto;padding:16px}
+.card{background:var(--card);border-radius:12px;padding:20px 24px 24px;box-shadow:0 1px 2px rgba(22,39,62,.05)}
+.eyebrow{font-size:11px;font-weight:600;letter-spacing:.06em;color:var(--mute);text-transform:uppercase}
+h1{font-size:22px;font-weight:700;line-height:1.25;margin-top:2px}
+h2{font-size:15px;font-weight:700}
+
+/* ---------- header ---------- */
+.head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;padding-bottom:14px;border-bottom:1px solid var(--line-soft);margin-bottom:18px}
+.who{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--ink-2);min-width:0}
+.who span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.link{background:none;border:0;color:var(--teal);font-weight:600;cursor:pointer;padding:6px 2px;text-decoration:none;font-size:13px;white-space:nowrap}
+.link:hover{text-decoration:underline}
+
+/* ---------- form ---------- */
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px 20px}
+.full{grid-column:1 / -1}
+.field{min-width:0}
+.field label,.lbl{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
+.req{color:#b42318}
+.inp,select.inp{width:100%;height:44px;border:1px solid var(--line);border-radius:6px;background:#fff;padding:0 12px;font-size:15px;outline:none;appearance:none;-webkit-appearance:none}
+select.inp{padding-right:34px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5l5-5' fill='none' stroke='%2300756f' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
+.inp:focus{border-color:var(--teal);box-shadow:0 0 0 1px var(--teal)}
+.inp:disabled{background-color:var(--field-dis);color:var(--ink-2);opacity:1;-webkit-text-fill-color:var(--ink-2)}
+select.inp:disabled{background-image:none}
+.inp::placeholder{color:#94a3b8}
+
+.seg{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--line);border-radius:6px;overflow:hidden;height:44px;background:#fff}
+.seg button{border:0;background:#fff;font-weight:600;font-size:15px;cursor:pointer;color:var(--ink-2)}
+.seg button + button{border-left:1px solid var(--line)}
+.seg button[aria-checked="true"]{background:var(--teal);color:#fff}
+.seg button:focus-visible{outline:2px solid var(--navy);outline-offset:-3px}
+
+.combo{position:relative}
+.combo .inp{padding-right:40px;font-variant-numeric:tabular-nums}
+.combo-x{position:absolute;right:4px;top:4px;width:36px;height:36px;border:0;background:none;font-size:20px;line-height:1;color:var(--mute);cursor:pointer;border-radius:6px}
+.combo-x:hover{background:var(--field-dis);color:var(--navy)}
+.list{position:absolute;z-index:20;left:0;right:0;top:48px;max-height:300px;overflow:auto;background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 10px 28px rgba(22,39,62,.16);list-style:none;padding:4px}
+.list li{padding:8px 10px;border-radius:6px;cursor:pointer}
+.list li[aria-selected="true"],.list li:hover{background:var(--teal-soft)}
+.list .id{font-weight:600;font-variant-numeric:tabular-nums;word-break:break-all}
+.list .sub{font-size:12px;color:var(--mute)}
+.list .none{color:var(--mute);cursor:default;font-size:13px}
+.list .none:hover{background:none}
+
+.note{font-size:13px;color:var(--ink-2);min-height:20px}
+.note b{color:var(--navy);font-weight:600}
+.rule{font-size:13px;color:var(--teal-d);background:var(--teal-tint);border-radius:6px;padding:8px 12px}
+
+.actions{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:20px;padding-top:16px;border-top:1px solid var(--line-soft)}
+.why{font-size:13px;color:var(--mute);min-width:0}
+.btn{height:44px;min-width:170px;padding:0 20px;border:1px solid var(--teal);border-radius:6px;background:var(--teal);color:#fff;font-weight:600;font-size:15px;cursor:pointer;white-space:nowrap}
+.btn:hover{background:var(--teal-d)}
+.btn:disabled{background:#e8eef4;border-color:#e8eef4;color:#7a899b;cursor:not-allowed}
+.btn:focus-visible,.link:focus-visible,.combo-x:focus-visible{outline:2px solid var(--navy);outline-offset:2px}
+.btn.ghost{background:#fff;color:var(--navy);border-color:var(--line);min-width:0}
+.btn.ghost:hover{background:var(--teal-tint);color:var(--teal)}
+
+/* ---------- banners / toast ---------- */
+.banner{border:1px solid var(--warn-line);background:var(--warn-bg);color:var(--warn-ink);border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:13px;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.banner.err{border-color:var(--err-line);background:var(--err-bg);color:var(--err-ink)}
+.banner .btn{height:34px;min-width:0;font-size:13px}
+#toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:50;max-width:min(560px,calc(100vw - 32px));padding:12px 16px;border-radius:8px;font-size:14px;font-weight:600;box-shadow:0 10px 28px rgba(22,39,62,.22);background:var(--navy);color:#fff}
+#toast.ok{background:var(--teal)}
+#toast.warn{background:#8a5300}
+#toast.err{background:#9b1c1c}
+
+/* ---------- recent ---------- */
+.recent{margin-top:16px}
+.recent-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+.rows{list-style:none}
+.rows li{display:grid;grid-template-columns:minmax(0,1.5fr) 84px minmax(0,2fr) 70px;gap:12px;align-items:center;padding:9px 0;border-top:1px solid var(--line-soft);font-size:13px}
+.rows .id{font-weight:600;font-variant-numeric:tabular-nums;word-break:break-all}
+.rows .route{color:var(--ink-2);min-width:0}
+.rows .route small{display:block;color:var(--mute);font-size:12px}
+.rows .when{color:var(--mute);text-align:right;white-space:nowrap}
+.chip{display:inline-block;font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--teal-soft);color:var(--teal-d);text-align:center}
+.chip.out{background:#e8eef7;color:#27457a}
+.empty{color:var(--mute);font-size:13px;padding:10px 0;border-top:1px solid var(--line-soft)}
+.foot{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;justify-content:space-between;margin:12px 4px 0;font-size:12px;color:var(--mute)}
+
+/* ---------- sign-in ---------- */
+.signin{max-width:420px;margin:12vh auto 0;text-align:left}
+.signin p{color:var(--ink-2);margin:10px 0 18px}
+.signin .btn{width:100%}
+
+@media (max-width:720px){
+  .wrap{padding:10px}
+  .card{padding:16px}
+  .grid{grid-template-columns:1fr;gap:14px}
+  .head{align-items:flex-start;flex-direction:column;gap:6px}
+  .who{width:100%;justify-content:space-between}
+  .actions{flex-direction:column-reverse;align-items:stretch;gap:10px}
+  .btn{width:100%}
+  .banner .btn{width:auto}
+  .rows li{grid-template-columns:minmax(0,1fr) auto;gap:4px 10px}
+  .rows .route{grid-column:1 / -1;order:3}
+  .rows .when{order:2}
+  .rows .chipcell{display:none}
+  .inp,select.inp{font-size:16px}
+}
+</style>
+</head>
+<body>
+
+<div class="wrap" id="viewSignin" hidden>
+  <div class="card signin">
+    <div class="eyebrow">Hala Mobility / Fleet Operations</div>
+    <h1>Motor tracker</h1>
+    <p>Sign in with your Hala Microsoft account to log inward and outward movements.</p>
+    <div class="banner err" id="signinErr" hidden></div>
+    <button class="btn" id="btnSignin" type="button">Sign in with Microsoft</button>
+  </div>
+</div>
+
+<div class="wrap" id="viewApp" hidden>
+  <div class="card">
+    <div class="head">
+      <div>
+        <div class="eyebrow">Motor tracker / Movements</div>
+        <h1>Log inward / outward</h1>
+      </div>
+      <div class="who"><span id="whoName"></span><button class="link" id="btnSignout" type="button">Sign out</button></div>
+    </div>
+
+    <div class="banner err" id="loadErr" hidden></div>
+    <div id="pendingBox"></div>
+
+    <div class="grid">
+      <div class="field full">
+        <span class="lbl" id="lblDir">Direction <span class="req">*</span></span>
+        <div class="seg" role="radiogroup" aria-labelledby="lblDir">
+          <button type="button" role="radio" id="dirIn" aria-checked="true">Inward</button>
+          <button type="button" role="radio" id="dirOut" aria-checked="false">Outward</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="selFrom" id="lblFrom">From</label>
+        <select class="inp" id="selFrom"></select>
+      </div>
+      <div class="field">
+        <label for="selTo" id="lblTo">To</label>
+        <select class="inp" id="selTo"></select>
+      </div>
+
+      <div class="field full">
+        <label for="unitInput">Motor ID <span class="req">*</span></label>
+        <div class="combo">
+          <input class="inp" id="unitInput" type="text" role="combobox" aria-expanded="false" aria-controls="unitList" aria-autocomplete="list" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="Loading units…" disabled>
+          <button type="button" class="combo-x" id="unitClear" aria-label="Clear Motor ID" hidden>&times;</button>
+          <ul class="list" id="unitList" role="listbox" hidden></ul>
+        </div>
+        <div class="note" id="where" style="margin-top:6px"></div>
+      </div>
+
+      <div class="field">
+        <label for="inpDate">Movement Date</label>
+        <input class="inp" id="inpDate" type="date">
+      </div>
+      <div class="field">
+        <label for="selReason">Reason <span class="req">*</span></label>
+        <select class="inp" id="selReason"></select>
+      </div>
+
+      <div class="rule full" id="rule" hidden></div>
+    </div>
+
+    <div class="actions">
+      <div class="why" id="why"></div>
+      <button class="btn" id="btnSave" type="button" disabled>Save movement</button>
+    </div>
+  </div>
+
+  <div class="card recent">
+    <div class="recent-head"><h2>Latest movements</h2><button class="link" id="btnRefresh" type="button">Refresh</button></div>
+    <ul class="rows" id="recentRows"></ul>
+  </div>
+
+  <div class="foot">
+    <span id="status">&nbsp;</span>
+    <a class="link" href="https://apps.powerapps.com/play/e/Default-cc8957c3-8255-47ab-b223-0fa2bb99e2a3/a/7942897f-4f0a-474b-89e4-8af8924059aa" rel="noopener">Other screens: open Motor Tracker in Power Apps</a>
+  </div>
+</div>
+
+<div id="toast" role="status" aria-live="polite" hidden></div>
+
+<script>
+"use strict";
+/* ============================================================
+   Motor Tracker — Log inward / outward.
+   One self-contained page. It signs the user in with their Hala
+   Microsoft account and reads/writes the Fleet Ops SharePoint lists
+   directly, so nothing is stored anywhere except those lists.
+   The rules below follow the Power Apps screen (scrMovement) so
+   both write identical rows.
+   ============================================================ */
+const CFG = {
+  /* Neither value is a secret: a browser app publishes its client ID to every
+     visitor by design, and sign-in still needs a Hala account. */
+  clientId: "08269bce-6b5d-4ba2-b718-f01865874803",
+  tenantId: "cc8957c3-8255-47ab-b223-0fa2bb99e2a3",
+  authority: "https://login.microsoftonline.com",
+  spHost: "https://halamobility.sharepoint.com",
+  site: "/sites/fleetops",
+};
+CFG.scopes = "openid profile offline_access " + CFG.spHost + "/AllSites.Write";
+CFG.api = CFG.spHost + CFG.site + "/_api/web/lists/";
+
+const HOME = "Jeedimetla - Main Warehouse";
+/* Outward to an OEM, to scrap or to the refurb bay offers the faulty stock;
+   every other destination offers only bench-tested / ex-OEM stock. */
+const FAULTY_STATES = ["AWAITING OEM INSPECTION", "Failed bench test - raise claim",
+                       "Claim approved - ship to plant", "Claim rejected - scrap or refurb"];
+/* Warranty dispatch has its own screens (claim, DC, ship to plant). */
+const WARRANTY_REASONS = ["Sent to OEM - warranty claim", "Shipped to plant (warranty approved)"];
+const WARRANTY_STATES  = ["Failed bench test - raise claim", "Warranty claim raised - generate DC",
+                          "Ready to ship - DC generated"];
+const WARRANTY_MSG = "Use Raise warranty claim, Generate DC, then Mark shipped to plant for warranty dispatch.";
+/* Units back from the OEM skip the bench test. */
+const EX_OEM_REASONS = ["Received from OEM - replacement", "Received from OEM - repaired"];
+
+const $ = id => document.getElementById(id);
+function el(tag, cls, text){
+  const e = document.createElement(tag);
+  if(cls) e.className = cls;
+  if(text != null) e.textContent = text;
+  return e;
+}
+const startsCI = (s, p) => String(s || "").toLowerCase().startsWith(p.toLowerCase());
+const lsGet = k => { try{ return localStorage.getItem(k); }catch(e){ return null; } };
+const lsSet = (k, v) => { try{ localStorage.setItem(k, v); }catch(e){} };
+const lsDel = k => { try{ localStorage.removeItem(k); }catch(e){} };
+
+/* ============================================================
+   AUTH — authorization code + PKCE against Microsoft Entra,
+   written directly so the page needs no external library.
+   ============================================================ */
+const LS_AUTH = "hala_motor_auth", SS_PKCE = "hala_motor_pkce", SS_STATE = "hala_motor_state",
+      SS_SILENT = "hala_motor_silent";
+let AUTH = {token:"", refresh:"", exp:0, name:"", upn:"", known:false};
+
+function loadAuth(){
+  try{ const a = JSON.parse(lsGet(LS_AUTH) || "null"); if(a) AUTH = Object.assign(AUTH, a); }catch(e){}
+}
+const saveAuth = () => lsSet(LS_AUTH, JSON.stringify(AUTH));
+/* Expiry keeps who you are, so the next sign-in is one tap; Sign out forgets it. */
+function clearAuth(forget){
+  AUTH = {token:"", refresh:"", exp:0, name: forget ? "" : AUTH.name, upn: forget ? "" : AUTH.upn,
+          known: forget ? false : AUTH.known};
+  if(forget) lsDel(LS_AUTH); else saveAuth();
+}
+const tokenFresh = () => !!(AUTH.token && AUTH.exp > Date.now() + 60000);
+
+function b64url(bytes){
+  return btoa(String.fromCharCode.apply(null, new Uint8Array(bytes)))
+    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function randStr(n){ const a = new Uint8Array(n); crypto.getRandomValues(a); return b64url(a).slice(0, n); }
+const redirectUri = () => location.origin + location.pathname;
+
+async function signIn(silent){
+  const verifier = randStr(64);
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
+  const state = randStr(16);
+  sessionStorage.setItem(SS_PKCE, verifier);
+  sessionStorage.setItem(SS_STATE, state);
+  const q = new URLSearchParams({
+    client_id: CFG.clientId, response_type: "code", redirect_uri: redirectUri(),
+    response_mode: "query", scope: CFG.scopes,
+    code_challenge: b64url(digest), code_challenge_method: "S256", state,
+  });
+  if(silent) q.set("prompt", "none");
+  if(AUTH.upn) q.set("login_hint", AUTH.upn);
+  location.href = CFG.authority + "/" + CFG.tenantId + "/oauth2/v2.0/authorize?" + q;
+}
+
+/* Returns "" when there was nothing to handle or sign-in succeeded,
+   "silent" when a background attempt simply did not work, or an error text. */
+async function handleRedirect(){
+  const p = new URLSearchParams(location.search);
+  const err = p.get("error"), code = p.get("code");
+  if(!err && !code) return "";
+  const desc = p.get("error_description") || err || "";
+  const stateOk = p.get("state") === sessionStorage.getItem(SS_STATE);
+  const verifier = sessionStorage.getItem(SS_PKCE) || "";
+  history.replaceState({}, "", redirectUri());          // never leave the code in the address bar
+  sessionStorage.removeItem(SS_PKCE); sessionStorage.removeItem(SS_STATE);
+  if(err){
+    if(/login_required|interaction_required|consent_required|AADSTS50058/i.test(err + " " + desc)) return "silent";
+    return friendlyAuthError(err, desc);
+  }
+  if(!stateOk) return "Sign-in could not be verified. Please try again.";
+  try{
+    await tokenRequest({grant_type:"authorization_code", code, redirect_uri: redirectUri(), code_verifier: verifier});
+    AUTH.known = true; saveAuth();
+    sessionStorage.removeItem(SS_SILENT);
+    return "";
+  }catch(e){ return friendlyAuthError("token_error", e.message); }
+}
+function friendlyAuthError(code, desc){
+  if(/AADSTS65001|AADSTS90094|admin|consent|access_denied/i.test(code + " " + desc))
+    return "Microsoft did not grant access. If the screen said “Need admin approval”, a Hala administrator has to approve this app once before anyone can use it.";
+  return "Sign-in did not complete: " + String(desc || code).split("\r\n")[0].slice(0, 220);
+}
+
+async function tokenRequest(extra){
+  const body = new URLSearchParams(Object.assign({client_id: CFG.clientId, scope: CFG.scopes}, extra));
+  const r = await fetch(CFG.authority + "/" + CFG.tenantId + "/oauth2/v2.0/token", {
+    method: "POST", headers: {"Content-Type": "application/x-www-form-urlencoded"}, body,
+  });
+  const j = await r.json().catch(() => ({}));
+  if(!r.ok) throw new Error(j.error_description || j.error || ("HTTP " + r.status));
+  AUTH.token = j.access_token;
+  if(j.refresh_token) AUTH.refresh = j.refresh_token;
+  AUTH.exp = Date.now() + Number(j.expires_in || 3600) * 1000;
+  if(j.id_token){
+    try{
+      const part = j.id_token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+      const c = JSON.parse(decodeURIComponent(escape(atob(part))));
+      AUTH.name = c.name || AUTH.name; AUTH.upn = c.preferred_username || AUTH.upn;
+    }catch(e){}
+  }
+  saveAuth();
+}
+class SignedOut extends Error{}
+let refreshing = null;
+async function ensureToken(){
+  if(tokenFresh()) return AUTH.token;
+  if(!AUTH.refresh) throw new SignedOut("signed out");
+  /* Several lists load at once; they must share one refresh, not race four. */
+  if(!refreshing) refreshing = (async () => {
+    try{
+      await tokenRequest({grant_type:"refresh_token", refresh_token: AUTH.refresh});
+    }catch(e){
+      /* A browser app's refresh token lives 24 hours and cannot be extended. */
+      if(/AADSTS7000|AADSTS50173|AADSTS50076|invalid_grant|expired|revoked|interaction_required/i.test(e.message)){
+        clearAuth(false); throw new SignedOut("signed out");
+      }
+      throw e;
+    }finally{ refreshing = null; }
+  })();
+  await refreshing;
+  return AUTH.token;
+}
+
+/* ============================================================
+   SHAREPOINT — plain REST with the user's own token, so every row
+   is written as the signed-in person and SharePoint permissions apply.
+   ============================================================ */
+async function sp(pathOrUrl, opts){
+  opts = opts || {};
+  const token = await ensureToken();
+  const headers = {"Accept": "application/json;odata=nometadata", "Authorization": "Bearer " + token};
+  if(opts.body) headers["Content-Type"] = "application/json;odata=nometadata";
+  if(opts.merge){ headers["X-HTTP-Method"] = "MERGE"; headers["IF-MATCH"] = "*"; }
+  const url = /^https:/.test(pathOrUrl) ? pathOrUrl : CFG.api + pathOrUrl;
+  if(url.indexOf(CFG.spHost + "/") !== 0) throw new Error("Unexpected address");
+  const r = await fetch(url, {
+    method: opts.method || (opts.body ? "POST" : "GET"), headers,
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  if(r.status === 401 && !opts.retried){ AUTH.exp = 0; return sp(pathOrUrl, Object.assign({}, opts, {retried:true})); }
+  if(!r.ok){
+    let msg = "HTTP " + r.status;
+    try{ const j = await r.json(); msg = (j["odata.error"] && j["odata.error"].message.value) || (j.error && j.error.message) || msg; }catch(e){}
+    const e = new Error(msg); e.status = r.status; throw e;
+  }
+  if(r.status === 204) return null;
+  return r.json().catch(() => null);
+}
+async function listAll(path){
+  let out = [], next = path;
+  while(next){
+    const j = await sp(next);
+    out = out.concat(j.value || []);
+    next = j["odata.nextLink"] || j["@odata.nextLink"] || "";
+  }
+  return out;
+}
+
+/* ============================================================
+   STATE
+   ============================================================ */
+const S = {
+  units: [], locations: [], reasons: [], claims: [], claimsOk: false, recent: [],
+  dir: "Inward", from: "", to: "", unit: null, reason: "", date: "",
+  loaded: false, saving: false, lastLoad: 0,
+};
+const todayIST = () => new Intl.DateTimeFormat("en-CA", {timeZone:"Asia/Kolkata"}).format(new Date());
+const byTitle = (a, b) => String(a.Title).localeCompare(String(b.Title), undefined, {sensitivity:"base", numeric:true});
+
+const loadUnits = () => listAll("getbytitle('Items')/items?$select=Id,Title,ItemType,OEMMake,CurrentLocation,Availability,AtJeedimetla&$top=5000");
+async function loadRef(){
+  const rows = await listAll("getbytitle('RefData')/items?$select=Title,Category,SortOrder,IsActive&$top=5000");
+  const pick = cat => rows.filter(r => r.Category === cat && r.IsActive && r.Title)
+    .sort((a, b) => (a.SortOrder || 0) - (b.SortOrder || 0)).map(r => r.Title);
+  return {locations: pick("Location"), reasons: pick("MovementReason")};
+}
+/* Claims are only needed for one rule (an approved claim lets a unit go to
+   the OEM's works), so their column names are looked up by display name. */
+async function loadClaims(){
+  let cols = null;
+  try{ cols = JSON.parse(lsGet("hala_motor_claimcols") || "null"); }catch(e){}
+  if(!cols){
+    const f = await sp("getbytitle('Claims')/fields?$select=InternalName,Title&$filter=Hidden eq false");
+    const find = t => { const x = (f.value || []).find(c => c.Title === t); return x ? x.InternalName : ""; };
+    cols = {motor: find("Motor ID"), status: find("Claim Status")};
+    if(!cols.motor || !cols.status) throw new Error("Claims columns not found");
+    lsSet("hala_motor_claimcols", JSON.stringify(cols));
+  }
+  try{
+    const rows = await listAll("getbytitle('Claims')/items?$select=Id," + cols.motor + "," + cols.status + "&$top=5000");
+    return rows.map(r => ({Id: r.Id, motor: r[cols.motor], status: r[cols.status]}));
+  }catch(e){ lsDel("hala_motor_claimcols"); throw e; }
+}
+const loadRecent = () => sp("getbytitle('Movements')/items?$select=Id,ItemID,MovementDate,Direction,FromLocation,ToLocation,Reason&$orderby=Id desc&$top=8")
+  .then(j => j.value || []);
+
+async function loadAll(){
+  const t0 = performance.now();
+  $("status").textContent = "Loading…";
+  $("loadErr").hidden = true;
+  try{
+    const claimsP = loadClaims().then(c => { S.claims = c; S.claimsOk = true; }, () => { S.claimsOk = false; });
+    const recentP = loadRecent().then(r => { S.recent = r; }, () => {});
+    const [units, ref] = await Promise.all([loadUnits(), loadRef()]);
+    await Promise.all([claimsP, recentP]);
+    S.units = units; S.locations = ref.locations; S.reasons = ref.reasons;
+    /* keep the picked unit pointing at the fresh row */
+    if(S.unit) S.unit = S.units.find(u => u.Id === S.unit.Id) || null;
+    S.loaded = true; S.lastLoad = Date.now();
+    const secs = ((performance.now() - t0) / 1000).toFixed(1);
+    $("status").textContent = units.length + " units · loaded in " + secs + " s";
+    render();
+  }catch(e){ failed(e, "Could not load the lists"); $("status").textContent = "Not loaded"; }
+}
+function failed(e, what){
+  if(e instanceof SignedOut){ showSignin("Your session expired. Sign in to carry on."); return; }
+  const msg = e.status === 403 ? "Your account does not have access to the Fleet Ops site."
+            : e.message === "Failed to fetch" ? "No connection to SharePoint. Check the network and try again."
+            : e.message;
+  const box = $("loadErr"); box.textContent = what + ": " + msg; box.hidden = false;
+}
+
+/* ============================================================
+   RULES — the same tests the Power Apps screen applies
+   ============================================================ */
+const faultyRoute = d => startsCI(d, "OEM") || startsCI(d, "Scrap") || d === "Jeedimetla - Refurb Bay";
+function candidates(){
+  if(S.dir === "Inward") return S.units.filter(u => !u.AtJeedimetla);
+  if(!S.to) return [];
+  if(faultyRoute(S.to)) return S.units.filter(u => u.AtJeedimetla && FAULTY_STATES.includes(u.Availability));
+  return S.units.filter(u => u.AtJeedimetla && startsCI(u.Availability, "AVAILABLE"));
+}
+function latestClaim(id){
+  let best = null;
+  for(const c of S.claims) if(c.motor === id && (!best || c.Id > best.Id)) best = c;
+  return best;
+}
+/* "" when the movement may be saved, otherwise what is still missing. */
+function blockReason(){
+  if(!S.loaded) return "";
+  if(S.dir === "Outward" && !S.to) return "Pick where it is going.";
+  if(!S.unit) return "Pick a Motor ID from the list.";
+  if(S.dir === "Inward" && !S.from) return "Pick where it is coming from.";
+  if(!S.reason) return "Pick a reason.";
+  if(!S.date) return "Pick the movement date.";
+  if(S.dir === "Outward" && !startsCI(S.unit.Availability, "AVAILABLE")){
+    const c = latestClaim(S.unit.Title);
+    if(!(S.to === "OEM - Supplier Works" && c && c.status === "Approved"))
+      return "Not cleared to go out: only AVAILABLE units, or units with an approved claim going to OEM - Supplier Works.";
+  }
+  return "";
+}
+
+/* ============================================================
+   RENDER
+   ============================================================ */
+function fillSelect(sel, values, current, fixed){
+  /* Only rebuild the options when they actually change: replacing them while
+     the dropdown is opening would close it under the user's finger. */
+  const extra = current && !values.includes(current) ? current : "";
+  const sig = JSON.stringify([fixed, S.loaded, values, extra]);
+  if(sel.dataset.sig !== sig){
+    sel.dataset.sig = sig;
+    sel.textContent = "";
+    if(fixed) sel.appendChild(new Option(fixed, fixed));
+    else{
+      sel.appendChild(new Option(S.loaded ? "Select…" : "Loading…", ""));
+      for(const v of values) sel.appendChild(new Option(v, v));
+      /* keep a value that is no longer an active option visible rather than silently dropping it */
+      if(extra) sel.appendChild(new Option(extra, extra));
+    }
+  }
+  sel.disabled = !!fixed || !S.loaded;
+  const want = fixed || current || "";
+  if(sel.value !== want) sel.value = want;
+}
+function render(){
+  const inward = S.dir === "Inward";
+  $("dirIn").setAttribute("aria-checked", String(inward));
+  $("dirOut").setAttribute("aria-checked", String(!inward));
+  $("dirIn").tabIndex = inward ? 0 : -1; $("dirOut").tabIndex = inward ? -1 : 0;
+
+  $("lblFrom").textContent = "From"; $("lblTo").textContent = "To";
+  const star = el("span", "req", " *");
+  (inward ? $("lblFrom") : $("lblTo")).appendChild(star);
+  fillSelect($("selFrom"), S.locations, S.from, inward ? "" : HOME);
+  fillSelect($("selTo"), S.locations, S.to, inward ? HOME : "");
+  fillSelect($("selReason"), S.reasons, S.reason, "");
+  if($("inpDate").value !== S.date) $("inpDate").value = S.date;
+
+  renderUnit();
+
+  const rule = $("rule");
+  if(inward && S.reason){
+    rule.textContent = EX_OEM_REASONS.includes(S.reason)
+      ? "Ex-OEM: goes straight to AVAILABLE, no bench test needed."
+      : "From a hub: this unit will need a bench test before use.";
+    rule.hidden = false;
+  }else rule.hidden = true;
+
+  const why = blockReason();
+  $("why").textContent = S.saving ? "" : why;
+  $("btnSave").disabled = !S.loaded || S.saving || !!why;
+  $("btnSave").textContent = S.saving ? "Saving…" : "Save movement";
+  renderRecent();
+}
+function renderUnit(){
+  const inp = $("unitInput"), n = candidates().length;
+  let ph = "Find items", off = false;
+  if(!S.loaded){ ph = "Loading units…"; off = true; }
+  else if(S.dir === "Outward" && !S.to){ ph = "Pick ‘To’ first"; off = true; }
+  else if(!n){
+    off = true;
+    ph = S.dir === "Inward" ? "No units away from Jeedimetla"
+       : faultyRoute(S.to) ? "No faulty units at Jeedimetla" : "No bench-tested units in stock";
+  }
+  inp.placeholder = ph; inp.disabled = off;
+  if(S.unit){ if(document.activeElement !== inp) inp.value = S.unit.Title; }
+  else if(off) inp.value = "";
+  $("unitClear").hidden = !inp.value || off;
+
+  const w = $("where"); w.textContent = "";
+  if(S.unit){
+    w.append("Currently at: ", el("b", "", S.unit.CurrentLocation || "—"), " | ", el("b", "", S.unit.Availability || "—"));
+  }else if(S.loaded && !off){
+    w.textContent = n + (n === 1 ? " unit" : " units") + " to choose from";
+  }
+}
+function fmtDay(iso){
+  const d = new Date(iso);
+  return isNaN(d) ? "" : d.toLocaleDateString("en-GB", {day:"2-digit", month:"short", timeZone:"Asia/Kolkata"});
+}
+function renderRecent(){
+  const ul = $("recentRows"); ul.textContent = "";
+  if(!S.recent.length){ ul.appendChild(el("li", "empty", S.loaded ? "No movements yet." : "Loading…")); return; }
+  for(const m of S.recent){
+    const li = el("li");
+    li.appendChild(el("span", "id", m.ItemID || ""));
+    const cc = el("span", "chipcell");
+    cc.appendChild(el("span", "chip" + (m.Direction === "Outward" ? " out" : ""), m.Direction || ""));
+    li.appendChild(cc);
+    const route = el("span", "route", (m.FromLocation || "—") + " → " + (m.ToLocation || "—"));
+    route.appendChild(el("small", "", m.Reason || ""));
+    li.appendChild(route);
+    li.appendChild(el("span", "when", fmtDay(m.MovementDate)));
+    ul.appendChild(li);
+  }
+}
+
+/* ---------- Motor ID picker ---------- */
+const combo = {open:false, idx:-1, items:[]};
+function comboMatches(){
+  const inp = $("unitInput"), q = inp.value.trim().toLowerCase();
+  const all = candidates().slice().sort(byTitle);
+  if(!q || (S.unit && inp.value === S.unit.Title)) return all;
+  return all.filter(u => String(u.Title).toLowerCase().includes(q));
+}
+function comboOpen(){
+  const ul = $("unitList"), inp = $("unitInput");
+  if(inp.disabled) return;
+  combo.items = comboMatches(); combo.open = true;
+  if(combo.idx >= combo.items.length) combo.idx = combo.items.length - 1;
+  ul.textContent = "";
+  const shown = combo.items.slice(0, 80);
+  shown.forEach((u, i) => {
+    const li = el("li"); li.setAttribute("role", "option"); li.id = "opt" + i;
+    li.setAttribute("aria-selected", String(i === combo.idx));
+    li.appendChild(el("div", "id", u.Title));
+    li.appendChild(el("div", "sub", [u.ItemType, u.OEMMake, u.CurrentLocation].filter(Boolean).join(" · ")));
+    li.addEventListener("mousedown", ev => { ev.preventDefault(); pickUnit(u); });
+    ul.appendChild(li);
+  });
+  if(!shown.length) ul.appendChild(el("li", "none", "No match in this list."));
+  else if(combo.items.length > shown.length)
+    ul.appendChild(el("li", "none", (combo.items.length - shown.length) + " more — keep typing to narrow down."));
+  ul.hidden = false; inp.setAttribute("aria-expanded", "true");
+  if(combo.idx >= 0) inp.setAttribute("aria-activedescendant", "opt" + combo.idx); else inp.removeAttribute("aria-activedescendant");
+  const act = ul.querySelector('[aria-selected="true"]'); if(act) act.scrollIntoView({block:"nearest"});
+}
+function comboClose(){
+  combo.open = false; combo.idx = -1;
+  $("unitList").hidden = true; $("unitInput").setAttribute("aria-expanded", "false");
+  $("unitInput").removeAttribute("aria-activedescendant");
+}
+function pickUnit(u){
+  S.unit = u; $("unitInput").value = u.Title; comboClose();
+  /* An inward unit usually comes from where it was last recorded. */
+  if(S.dir === "Inward" && !S.from && S.locations.includes(u.CurrentLocation) && !startsCI(u.CurrentLocation, "Jeedimetla"))
+    S.from = u.CurrentLocation;
+  render();
+}
+function clearUnit(){ S.unit = null; $("unitInput").value = ""; comboClose(); }
+
+/* ============================================================
+   SAVE
+   ============================================================ */
+const LS_PENDING = "hala_motor_pending";
+function pendingList(){ try{ return JSON.parse(lsGet(LS_PENDING) || "[]") || []; }catch(e){ return []; } }
+function pendingSet(list){ if(list.length) lsSet(LS_PENDING, JSON.stringify(list)); else lsDel(LS_PENDING); renderPending(); }
+function renderPending(){
+  const box = $("pendingBox"); box.textContent = "";
+  for(const p of pendingList()){
+    const b = el("div", "banner");
+    b.appendChild(el("span", "", "The movement for " + p.title + " was saved, but its status was not updated to “" + p.patch.Availability + "”."));
+    const btn = el("button", "btn", "Finish update"); btn.type = "button";
+    btn.addEventListener("click", async () => {
+      btn.disabled = true; btn.textContent = "Updating…";
+      try{
+        await patchItem(p.id, p.patch);
+        pendingSet(pendingList().filter(x => x.id !== p.id));
+        const u = S.units.find(x => x.Id === p.id); if(u) Object.assign(u, p.patch);
+        toast(p.title + " updated.", "ok"); render();
+      }catch(e){
+        btn.disabled = false; btn.textContent = "Finish update";
+        if(e instanceof SignedOut) showSignin("Your session expired. Sign in to carry on."); else toast("Still could not update: " + e.message, "err");
+      }
+    });
+    b.appendChild(btn); box.appendChild(b);
+  }
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function patchItem(id, patch){
+  for(let attempt = 0; ; attempt++){
+    try{ return await sp("getbytitle('Items')/items(" + Number(id) + ")", {body: patch, merge: true}); }
+    catch(e){
+      const transient = !(e instanceof SignedOut) && (!e.status || e.status === 429 || e.status >= 500);
+      if(!transient || attempt >= 2) throw e;
+      await sleep(700 * (attempt + 1));
+    }
+  }
+}
+
+async function save(){
+  if(S.saving || blockReason()) return;
+  const u = S.unit, dir = S.dir, reason = S.reason, date = S.date;
+  const to = dir === "Inward" ? HOME : S.to, from = dir === "Outward" ? HOME : S.from;
+  S.saving = true; render();
+  try{
+    /* Read the unit as it is right now: someone else may have moved it since the list loaded. */
+    const live = await sp("getbytitle('Items')/items(" + Number(u.Id) + ")?$select=Id,Title,ItemType,OEMMake,CurrentLocation,Availability,AtJeedimetla");
+    const before = u.Availability + "|" + !!u.AtJeedimetla;
+    Object.assign(u, live);
+    if(live.Title !== S.unit.Title || !candidates().includes(u) || blockReason()){
+      const changed = before !== live.Availability + "|" + !!live.AtJeedimetla;
+      clearUnit();
+      toast(changed ? live.Title + " was just updated by someone else (now at " + (live.CurrentLocation || "—") + "). Nothing was saved."
+                    : live.Title + " can no longer be moved this way. Nothing was saved.", "warn");
+      return;
+    }
+    if(dir === "Outward" && (to === "OEM - Plant" || WARRANTY_REASONS.includes(reason) || WARRANTY_STATES.includes(live.Availability))){
+      toast(WARRANTY_MSG, "warn"); return;
+    }
+    /* The date is stored as midnight India time, as the Power Apps date picker stores it. */
+    const iso = new Date(date + "T00:00:00+05:30").toISOString();
+    const row = {Title: u.Title + " / " + date + " / " + dir, ItemID: u.Title, MovementDate: iso,
+                 Direction: dir, FromLocation: from, ToLocation: to, Reason: reason};
+    if(live.ItemType) row.ItemType = live.ItemType;
+    const made = await sp("getbytitle('Movements')/items", {body: row});
+
+    const atHome = startsCI(to, "Jeedimetla");
+    const patch = {
+      CurrentLocation: to, LastMovementReason: reason, LastMovementDate: iso, AtJeedimetla: atHome,
+      Availability: live.Availability === "Scrap" ? "Scrap"
+                  : !atHome ? "Away from Jeedimetla"
+                  : EX_OEM_REASONS.includes(reason) ? "AVAILABLE - ex-OEM" : "AWAITING BENCH TEST",
+    };
+    S.recent = [Object.assign({Id: made && made.Id}, row)].concat(S.recent).slice(0, 8);
+    try{ await patchItem(u.Id, patch); }
+    catch(e){
+      /* The movement row exists; keep the status change so it can be finished, never lost. */
+      pendingSet(pendingList().filter(x => x.id !== u.Id).concat([{id: u.Id, title: u.Title, patch}]));
+      clearUnit(); S.reason = "";
+      if(e instanceof SignedOut) throw e;
+      toast("Movement saved, but the unit status did not update. Use “Finish update” above.", "err");
+      return;
+    }
+    Object.assign(u, patch);
+    clearUnit(); S.reason = "";
+    toast(u.Title + " moved to " + to, "ok");
+  }catch(e){
+    if(e instanceof SignedOut) showSignin("Your session expired. Sign in to carry on.");
+    else toast("Not saved: " + (e.message === "Failed to fetch" ? "no connection to SharePoint." : e.message), "err");
+  }finally{
+    S.saving = false; render();
+  }
+}
+
+/* ============================================================
+   VIEWS + EVENTS
+   ============================================================ */
+let toastTimer = 0;
+function toast(msg, kind){
+  const t = $("toast"); t.textContent = msg; t.className = kind || ""; t.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.hidden = true; }, kind === "ok" ? 4500 : 9000);
+}
+function showSignin(msg){
+  $("viewApp").hidden = true; $("viewSignin").hidden = false;
+  const e = $("signinErr"); e.textContent = msg || ""; e.hidden = !msg;
+  $("btnSignin").textContent = AUTH.name ? "Sign in as " + AUTH.name : "Sign in with Microsoft";
+}
+function showApp(){
+  $("viewSignin").hidden = true; $("viewApp").hidden = false;
+  $("whoName").textContent = AUTH.name || AUTH.upn || "";
+  renderPending(); render();
+}
+function setDir(d){
+  if(S.dir === d) return;
+  S.dir = d; S.from = ""; S.to = ""; clearUnit(); render();
+}
+
+$("btnSignin").addEventListener("click", () => signIn(false));
+$("btnSignout").addEventListener("click", () => { clearAuth(true); sessionStorage.removeItem(SS_SILENT); showSignin(""); });
+$("dirIn").addEventListener("click", () => setDir("Inward"));
+$("dirOut").addEventListener("click", () => setDir("Outward"));
+for(const id of ["dirIn", "dirOut"]) $(id).addEventListener("keydown", ev => {
+  if(!/^Arrow/.test(ev.key)) return;
+  ev.preventDefault();
+  const next = id === "dirIn" ? "Outward" : "Inward";
+  setDir(next); $(next === "Inward" ? "dirIn" : "dirOut").focus();
+});
+$("selFrom").addEventListener("change", ev => { S.from = ev.target.value; render(); });
+$("selTo").addEventListener("change", ev => { S.to = ev.target.value; clearUnit(); render(); });
+$("selReason").addEventListener("change", ev => { S.reason = ev.target.value; render(); });
+$("inpDate").addEventListener("change", ev => { S.date = ev.target.value; render(); });
+$("btnSave").addEventListener("click", save);
+$("btnRefresh").addEventListener("click", loadAll);
+$("unitClear").addEventListener("click", () => { clearUnit(); render(); $("unitInput").focus(); });
+
+const unitInput = $("unitInput");
+unitInput.addEventListener("focus", () => { unitInput.select(); combo.idx = -1; comboOpen(); });
+unitInput.addEventListener("click", () => { if(!combo.open) comboOpen(); });
+unitInput.addEventListener("input", () => {
+  if(S.unit && unitInput.value !== S.unit.Title) S.unit = null;
+  combo.idx = -1; render(); comboOpen();
+});
+unitInput.addEventListener("blur", () => { comboClose(); render(); });
+unitInput.addEventListener("keydown", ev => {
+  if(ev.key === "ArrowDown" || ev.key === "ArrowUp"){
+    ev.preventDefault();
+    if(!combo.open){ comboOpen(); return; }
+    const max = Math.min(combo.items.length, 80) - 1;
+    combo.idx = ev.key === "ArrowDown" ? Math.min(max, combo.idx + 1) : Math.max(0, combo.idx - 1);
+    comboOpen();
+  }else if(ev.key === "Enter"){
+    if(!combo.open) return;
+    ev.preventDefault();
+    const q = unitInput.value.trim().toLowerCase();
+    const hit = combo.idx >= 0 ? combo.items[combo.idx]
+              : combo.items.find(u => String(u.Title).toLowerCase() === q) || (combo.items.length === 1 ? combo.items[0] : null);
+    if(hit) pickUnit(hit);
+  }else if(ev.key === "Escape"){
+    if(combo.open){ ev.preventDefault(); comboClose(); }
+  }
+});
+
+/* Lists go stale while the tab sits in the background; reload when it comes back. */
+document.addEventListener("visibilitychange", () => {
+  if(!document.hidden && S.loaded && !S.saving && !$("viewApp").hidden && Date.now() - S.lastLoad > 60000) loadAll();
+});
+
+(async function boot(){
+  S.date = todayIST();
+  loadAuth();
+  const res = await handleRedirect();
+  if(res && res !== "silent"){ showSignin(res); return; }
+  if(tokenFresh() || AUTH.refresh){ showApp(); loadAll(); return; }
+  /* A device that has signed in before gets one quiet attempt per browser session. */
+  if(res !== "silent" && AUTH.known && !sessionStorage.getItem(SS_SILENT)){
+    sessionStorage.setItem(SS_SILENT, "1"); signIn(true); return;
+  }
+  showSignin("");
+})();
+</script>
+</body>
+</html>
