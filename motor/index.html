@@ -1902,8 +1902,9 @@ const RD_ASK = "This is a photo of a part of an electric two-wheeler in a wareho
 const RD_SHAPE = {type: "OBJECT", properties: {ids: {type: "ARRAY", items: {type: "STRING"}}, text: {type: "STRING"}}, required: ["ids"]};
 const readerCfg = () => { const c = lsJson(RD_STORE, null); return c && typeof c.key === "string" && c.key ? c : null; };
 const readerOn = () => !!readerCfg();
-async function readerCall(path, key, body, ms){
+async function readerCall(path, key, body, ms, stop){
   const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), ms || 30000);
+  if(stop){ if(stop.aborted) ctl.abort(); else stop.addEventListener("abort", () => ctl.abort(), {once: true}); }
   try{
     /* The key goes in a header, never in the address. Only this site's origin is given as the referrer, which is what a
        key restricted to this website is checked against. */
@@ -1960,39 +1961,51 @@ function readerReply(text){
 const RD_STRICT = {temperature: 0, response_mime_type: "application/json", response_schema: RD_SHAPE, media_resolution: "MEDIA_RESOLUTION_HIGH"};
 const RD_FORMS = [Object.assign({thinkingConfig: {thinkingLevel: "minimal"}}, RD_STRICT), Object.assign({thinkingConfig: {thinkingBudget: 0}}, RD_STRICT), RD_STRICT, {temperature: 0}];
 const readerSave = cfg => lsSet(RD_STORE, JSON.stringify(cfg));
-/* Ask for the ID in a picture. A model gets a few seconds; one that is slow, busy, missing or out of allowance is
-   passed over for the next, and the whole attempt gives up after half a minute so the built-in reader can take over. */
+/* Ask for the ID in a picture. The first model is asked; if it has not answered in five seconds the next is asked
+   as well, and so on — on the free plan any one model can be busy for a while, and waiting it out would make every
+   scan slow. The first answer wins and the rest are dropped. The whole attempt gives up after half a minute so the
+   built-in reader can take over. */
+const RD_WAIT = 5000, RD_GIVE_UP = 32000;
 async function readerAsk(canvas){
   let cfg = readerCfg(); if(!cfg) throw new Error("no key");
   if(cfg.v !== 2){                                                              // saved by an earlier version: choose the models afresh
     let models = []; try{ models = await readerModels(cfg.key); }catch(e){}
     cfg = {v: 2, key: cfg.key, models: models.length ? models : RD.models, how: {}}; readerSave(cfg);
   }
-  const parts = [{text: RD_ASK}, {inline_data: {mime_type: "image/jpeg", data: readerPicture(canvas, 2000)}}], until = Date.now() + 32000;
-  let models = cfg.models.slice(), last = null;
-  const settle = (model, ok, form) => {                                       // answered: to the front; failed: to the back
-    models = ok ? [model].concat(models.filter(m => m !== model)) : models.filter(m => m !== model).concat([model]);
-    const how = Object.assign({}, cfg.how); if(ok) how[model] = form;
-    cfg = Object.assign({}, cfg, {models, how}); readerSave(cfg);
-  };
-  for(const model of cfg.models){
+  const parts = [{text: RD_ASK}, {inline_data: {mime_type: "image/jpeg", data: readerPicture(canvas, 2000)}}], stop = new AbortController(), asked = [];
+  const one = async model => {
+    let err = null;
     for(let form = cfg.how[model] || 0; form < RD_FORMS.length; form++){
-      const left = until - Date.now(); if(left < 3000) throw last || new Error("no answer in time");
       try{
-        const j = await readerCall("/models/" + encodeURIComponent(model) + ":generateContent", cfg.key, {contents: [{parts}], generationConfig: RD_FORMS[form]}, Math.min(12000, left));
-        const text = ((((j.candidates || [])[0] || {}).content || {}).parts || []).map(p => p.text || "").join("");
-        if(model !== cfg.models[0] || cfg.how[model] !== form) settle(model, true, form);
-        return readerReply(text);
-      }catch(e){
-        last = e;
-        if(e.status === 400 && !badKey(e)) continue;                            // a form this model does not take
-        break;
-      }
+        const j = await readerCall("/models/" + encodeURIComponent(model) + ":generateContent", cfg.key, {contents: [{parts}], generationConfig: RD_FORMS[form]}, 25000, stop.signal);
+        return {model, form, text: ((((j.candidates || [])[0] || {}).content || {}).parts || []).map(p => p.text || "").join("")};
+      }catch(e){ err = e; if(!(e.status === 400 && !badKey(e))) break; }          // 400: a form this model does not take — try the next form
     }
-    if(badKey(last) || last.status === 403) break;                              // the key itself: no other model will do better
-    settle(model, false);
-  }
-  throw last;
+    throw err;
+  };
+  return new Promise((resolve, reject) => {
+    let next = 0, live = 0, over = false, last = null, timer = 0;
+    const end = (fn, v) => { if(over) return; over = true; clearTimeout(timer); clearTimeout(limit); stop.abort(); fn(v); };
+    const launch = () => {
+      clearTimeout(timer);
+      if(over || next >= cfg.models.length) return;
+      const model = cfg.models[next++]; live++; asked.push(model);
+      one(model).then(r => {
+        if(over) return;
+        /* the one that answered goes to the front; those asked before it, which failed or were slower, to the back */
+        const slow = asked.filter(m => m !== r.model), rest = cfg.models.filter(m => m !== r.model && !slow.includes(m));
+        if(slow.length || cfg.models[0] !== r.model || cfg.how[r.model] !== r.form) readerSave(Object.assign({}, cfg, {models: [r.model].concat(rest, slow), how: Object.assign({}, cfg.how, {[r.model]: r.form})}));
+        end(resolve, readerReply(r.text));
+      }, e => {
+        live--; if(over) return; last = e;
+        if(badKey(e) || e.status === 403) return end(reject, e);                // the key itself: no other model will do better
+        if(next < cfg.models.length) launch(); else if(!live) end(reject, last);
+      });
+      timer = setTimeout(launch, RD_WAIT);
+    };
+    const limit = setTimeout(() => { const t = last || new Error("no answer in time"); if(t.status === undefined) t.status = 0; end(reject, t); }, RD_GIVE_UP);
+    launch();
+  });
 }
 function onlineTally(got){
   const T = newTally();
