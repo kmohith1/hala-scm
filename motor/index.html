@@ -80,6 +80,7 @@ td.wrap{white-space:normal;min-width:220px}
 .unit-sub.repeat{color:#96752c;font-weight:600}
 @media(max-width:760px){.lot-groups{padding:14px 16px 0}.lot-table select,.lot-table input{font-size:16px}}
 .chip.active:hover:not(:disabled){background:var(--deep);color:#fff}
+.scan-share{display:flex;align-items:center;gap:9px;margin-top:14px;font-size:12px;font-weight:600;color:#2f483a;cursor:pointer}
 </style>
 </head>
 <body>
@@ -107,6 +108,8 @@ const CFG = {
   spHost: "https://halamobility.sharepoint.com",
   site: "/sites/fleetops",
   dcFolder: "/sites/fleetops/Shared Documents/Inspection Reports",
+  /* A small settings file shared by everyone who signs in (the online reader's key). Not in this page: only people with access to the Fleet Ops site can open it. */
+  settingsFolder: "/sites/fleetops/Shared Documents", settingsFile: "Motor Tracker settings.json",
   powerApp: "https://apps.powerapps.com/play/e/Default-cc8957c3-8255-47ab-b223-0fa2bb99e2a3/a/7942897f-4f0a-474b-89e4-8af8924059aa",
 };
 CFG.scopes = "openid profile offline_access " + CFG.spHost + "/AllSites.Write";
@@ -267,7 +270,7 @@ async function sp(pathOrUrl, opts){
   const token = await ensureToken();
   const headers = {"Accept": "application/json;odata=nometadata", "Authorization": "Bearer " + token};
   let body;
-  if(opts.bytes){ headers["Content-Type"] = "application/pdf"; body = opts.bytes; }
+  if(opts.bytes){ headers["Content-Type"] = opts.type || "application/pdf"; body = opts.bytes; }
   else if(opts.body){ headers["Content-Type"] = "application/json;odata=nometadata"; body = JSON.stringify(opts.body); }
   if(opts.merge){ headers["X-HTTP-Method"] = "MERGE"; headers["IF-MATCH"] = "*"; }
   const url = /^https:/.test(pathOrUrl) ? pathOrUrl : CFG.web + pathOrUrl;
@@ -357,6 +360,7 @@ async function loadAll(){
     await Promise.all([loadCore(), loadRef()]);
     D.loaded = true; D.error = ""; D.recentMoves = null; D.activity = null;
     D.loadSecs = ((performance.now() - t0) / 1000).toFixed(1);
+    syncSharedKey().catch(() => {});                                            // the online reader's shared key, if one has been set
   }catch(e){ D.error = explain(e, "Could not load the lists"); if(e instanceof SignedOut) return showSignin("Your session expired. Sign in to carry on."); }
   render();
   if(view === "move") loadRecentMoves();
@@ -2139,8 +2143,11 @@ async function tryBarcode(source){
    engraving. When a Google Gemini key has been entered on this device, the
    photo is sent to Google to be read instead, and the built-in reader becomes
    the fallback (no key, no signal, allowance used up).
-   - The key is kept in this browser only. It is never written into this page,
-     SharePoint or any list, and travels only in a request header to Google.
+   - The key is never written into this page (which anyone can read). It is
+     kept either in this browser only, or — so it is entered once and every
+     phone and computer picks it up — in a small settings file in the Fleet Ops
+     SharePoint site, readable only by people with access to that site. It
+     travels to Google only in a request header.
    - Only the photo and a fixed instruction are sent: nothing from the register.
    - The answer is treated like any other reading: checked against the register
      and always shown for confirmation. The model is told to mark characters it
@@ -2228,7 +2235,7 @@ async function readerAsk(canvas){
   let cfg = readerCfg(); if(!cfg) throw new Error("no key");
   if(cfg.v !== 2){                                                              // saved by an earlier version: choose the models afresh
     let models = []; try{ models = await readerModels(cfg.key); }catch(e){}
-    cfg = {v: 2, key: cfg.key, models: models.length ? models : RD.models, how: {}}; readerSave(cfg);
+    cfg = Object.assign({v: 2, key: cfg.key, models: models.length ? models : RD.models, how: {}}, cfg.shared ? {shared: true} : {}); readerSave(cfg);
   }
   const parts = [{text: RD_ASK}, {inline_data: {mime_type: "image/jpeg", data: readerPicture(canvas, 2000)}}], stop = new AbortController(), asked = [];
   const one = async model => {
@@ -2275,34 +2282,97 @@ function onlineTally(got){
 }
 const readerNote = why => { SCAN.note = why + " This photo was read on the device instead."; };
 
+/* ---------- online reader: one key for everyone ----------
+   The shared key lives in SharePoint, not in this page. After every load the device takes it up; if it has been
+   changed or removed there, the device follows. A key entered "for this device only" is left alone unless a shared
+   one is set, which then takes its place. */
+const sharedPath = () => CFG.settingsFolder + "/" + CFG.settingsFile;
+/* "" when no key is shared; null when that could not be found out (offline, no access) and nothing should change. */
+async function sharedKeyRead(){
+  try{
+    /* ask whether the file is there first, so that a site with no shared key does not log a "not found" on every load */
+    const there = await sp("GetFolderByServerRelativeUrl(" + lit(CFG.settingsFolder) + ")/Files?$select=Name&$filter=" + encodeURIComponent("Name eq " + odq(CFG.settingsFile)));
+    if(!there || !there.value || !there.value.length) return "";
+    const blob = await sp("GetFileByServerRelativeUrl(" + lit(sharedPath()) + ")/$value", {blob: true}), j = JSON.parse(await blob.text());
+    return typeof j.onlineReaderKey === "string" ? j.onlineReaderKey.trim() : "";
+  }catch(e){ if(e instanceof SignedOut) throw e; return e.status === 404 ? "" : null; }
+}
+function sharedKeyWrite(key){
+  const doc = {onlineReaderKey: key, about: "Used by the Motor Tracker website to read unit IDs from photos. Keep inside Hala.", by: AUTH.name || AUTH.upn || "", on: new Date().toISOString()};
+  return sp("GetFolderByServerRelativeUrl(" + lit(CFG.settingsFolder) + ")/Files/add(url=" + lit(CFG.settingsFile) + ",overwrite=true)", {bytes: new TextEncoder().encode(JSON.stringify(doc, null, 1)), type: "application/json", method: "POST"});
+}
+async function syncSharedKey(){
+  const key = await sharedKeyRead(), cfg = readerCfg();
+  if(key === null) return;
+  if(key){ if(!cfg || cfg.key !== key || !cfg.shared) readerSave(cfg && cfg.key === key ? Object.assign({}, cfg, {shared: true}) : {v: 0, key, shared: true}); }
+  else if(cfg && cfg.shared) lsDel(RD_STORE);                                   // it was shared and has been removed for everyone
+  const link = document.getElementById("scReader"); if(link) link.textContent = "Online reader: " + (readerOn() ? "on" : "off — set up");
+}
+
 /* ---------- online reader: the settings sheet ---------- */
 function scanReaderPanel(msg, kind){
   SCAN.session++; SCAN.busy = false; stopCamera();
-  const cfg = readerCfg(), dlg = scanEl();
+  const cfg = readerCfg(), dlg = scanEl(), model = cfg ? esc((cfg.models || RD.models)[0]) : "";
   dlg.innerHTML = '<div class="modal-head"><h2>Online reader</h2><button class="close-btn" data-scan-act="close" aria-label="Close">×</button></div>' +
-    '<div class="modal-body"><p style="margin:0 0 10px">Faint, engraved or sideways IDs are read far more reliably by Google\'s Gemini than by the reader built into this page. With a key entered here, each photo you scan on this device is sent to Google to be read.</p>' +
-    '<p class="small-note" style="margin-bottom:14px">On Google\'s free plan, Google may use what is sent to improve its products. Only the photo is sent — nothing from the register. Without a key, photos never leave this device.</p>' +
-    '<div class="scan-msg ' + (kind || (cfg ? "ok" : "inf")) + '" id="scMsg" style="margin:0 0 14px">' + (msg || (cfg ? "<b>On for this device.</b> Using " + esc((cfg.models || RD.models)[0]) + "."
-      : "<b>Off.</b> IDs are read on this device only.")) + '</div>' +
+    '<div class="modal-body"><p style="margin:0 0 10px">Faint, engraved or sideways IDs are read far more reliably by Google\'s Gemini than by the reader built into this page. With a key set, each photo scanned is sent to Google to be read.</p>' +
+    '<p class="small-note" style="margin-bottom:14px">On Google\'s free plan, Google may use what is sent to improve its products. Only the photo is sent — nothing from the register. Without a key, photos never leave the device.</p>' +
+    '<div class="scan-msg ' + (kind || (cfg ? "ok" : "inf")) + '" id="scMsg" style="margin:0 0 14px">' + (msg || (!cfg ? "<b>Off.</b> IDs are read on this device only."
+      : cfg.shared ? "<b>On for everyone who signs in.</b> Nothing to set up on this device. Using " + model + "."
+      : "<b>On for this device only.</b> Using " + model + ".")) + '</div>' +
     '<label class="field">Gemini API key<input id="rdKey" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="200" placeholder="' +
-      (cfg ? "A key is saved on this device (ends " + esc(cfg.key.slice(-4)) + ")" : "Paste the key here") + '"></label>' +
-    '<p class="small-note" style="margin-top:10px">Create a key, free, at <a href="' + RD.keyPage + '" target="_blank" rel="noopener noreferrer">aistudio.google.com/apikey</a>. It is kept in this browser on this device only — not in SharePoint, and not in this site. Each phone or computer that should use the online reader needs the key entered once.</p></div>' +
-    '<div class="modal-actions" id="scBtns"><button class="primary" data-scan-act="rdsave">Save and test</button>' + (cfg ? '<button class="danger" data-scan-act="rdoff">Remove key</button>' : '') + '<button data-scan-act="again">Back to scanning</button></div>';
+      (cfg ? "A key is set (ends " + esc(cfg.key.slice(-4)) + "). Paste a new one to replace it" : "Paste the key here") + '"></label>' +
+    '<label class="scan-share"><input type="checkbox" class="check" id="rdShare" checked> Use this key for everyone who signs in to Motor Tracker</label>' +
+    '<p class="small-note" style="margin-top:8px">Ticked, the key is kept in a settings file in the Fleet Ops SharePoint site, where only people with access to that site can read it, and every phone and computer picks it up at sign-in — it is entered once. ' +
+      'Unticked, it stays in this browser only. Either way it is never part of this page. Create a key, free, at <a href="' + RD.keyPage + '" target="_blank" rel="noopener noreferrer">aistudio.google.com/apikey</a>.</p></div>' +
+    '<div class="modal-actions" id="scBtns"><button class="primary" data-scan-act="rdsave">Save and test</button>' +
+      (cfg && !cfg.shared ? '<button data-scan-act="rdshare">Use the saved key for everyone</button>' : '') +
+      (cfg ? '<button class="danger" data-scan-act="rdoff">' + (cfg.shared ? "Remove for everyone" : "Remove key") + '</button>' : '') + '<button data-scan-act="again">Back to scanning</button></div>';
   if(!dlg.open) dlg.showModal();
 }
+const shareTrouble = e => e.status === 403 ? "your account may not add files to the Fleet Ops documents" : e.message === "Failed to fetch" ? "no connection to SharePoint" : e.message;
 async function scanReaderSave(){
-  const inp = document.getElementById("rdKey"), key = inp ? inp.value.trim() : "";
+  const inp = document.getElementById("rdKey"), key = inp ? inp.value.trim() : "", share = !!(document.getElementById("rdShare") || {}).checked;
   if(!key) return toast("Paste the key first.", true);
   if(SCAN.busy) return; SCAN.busy = true;
   scanSay("Checking the key with Google…", "inf");
+  let models = [];
+  try{ try{ models = await readerModels(key); }catch(e){ if(e.status !== 404) throw e; } }
+  catch(e){ SCAN.busy = false; return scanSay("<b>The key was not saved.</b> " + esc(readerTrouble(e)), "err"); }
+  const cfg = {v: 2, key, models: models.length ? models : RD.models, how: {}}, using = esc(cfg.models[0]);
+  readerSave(cfg);
+  if(!share){ SCAN.busy = false; return scanReaderPanel("<b>Working.</b> The online reader is on for this device only, using " + using + ".", "ok"); }
+  scanSay("Saving the key for everyone…", "inf");
   try{
-    let models = []; try{ models = await readerModels(key); }catch(e){ if(e.status !== 404) throw e; }
-    readerSave({v: 2, key, models: models.length ? models : RD.models, how: {}});
-    SCAN.busy = false;
-    scanReaderPanel("<b>Working.</b> The online reader is on for this device, using " + esc((models.length ? models : RD.models)[0]) + ".", "ok");
-  }catch(e){ SCAN.busy = false; scanSay("<b>The key was not saved.</b> " + esc(readerTrouble(e)), "err"); }
+    await sharedKeyWrite(key); readerSave(Object.assign({}, cfg, {shared: true})); SCAN.busy = false;
+    scanReaderPanel("<b>Working, and on for everyone who signs in.</b> Other phones and computers pick it up the next time they open or refresh Motor Tracker. Using " + using + ".", "ok");
+  }catch(e){
+    SCAN.busy = false; if(e instanceof SignedOut) return showSignin("Your session expired. Sign in to carry on.");
+    scanReaderPanel("<b>Working on this device, but not saved for everyone</b> — " + esc(shareTrouble(e)) + ".", "warn");
+  }
 }
-function scanReaderOff(){ lsDel(RD_STORE); scanReaderPanel("<b>Key removed.</b> IDs are read on this device only.", "inf"); }
+async function scanReaderShare(){
+  const cfg = readerCfg(); if(!cfg || SCAN.busy) return; SCAN.busy = true;
+  scanSay("Saving the key for everyone…", "inf");
+  try{
+    await sharedKeyWrite(cfg.key); readerSave(Object.assign({}, cfg, {shared: true})); SCAN.busy = false;
+    scanReaderPanel("<b>On for everyone who signs in.</b> Other phones and computers pick it up the next time they open or refresh Motor Tracker.", "ok");
+  }catch(e){
+    SCAN.busy = false; if(e instanceof SignedOut) return showSignin("Your session expired. Sign in to carry on.");
+    scanSay("<b>Not saved for everyone</b> — " + esc(shareTrouble(e)) + ". It still works on this device.", "err");
+  }
+}
+async function scanReaderOff(){
+  const cfg = readerCfg(); if(!cfg || SCAN.busy) return;
+  if(!cfg.shared){ lsDel(RD_STORE); return scanReaderPanel("<b>Key removed.</b> IDs are read on this device only.", "inf"); }
+  SCAN.busy = true; scanSay("Removing the key for everyone…", "inf");
+  try{
+    await sharedKeyWrite(""); lsDel(RD_STORE); SCAN.busy = false;                // the file stays, emptied: nothing is deleted from SharePoint
+    scanReaderPanel("<b>Key removed for everyone.</b> Other devices stop using it the next time they open or refresh Motor Tracker.", "inf");
+  }catch(e){
+    SCAN.busy = false; if(e instanceof SignedOut) return showSignin("Your session expired. Sign in to carry on.");
+    scanSay("<b>Not removed</b> — " + esc(shareTrouble(e)) + ".", "err");
+  }
+}
 
 /* ---------- the camera sheet ---------- */
 const scanEl = () => document.getElementById("scanner");
@@ -2679,6 +2749,7 @@ function scanAct(act){
     case "reader": scanReaderPanel(); break;
     case "rdsave": scanReaderSave(); break;
     case "rdoff": scanReaderOff(); break;
+    case "rdshare": scanReaderShare(); break;
   }
 }
 document.addEventListener("change", e => { if(e.target.id === "scFile"){ const f = e.target.files && e.target.files[0]; e.target.value = ""; scanFile(f); } });
