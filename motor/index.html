@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
 <meta name="theme-color" content="#176254">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'self' 'wasm-unsafe-eval'; worker-src 'self'; style-src 'unsafe-inline'; connect-src 'self' https://login.microsoftonline.com https://halamobility.sharepoint.com; img-src data: blob:; media-src 'self' blob: mediastream:; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'self' 'wasm-unsafe-eval'; worker-src 'self'; style-src 'unsafe-inline'; connect-src 'self' https://login.microsoftonline.com https://halamobility.sharepoint.com https://generativelanguage.googleapis.com; img-src data: blob:; media-src 'self' blob: mediastream:; base-uri 'none'; form-action 'none'">
 <title>Motor Tracker · Hala</title>
 <style>
 :root{font-family:Inter,"Segoe UI",Arial,sans-serif;color:#203630;background:#f5f7f5;font-synthesis:none;--green:#176254;--deep:#143c32;--line:#dde5df;--muted:#77877f;--cream:#f5f7f5}*{box-sizing:border-box}body{margin:0}button,input,select,textarea{font:inherit}button,a,input,select,textarea{outline-offset:4px}button{cursor:pointer}button:disabled{cursor:default;opacity:.5}a{color:var(--green)}button{border:1px solid var(--line);border-radius:8px;background:#fff;padding:10px 15px;color:#28453a;font-size:13px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:8px}button:hover:not(:disabled){background:#f0f5f1}button.primary{background:var(--green);color:#fff;border-color:var(--green)}button.primary:hover:not(:disabled){background:#124c41}button.danger{color:#a14738}.icon{width:18px;height:18px;display:inline-block;flex-shrink:0}.sidebar{position:fixed;inset:0 auto 0 0;width:222px;background:#fff;border-right:1px solid var(--line);padding:28px 20px;display:flex;flex-direction:column;z-index:20}.brand{display:flex;align-items:center;gap:11px;margin:0 4px 44px}.brand-mark{background:#ddefcf;border-radius:50%;width:43px;height:43px;display:grid;place-items:center;font-size:13px;font-weight:800;color:var(--green);letter-spacing:-.8px}.brand strong{font-size:18px;letter-spacing:-.5px}.brand small{display:block;font-size:10px;font-weight:600;color:var(--muted);letter-spacing:1.5px;margin-top:4px}.nav-caption{font-size:10px;letter-spacing:1.7px;color:#8a9890;margin:0 13px 12px}.nav-item{width:100%;border:0;background:none;justify-content:flex-start;color:#74867b;font-weight:500;margin:3px 0;padding:13px 13px;font-size:13px}.nav-item.active{background:#eaf3ed;color:var(--green);font-weight:650}.nav-item .count{margin-left:auto;font-size:11px;background:#d9eadd;color:#316b50;border-radius:5px;padding:3px 6px}.sidebar-foot{margin-top:auto;border-top:1px solid var(--line);padding-top:18px}.workspace{display:flex;align-items:center;gap:10px;font-size:12px;line-height:1.6}.workspace .avatar{border-radius:9px;width:35px;height:35px;background:#edf1ea;display:grid;place-items:center;font-weight:700;color:var(--green)}.workspace small{display:block;color:var(--muted);font-size:11px}.sidebar-foot>button{border:0;margin-top:12px;padding:6px 0;font-size:11px;font-weight:500;color:var(--muted)}.main{margin-left:222px;min-height:100vh}.topbar{height:75px;border-bottom:1px solid var(--line);padding:0 38px;display:flex;align-items:center;justify-content:space-between;background:#fff;gap:16px}.breadcrumb{font-size:12px;color:#88988e}.breadcrumb strong{color:#395849;font-weight:500}.topbar-right{display:flex;align-items:center;gap:14px}.pill{background:#edf4ea;color:#54814e;padding:7px 10px;border-radius:30px;font-size:11px;display:inline-flex;align-items:center;gap:6px}.pill::before{content:"";width:5px;height:5px;background:currentColor;border-radius:50%}.user-avatar{background:#ece8df;color:#756b56;border-radius:50%;width:30px;height:30px;display:grid;place-items:center;font-size:11px;font-weight:600}.content{max-width:1530px;margin:0 auto;padding:32px 38px 38px}.eyebrow{font-size:10px;font-weight:650;letter-spacing:2px;color:var(--green);text-transform:uppercase;margin:0 0 9px}.page-head{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:26px}h1{font-size:29px;letter-spacing:-1px;margin:0;font-weight:650}h2{font-size:16px;letter-spacing:-.3px;font-weight:650;margin:0}h3{font-size:13px;margin:0;font-weight:650}p{line-height:1.6}.subtext{font-size:13px;color:var(--muted);margin:8px 0 0}.head-actions{display:flex;gap:8px;flex-wrap:wrap}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:15px;margin-bottom:25px}.metric{border:1px solid var(--line);background:#fff;border-radius:12px;padding:21px 21px 18px}.metric.featured{background:var(--deep);border-color:var(--deep);color:#fff}.metric-head{display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:12px}.metric.featured .metric-head{color:#b4c8be}.metric-head .icon{color:#6c8f74}.metric.featured .icon{color:#c8e8b9}.metric .number{font-size:35px;font-weight:600;letter-spacing:-1.7px;margin:18px 0 10px}.metric small{font-size:11px;color:#8a9990}.metric.featured small{color:#b4c8be}.panel{background:#fff;border:1px solid var(--line);border-radius:12px;margin-bottom:23px;overflow:hidden}.panel-head{padding:20px 23px;display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid #eef1ec}.panel-head .subtext{font-size:11px;margin-top:6px}.panel-head button{font-size:11px;padding:7px 10px}.workflow{display:grid;grid-template-columns:repeat(5,1fr);padding:23px 21px;gap:10px}.flow-card{background:#f7f9f6;border:0;border-radius:9px;padding:17px 12px;text-align:left;display:block;font-weight:500;position:relative}.flow-card:not(:last-child)::after{content:'›';position:absolute;right:-9px;top:34px;color:#99a79b;font-size:20px;z-index:1}.flow-index{font-size:10px;color:#98a397;letter-spacing:1px}.flow-card strong{display:block;font-size:25px;margin:11px 0 8px;color:#284d3b}.flow-card span:last-child{font-size:11px;display:block;color:#65786b}.table-wrap{overflow:auto}table{border-collapse:collapse;width:100%;white-space:nowrap}th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:1px;font-weight:600;color:#88968d;background:#fafbf9;padding:14px 23px;border-bottom:1px solid var(--line)}td{font-size:12px;padding:17px 23px;border-bottom:1px solid #edf1ea;color:#566b5d}tbody tr:last-child td{border-bottom:0}tbody tr:hover{background:#fcfdfb}.unit-id{font-weight:650;color:#2f483a;letter-spacing:.1px}.unit-sub{display:block;font-size:10px;color:#9aa79d;margin-top:5px}.unit-icon{display:inline-flex;align-items:center;gap:10px}.unit-icon>.icon{background:#f0f3ec;border-radius:6px;padding:7px;width:32px;height:32px;color:#688764}.badge{display:inline-flex;align-items:center;gap:5px;border-radius:5px;background:#edf2e8;color:#688050;padding:6px 8px;font-size:10px;font-weight:500}.badge.inspection{background:#f7efd9;color:#96752c}.badge.claimReady{background:#f9e9e0;color:#ac6844}.badge.claimRaised{background:#e8ecf8;color:#6370a8}.badge.dcReady{background:#e7f2ef;color:#398575}.badge.scrap{background:#f5e7e5;color:#a6655f}.badge.shipped{background:#eef0ed;color:#829181}.table-footer{border-top:1px solid var(--line);padding:14px 23px;display:flex;justify-content:space-between;color:#9aa79c;font-size:10px}.text-button{border:0;background:none;padding:5px;color:var(--green);font-size:11px;font-weight:500}.muted{color:var(--muted)}.filters{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:17px 23px;border-bottom:1px solid var(--line)}.search{position:relative;min-width:220px;flex:1}.search>.icon{position:absolute;left:12px;top:11px;color:#98a79b}.search input{padding-left:39px;width:100%}.filters input,.filters select{font-size:12px;height:40px}input,select,textarea{background:#fff;border:1px solid var(--line);border-radius:7px;padding:10px 12px;color:#355340;min-width:0}input::placeholder,textarea::placeholder{color:#9da99f}select{padding-right:25px}.chips{display:flex;gap:8px;flex-wrap:wrap;margin:22px 0}.chip{font-size:12px;background:transparent;border:1px solid #dfe6dc;padding:10px 15px;font-weight:500}.chip.active{background:var(--deep);color:#fff;border-color:var(--deep)}.chip span{opacity:.7;font-size:10px;margin-left:7px}.instruction{background:#edf4eb;border:1px solid #dce8d6;border-radius:10px;display:flex;gap:12px;padding:17px 20px;margin:20px 0;color:#55794d;font-size:12px;line-height:1.7}.instruction strong{color:#376c48}.inspection-form{display:grid;grid-template-columns:1fr 1fr 1fr;gap:15px;background:#fafcf8;padding:21px 23px;border-bottom:1px solid var(--line)}label.field{display:flex;flex-direction:column;gap:9px;font-size:11px;color:#758875;font-weight:600}label.field input,label.field select,label.field textarea{font-weight:400;font-size:13px;width:100%}.field.wide{grid-column:1/-1}.bulkbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 23px;background:#edf4ea;font-size:12px;color:var(--green);border-top:1px solid var(--line);flex-wrap:wrap}.bulkbar .head-actions{align-items:center}.bulkbar select{font-size:12px}.check{width:16px;height:16px;accent-color:var(--green);cursor:pointer}.empty{padding:46px 20px;text-align:center;white-space:normal;color:#8d9c8f}.empty .icon{width:30px;height:30px;color:#9fb09b;margin-bottom:12px}.empty h3{color:#55764f;font-size:15px}.empty p{font-size:12px;max-width:400px;margin:8px auto}.split{display:grid;grid-template-columns:1.7fr 1fr;gap:23px}.form-panel{padding:22px;display:flex;flex-direction:column;gap:16px}.form-panel .primary{align-self:flex-start}.small-note{font-size:11px;color:#8a978b;line-height:1.7;margin:0}.activity-item{display:flex;gap:14px;padding:18px 23px;border-bottom:1px solid #edf1ea}.activity-item:last-child{border:0}.activity-dot{width:8px;height:8px;flex-shrink:0;border-radius:50%;background:#a9c896;margin-top:6px}.activity-item strong{font-size:12px;font-weight:600}.activity-item p{font-size:11px;color:var(--muted);margin:5px 0}.activity-item time{margin-left:auto;font-size:10px;color:#8b9c8d;text-align:right}.banner{border:1px solid #e7d5a3;background:#fffbec;color:#83632f;font-size:12px;border-radius:9px;padding:15px;margin-bottom:20px;line-height:1.6}.demo-footer{display:flex;justify-content:space-between;gap:20px;color:#98a497;font-size:10px;margin-top:24px;padding-top:8px}.demo-footer a{color:#6a8267;text-decoration:none}.inline-info{font-size:11px;color:#71866c;padding:14px 23px;background:#f9fbf7}.dc-link{border:0;display:inline;padding:0;background:none;text-decoration:underline;font-size:12px}dialog{border:1px solid var(--line);border-radius:15px;padding:0;box-shadow:0 20px 80px #12332335;width:min(560px,calc(100vw - 32px));color:#294b3c}dialog::backdrop{background:#102c2466;backdrop-filter:blur(2px)}.modal-head{padding:24px 26px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}.modal-head h2{font-size:19px}.modal-body{padding:24px 26px;font-size:13px;line-height:1.7;max-height:70vh;overflow:auto}.modal-body form{display:grid;grid-template-columns:1fr 1fr;gap:18px}.modal-actions{display:flex;justify-content:flex-end;gap:9px;border-top:1px solid var(--line);padding:18px 26px}.close-btn{border:0;padding:5px;font-size:18px;background:none;color:#8d9a90}#toast{position:fixed;bottom:24px;right:25px;max-width:min(490px,calc(100vw - 30px));background:#163f31;color:#fff;padding:16px 22px;border-radius:10px;box-shadow:0 8px 35px #1c3d3326;font-size:13px;line-height:1.5;z-index:100;display:none}#toast.visible{display:block}#toast.error{background:#9b4c3f}.initial-loading{padding:60px;text-align:center;color:#718c78}.mobile-menu{display:none}.login{max-width:500px;margin:14vh auto;padding:40px;border:1px solid var(--line);background:#fff;border-radius:15px}.login h1{font-size:25px}.login p{color:var(--muted);font-size:13px}.login .primary{margin-top:12px}.login .eyebrow{margin-bottom:18px}.row-select td{background:#f1f7ed}.loading{opacity:.6;pointer-events:none}.progress-line{height:3px;background:#d8e9d0}.progress-line>i{display:block;width:35%;height:3px;background:var(--green);animation:loading 1s infinite alternate}@keyframes loading{to{transform:translateX(180%)}}@media(min-width:1450px){.content{padding-left:48px;padding-right:48px}.topbar{padding:0 48px}}@media(max-width:1100px){.sidebar{width:190px;padding:26px 15px}.main{margin-left:190px}.content{padding:28px 25px}.topbar{padding:0 25px}.cards{gap:10px}.metric{padding:18px 15px}.metric-head{font-size:11px}.split{grid-template-columns:1fr}.workflow{padding:17px 14px}.flow-card{padding:14px 9px}.flow-card span:last-child{font-size:10px}td,th{padding-left:17px;padding-right:17px}}@media(max-width:760px){.sidebar{transform:translateX(-100%);width:222px;transition:transform .2s}.sidebar.open{transform:translateX(0);box-shadow:10px 0 70px #163b3326}.main{margin:0}.mobile-menu{display:inline-flex;border:0;padding:5px}.topbar{height:61px;padding:0 18px}.breadcrumb{display:none}.topbar-right{gap:10px;margin-left:auto}.content{padding:24px 16px}.page-head{align-items:flex-start;flex-direction:column;gap:16px;margin-bottom:22px}h1{font-size:25px}.head-actions{width:100%}.cards{grid-template-columns:1fr 1fr;gap:11px;margin-bottom:20px}.metric{padding:17px 15px}.metric .number{font-size:30px;margin:13px 0 9px}.metric-head{font-size:11px}.metric small{font-size:10px}.workflow{grid-template-columns:1fr 1fr;padding:16px;gap:10px}.flow-card:not(:last-child)::after{display:none}.flow-card span:last-child{font-size:11px}.flow-card:last-child{grid-column:1/-1;display:flex;align-items:center;gap:18px}.flow-card:last-child strong{margin:0}.panel-head{padding:18px 16px}.panel-head h2{font-size:14px}.filters{padding:14px 16px}.filters select{flex:1;max-width:100%}.search{flex-basis:100%}.inspection-form{grid-template-columns:1fr 1fr;padding:18px 16px}.inspection-form .field:last-child{grid-column:1/-1}.bulkbar{padding:14px 16px;flex-direction:column;align-items:stretch}.bulkbar .head-actions{flex-wrap:wrap}.bulkbar select{flex:1}.bulkbar .primary{width:100%}.instruction{font-size:11px;padding:14px}.demo-footer{font-size:9px;line-height:1.6;flex-direction:column;gap:6px}.modal-body form{grid-template-columns:1fr}.modal-body{padding:20px}.modal-head{padding:20px}.table-footer{padding:12px 16px}.table-wrap{max-width:100%}.chips{gap:6px;margin:18px 0}.chip{padding:9px 11px;font-size:11px}.activity-item{padding:17px}.activity-item time{max-width:72px}.split{gap:0}}
@@ -1360,11 +1360,13 @@ document.addEventListener("visibilitychange", () => {
    (0/O, 1/I, 5/S, 8/B) are compared as equals when matching.
    Whatever comes back is ALWAYS shown for confirmation before it is
    used, and lookalikes are flagged rather than silently "corrected".
-   The reader runs entirely in this browser; no photo leaves the device.
+   The built-in reader runs entirely in this browser and no photo leaves the
+   device — unless the online reader has been switched on for this device
+   (see "the online reader" below), in which case the photo goes to Google.
    ============================================================ */
 const OCR_DIR = new URL("ocr", location.origin + location.pathname).href;
 const SCAN = {target: "", stream: null, track: null, torchOn: false, worker: null, warming: null, detector: null, loop: 0,
-  frames: null, shot: "", vote: null, label: null, busy: false, mark: null, session: 0};
+  frames: null, shot: "", vote: null, label: null, busy: false, mark: null, note: "", session: 0};
 
 /* Fold every lookalike character to one representative, so a misread and the
    real ID collide while genuine nonsense does not. */
@@ -1874,6 +1876,145 @@ async function tryBarcode(source){
   return "";
 }
 
+/* ---------- the online reader (optional) ----------
+   The reader built into this page runs on the device and struggles with faint
+   engraving. When a Google Gemini key has been entered on this device, the
+   photo is sent to Google to be read instead, and the built-in reader becomes
+   the fallback (no key, no signal, allowance used up).
+   - The key is kept in this browser only. It is never written into this page,
+     SharePoint or any list, and travels only in a request header to Google.
+   - Only the photo and a fixed instruction are sent: nothing from the register.
+   - The answer is treated like any other reading: checked against the register
+     and always shown for confirmation. The model is told to mark characters it
+     cannot see rather than guess, and a reading that is not on the register is
+     never swapped for a unit that is. */
+const RD_STORE = "hala_motor_reader";
+const RD = {host: "https://generativelanguage.googleapis.com/v1beta", keyPage: "https://aistudio.google.com/apikey",
+  models: ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-2.5-flash"]};
+const RD_ASK = "This is a photo of a part of an electric two-wheeler in a warehouse: a hub motor or a motor controller.\n" +
+  "Find the unit's own ID (serial number). It is one code of about 8 to 22 capital letters and digits, sometimes with hyphens, " +
+  "shaped like ABCD1EFG2345, XY2601AB0001234 or AB-0925-40W-CD01234. It is often engraved or stamped into the metal casing, " +
+  "grey on grey and faint, it may run sideways or upside down, and it often sits next to a brand name.\n" +
+  "It is NOT a rating (250W, 48/60V, 30A), a date (12/2025), a model number, a short lot code such as L01-184, or a brand name.\n" +
+  "Copy exactly the characters you can see. Never guess and never complete a code: write ? for each character you cannot make out.\n" +
+  "Answer with JSON only, in this form: {\"ids\": [\"the unit ID\", \"any other code that could be the unit ID\"], " +
+  "\"text\": \"the other legible text on the part, one line per line\"}. If no unit ID is visible, give an empty list for ids.";
+const RD_SHAPE = {type: "OBJECT", properties: {ids: {type: "ARRAY", items: {type: "STRING"}}, text: {type: "STRING"}}, required: ["ids"]};
+const readerCfg = () => { const c = lsJson(RD_STORE, null); return c && typeof c.key === "string" && c.key ? c : null; };
+const readerOn = () => !!readerCfg();
+async function readerCall(path, key, body, ms){
+  const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), ms || 30000);
+  try{
+    /* The key goes in a header, never in the address. Only this site's origin is given as the referrer, which is what a
+       key restricted to this website is checked against. */
+    const r = await fetch(RD.host + path, {method: body ? "POST" : "GET", headers: Object.assign({"x-goog-api-key": key}, body ? {"Content-Type": "application/json"} : {}),
+      body: body ? JSON.stringify(body) : undefined, signal: ctl.signal, referrerPolicy: "strict-origin", cache: "no-store", credentials: "omit"});
+    let j = null; try{ j = await r.json(); }catch(e){}
+    if(!r.ok){ const err = new Error((j && j.error && j.error.message) || ("HTTP " + r.status)); err.status = r.status; throw err; }
+    return j || {};
+  }catch(e){
+    if(e.name === "AbortError"){ const t = new Error("no answer in time"); t.status = 0; throw t; }
+    if(e.status === undefined) e.status = 0;
+    throw e;
+  }finally{ clearTimeout(timer); }
+}
+const badKey = e => /api[ _]?key/i.test(e.message || "") && !/referr?er/i.test(e.message || "");
+/* What went wrong, in words that say what to do about it. */
+function readerTrouble(e){
+  const m = String(e.message || "");
+  if(/referr?er/i.test(m)) return "The key is restricted to other websites. In the key's settings, allow " + location.origin + ".";
+  if(badKey(e)) return "Google did not accept the key. Check it was copied in full.";
+  if(e.status === 429) return "The key's allowance is used up for now.";
+  if(e.status === 0) return "Google could not be reached.";
+  if(e.status === 403) return "Google refused the key for this service.";
+  return "Google answered: " + m.slice(0, 160);
+}
+/* The Flash models this key can use, best first: full before lite, released before preview, newest before older. */
+async function readerModels(key){
+  const j = await readerCall("/models?pageSize=1000", key, null, 20000);
+  const ok = (j.models || []).filter(m => !m.supportedGenerationMethods || m.supportedGenerationMethods.includes("generateContent"))
+    .map(m => String(m.name || "").replace(/^models\//, "")).filter(n => /^gemini-\d+(\.\d+)?-flash(-lite)?(-preview)?$/.test(n));
+  const ver = n => parseFloat(n.split("-")[1]) || 0, has = (n, w) => n.includes(w) ? 1 : 0;
+  ok.sort((a, b) => has(a, "preview") - has(b, "preview") || has(a, "lite") - has(b, "lite") || ver(b) - ver(a));
+  return ok.slice(0, 5);
+}
+function readerPicture(canvas, side){
+  const k = Math.min(1, side / Math.max(canvas.width, canvas.height));
+  let c = canvas;
+  if(k < 1){ c = document.createElement("canvas"); c.width = Math.round(canvas.width * k); c.height = Math.round(canvas.height * k);
+    const g = c.getContext("2d"); g.imageSmoothingQuality = "high"; g.drawImage(canvas, 0, 0, c.width, c.height); }
+  return c.toDataURL("image/jpeg", 0.9).split(",")[1];
+}
+function readerReply(text){
+  const t = String(text || "").replace(/```(?:json)?/gi, "").trim();
+  let o = null;
+  try{ o = JSON.parse(t); }catch(e){ const m = /\{[\s\S]*\}/.exec(t); if(m){ try{ o = JSON.parse(m[0]); }catch(e2){} } }
+  if(!o || typeof o !== "object") return {ids: serialCandidates(t), text: t};          // not the form asked for: take what is ID-shaped
+  return {ids: (Array.isArray(o.ids) ? o.ids : [o.ids]).filter(x => typeof x === "string" && x.trim()).slice(0, 6), text: typeof o.text === "string" ? o.text : ""};
+}
+/* Ask for the ID in a picture. Tries the models this key can use in turn when one is missing, busy or out of allowance. */
+async function readerAsk(canvas){
+  const cfg = readerCfg(); if(!cfg) throw new Error("no key");
+  const parts = [{text: RD_ASK}, {inline_data: {mime_type: "image/jpeg", data: readerPicture(canvas, 2000)}}];
+  /* "rich" asks for a strict answer form and a close look at fine detail; a model that does not take those settings is asked plainly. */
+  const rich = {temperature: 0, response_mime_type: "application/json", response_schema: RD_SHAPE, media_resolution: "MEDIA_RESOLUTION_HIGH"}, plain = {temperature: 0};
+  const models = cfg.models && cfg.models.length ? cfg.models : RD.models;
+  let last = null;
+  for(const model of models){
+    for(const gen of (cfg.plain ? [plain] : [rich, plain])){
+      try{
+        const j = await readerCall("/models/" + encodeURIComponent(model) + ":generateContent", cfg.key, {contents: [{parts}], generationConfig: gen}, 40000);
+        const text = ((((j.candidates || [])[0] || {}).content || {}).parts || []).map(p => p.text || "").join("");
+        if(model !== models[0] || (gen === plain && !cfg.plain)) lsSet(RD_STORE, JSON.stringify(Object.assign({}, cfg, {models: [model].concat(models.filter(m => m !== model)), plain: gen === plain})));
+        return readerReply(text);
+      }catch(e){
+        last = e;
+        if(!(e.status === 400 && !badKey(e) && gen === rich)) break;
+      }
+    }
+    if(badKey(last) || ![400, 404, 429, 500, 503].includes(last.status)) break;
+  }
+  throw last;
+}
+function onlineTally(got){
+  const T = newTally();
+  got.ids.forEach((raw, i) => {
+    const id = String(raw).toUpperCase().replace(/[^A-Z0-9\-\/]/g, ""); if(alnum(id).length < 4) return;   // the ? marks drop out here, leaving the part that was seen
+    tallyAdd(T, id, true); if(i === 0) tallyAdd(T, id, true);                                               // its first choice counts double
+  });
+  return T;
+}
+const readerNote = why => { SCAN.note = why + " This photo was read on the device instead."; };
+
+/* ---------- online reader: the settings sheet ---------- */
+function scanReaderPanel(msg, kind){
+  SCAN.session++; SCAN.busy = false; stopCamera();
+  const cfg = readerCfg(), dlg = scanEl();
+  dlg.innerHTML = '<div class="modal-head"><h2>Online reader</h2><button class="close-btn" data-scan-act="close" aria-label="Close">×</button></div>' +
+    '<div class="modal-body"><p style="margin:0 0 10px">Faint, engraved or sideways IDs are read far more reliably by Google\'s Gemini than by the reader built into this page. With a key entered here, each photo you scan on this device is sent to Google to be read.</p>' +
+    '<p class="small-note" style="margin-bottom:14px">On Google\'s free plan, Google may use what is sent to improve its products. Only the photo is sent — nothing from the register. Without a key, photos never leave this device.</p>' +
+    '<div class="scan-msg ' + (kind || (cfg ? "ok" : "inf")) + '" id="scMsg" style="margin:0 0 14px">' + (msg || (cfg ? "<b>On for this device.</b> Using " + esc((cfg.models || RD.models)[0]) + "."
+      : "<b>Off.</b> IDs are read on this device only.")) + '</div>' +
+    '<label class="field">Gemini API key<input id="rdKey" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="200" placeholder="' +
+      (cfg ? "A key is saved on this device (ends " + esc(cfg.key.slice(-4)) + ")" : "Paste the key here") + '"></label>' +
+    '<p class="small-note" style="margin-top:10px">Create a key, free, at <a href="' + RD.keyPage + '" target="_blank" rel="noopener noreferrer">aistudio.google.com/apikey</a>. It is kept in this browser on this device only — not in SharePoint, and not in this site. Each phone or computer that should use the online reader needs the key entered once.</p></div>' +
+    '<div class="modal-actions" id="scBtns"><button class="primary" data-scan-act="rdsave">Save and test</button>' + (cfg ? '<button class="danger" data-scan-act="rdoff">Remove key</button>' : '') + '<button data-scan-act="again">Back to scanning</button></div>';
+  if(!dlg.open) dlg.showModal();
+}
+async function scanReaderSave(){
+  const inp = document.getElementById("rdKey"), key = inp ? inp.value.trim() : "";
+  if(!key) return toast("Paste the key first.", true);
+  if(SCAN.busy) return; SCAN.busy = true;
+  scanSay("Checking the key with Google…", "inf");
+  try{
+    let models = []; try{ models = await readerModels(key); }catch(e){ if(e.status !== 404) throw e; }
+    lsSet(RD_STORE, JSON.stringify({key, models: models.length ? models : RD.models, plain: false}));
+    SCAN.busy = false;
+    scanReaderPanel("<b>Working.</b> The online reader is on for this device, using " + esc((models.length ? models : RD.models)[0]) + ".", "ok");
+  }catch(e){ SCAN.busy = false; scanSay("<b>The key was not saved.</b> " + esc(readerTrouble(e)), "err"); }
+}
+function scanReaderOff(){ lsDel(RD_STORE); scanReaderPanel("<b>Key removed.</b> IDs are read on this device only.", "inf"); }
+
 /* ---------- the camera sheet ---------- */
 const scanEl = () => document.getElementById("scanner");
 function scanSay(html, kind){ const m = document.getElementById("scMsg"); if(m){ m.innerHTML = html; m.className = "scan-msg " + (kind || "inf"); } }
@@ -1881,10 +2022,11 @@ function scanButtons(html){ const b = document.getElementById("scBtns"); if(b) b
 const SCAN_TITLES = {reg: "Scan the unit to register", move: "Scan the unit to move", search: "Scan a unit to find it"};
 async function openScan(target){
   SCAN.target = target || SCAN.target || "search"; SCAN.session++;
-  SCAN.frames = null; SCAN.shot = ""; SCAN.vote = null; SCAN.label = null; SCAN.busy = false;
+  SCAN.frames = null; SCAN.shot = ""; SCAN.vote = null; SCAN.label = null; SCAN.busy = false; SCAN.note = "";
   const dlg = scanEl();
   dlg.innerHTML = '<div class="modal-head"><h2>' + esc(SCAN_TITLES[SCAN.target] || "Scan a unit label") + '</h2><button class="close-btn" data-scan-act="close" aria-label="Close scanner">×</button></div>' +
-    '<div class="modal-body"><p class="small-note" style="margin-bottom:10px">Fill the box with the label and hold steady. For an ID engraved in the casing, go close enough that the ID runs across the box. A barcode or QR is read at once; otherwise press Capture.</p>' +
+    '<div class="modal-body"><p class="small-note" style="margin-bottom:10px">Fill the box with the label and hold steady. For an ID engraved in the casing, go close enough that the ID runs across the box. A barcode or QR is read at once; otherwise press Capture.' +
+      ' <button class="text-button" data-scan-act="reader" id="scReader">Online reader: ' + (readerOn() ? "on" : "off — set up") + '</button></p>' +
     '<div class="scan-stage" id="scStage"><video id="scVid" playsinline muted autoplay></video><div class="scan-guide" id="scGuide"></div><img id="scShot" alt="Captured label" hidden></div>' +
     '<div class="scan-msg inf" id="scMsg">Starting the camera…</div><div id="scFields"></div></div>' +
     '<div class="modal-actions" id="scBtns"></div><input type="file" id="scFile" accept="image/*" hidden>';
@@ -1996,6 +2138,16 @@ async function readFrames(full, frames){
   const code = await tryBarcode(full);
   if(mine !== SCAN.session) return;
   if(code){ SCAN.busy = false; return showScanResult({id: code}, "barcode"); }
+  SCAN.note = "";
+  if(readerOn()){
+    say("Reading the ID…");
+    try{
+      const got = await readerAsk(full);
+      if(mine !== SCAN.session) return;
+      if(got.ids.length) return finishRead(onlineTally(got), true, [got.text].concat(got.ids), false, true);
+      readerNote("The online reader saw no ID in this photo.");
+    }catch(e){ if(mine !== SCAN.session) return; readerNote(readerTrouble(e)); }
+  }
   say("No barcode here — reading the text…");
   try{
     /* f0 is what the user aimed at: the box of a camera capture, or the whole of a chosen photo. */
@@ -2027,16 +2179,18 @@ async function readFrames(full, frames){
 }
 /* Decide what the readings amount to: a unit on the register, a new ID, part
    of an ID with the register's closest units, or nothing. */
-function finishRead(T, whole, texts, searched){
+function finishRead(T, whole, texts, searched, online){
   const res = tallyResult(T);
   /* A photo that had to be turned every way to look for an ID, and gave one unconfirmed reading unlike anything on
      the register: that is the label's other text read sideways far more often than it is an ID. */
   if(searched && res.id && res.votes <= 1 && !knownUnit(res.id) && !prefixKnown(res.id) && !registerShortlist(T.reads).close.length){ res.ranked = []; res.id = ""; res.votes = 0; }
   SCAN.busy = false; SCAN.vote = res; if(whole) SCAN.label = parseLabel((texts || T.texts).join("\n"));
   const st = document.getElementById("scStage"); if(st) st.hidden = false;
-  if(res.id && knownUnit(res.id)) return showScanResult({id: res.id, votes: res.votes}, "text");
+  if(res.id && knownUnit(res.id)) return showScanResult({id: res.id, votes: res.votes, online}, "text");
   const part = registerShortlist(T.reads), some = part.lead || part.close.length;
   const cut = !!res.id && cutShort(res.id), short = !!res.id && !!lengthNote(res.id);
+  /* A whole ID from the online reader stands as read: it is offered the close units, never replaced by one. */
+  if(online && res.id && !cut && !short) return showScanResult({id: res.id, votes: res.votes, part, online}, "text");
   /* Nearly the whole of one unit's ID was seen, and there is no clean reading to set against it. */
   if(part.near && (!res.id || cut || short || res.votes <= 1 || !prefixKnown(res.id))) return showScanResult({id: res.id, votes: res.votes, part}, "near");
   /* A reading that is not on the register, while units very like it are: treat it as incomplete when it is cut
@@ -2044,7 +2198,7 @@ function finishRead(T, whole, texts, searched){
      reading stands unless one existing unit clearly fits it. */
   if(some && (!res.id || cut || short || (res.votes <= 1 && (SCAN.target !== "reg" || part.lead)))) return showScanResult({id: res.id, votes: res.votes, part}, "partial");
   if(res.id) return showScanResult({id: res.id, votes: res.votes, part}, "text");
-  document.getElementById("scFields").innerHTML = "";
+  document.getElementById("scFields").innerHTML = SCAN.note ? '<p class="small-note" style="margin-top:10px">' + esc(SCAN.note) + '</p>' : "";
   scanSay(whole ? "<b>Could not find an ID in this photo.</b> Mark where the ID is on this photo, or try again closer with the ID filling the box."
     : "<b>Nothing readable along that line.</b> Mark it again from the first character to the last, or type the ID.", "err");
   scanButtons('<button class="primary" data-scan-act="mark">Mark the ID</button>' + SCAN_RETRY);
@@ -2076,7 +2230,7 @@ function showScanResult(got, how){
     if(!unit && !partial){ add(fix.suggest, "fits similar units"); nearUnits(id).forEach(t => add(t, "on the register, one character different")); }
     ((SCAN.vote && SCAN.vote.ranked) || []).slice(0, 4).forEach(t => add(t, "another reading"));
   }
-  const weak = how === "text" && !unit && (got.votes || 0) <= 1, warn = how !== "barcode" && !unit && !partial ? confusables(id) : "";
+  const weak = how === "text" && !unit && !got.online && (got.votes || 0) <= 1, warn = how !== "barcode" && !unit && !partial ? confusables(id) : "";
   const odd = how === "text" && !unit ? lengthNote(id) : "", lost = how === "text" && !unit && (!!odd || cutShort(id));
   const fits = part.close.map(r => r.u.Title);
   /* Moving or finding needs a unit that IS on the register: a reading that is not, with near matches that are, is said plainly. */
@@ -2092,11 +2246,12 @@ function showScanResult(got, how){
     : unit ? "<b>Read, and found on the register.</b>"
     : (lost ? "<b>Read, but it looks incomplete.</b> " + esc(odd || "Longer IDs on the register start exactly like this.") + " Check it against the unit, or mark the ID on the photo."
        : weak ? "<b>Read, but only one pass produced this.</b> Check every character against the label, or scan again."
+       : got.online ? "<b>Read from the photo.</b> Check it against the unit."
             : "<b>Read from the label</b>" + (got.votes ? " (" + got.votes + " readings agreed)" : "") + ". Check it against the label.") +
       (fix.changed ? " Adjusted: " + esc(fix.notes.join("; ")) + ". It was read as " + esc(read) + "." : "") +
       (stray ? " <b>This ID is not on the register</b> — the closest units on it are listed below." : ""), partial || stray || lost ? "warn" : weak ? "err" : "ok");
   const lab = SCAN.label || {}, extra = [lab.cat, lab.oem, lab.model && ("model " + lab.model)].filter(Boolean);
-  document.getElementById("scFields").innerHTML =
+  document.getElementById("scFields").innerHTML = (SCAN.note ? '<p class="small-note" style="margin-top:10px">' + esc(SCAN.note) + '</p>' : '') +
     '<label class="field" style="margin-top:12px">Unit ID<input id="scId" class="scan-id" maxlength="100" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="' + (partial ? (near ? "Type the ID" : "Pick one below, or type the ID") : "") + '" value="' + esc(id) + '"></label>' +
     '<p class="small-note" id="scKnown" style="margin-top:6px"></p>' +
     (warn ? '<p class="small-note" style="color:#96752c">Contains ' + esc(warn) + ' — the characters a reader most often confuses. Check them against the label.</p>' : '') +
@@ -2168,6 +2323,17 @@ async function scanReadMark(){
     /* a little past both ends, so a first or last character under the fingertip is not clipped */
     const ax = m.x0 * kx, ay = m.y0 * ky, bx = m.x1 * kx, by = m.y1 * ky, ex = (bx - ax) * 0.1, ey = (by - ay) * 0.1;
     const a = {x: ax - ex, y: ay - ey}, b = {x: bx + ex, y: by + ey};
+    SCAN.note = "";
+    if(readerOn()){
+      /* A levelled close-up with some room above and below: the brand name beside an ID helps it be recognised. */
+      const len = Math.hypot(b.x - a.x, b.y - a.y), h = Math.max(24, len * 0.45);
+      try{
+        const got = await readerAsk(extractBand(src, a, b, h, Math.max(200, Math.min(700, Math.round(h * 3)))));
+        if(mine !== SCAN.session) return;
+        if(got.ids.length) return finishRead(onlineTally(got), false, null, false, true);
+        readerNote("The online reader saw no ID along that line.");
+      }catch(e){ if(mine !== SCAN.session) return; readerNote(readerTrouble(e)); }
+    }
     let T = await readAlong(src, a, b, MARK_PLAN);
     if(mine !== SCAN.session) return;
     if(!T.sure){
@@ -2220,6 +2386,9 @@ function scanAct(act){
     case "mark": scanPickId(); break;
     case "readmark": scanReadMark(); break;
     case "use": scanUse(); break;
+    case "reader": scanReaderPanel(); break;
+    case "rdsave": scanReaderSave(); break;
+    case "rdoff": scanReaderOff(); break;
   }
 }
 document.addEventListener("change", e => { if(e.target.id === "scFile"){ const f = e.target.files && e.target.files[0]; e.target.value = ""; scanFile(f); } });
