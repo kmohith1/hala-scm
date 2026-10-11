@@ -63,14 +63,14 @@ td.wrap{white-space:normal;min-width:220px}
 .scan-stage video{width:100%;height:100%;object-fit:cover;display:block}.scan-stage img{width:100%;height:100%;object-fit:contain;display:block}
 .scan-guide{position:absolute;left:8%;top:28%;width:84%;height:44%;border:2px solid rgba(255,255,255,.92);border-radius:6px;box-shadow:0 0 0 9999px rgba(0,0,0,.38)}
 .scan-msg{margin-top:12px;border-radius:9px;padding:11px 13px;font-size:12px;line-height:1.6;background:#edf4eb;border:1px solid #dce8d6;color:#3f6a47}
-.scan-msg.err{background:#fdf1ee;border-color:#e6b9b1;color:#96473a}.scan-msg.ok{background:#e7f2ef;border-color:#cfe5df;color:#2c6f61}
+.scan-msg.err{background:#fdf1ee;border-color:#e6b9b1;color:#96473a}.scan-msg.ok{background:#e7f2ef;border-color:#cfe5df;color:#2c6f61}.scan-msg.warn{background:#fbf4e3;border-color:#ecd9a6;color:#7d5f1c}
 .scan-id{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:16px !important;letter-spacing:.5px}
 .scan-alts{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px}
 .scan-alts button{flex-direction:column;align-items:flex-start;gap:2px;padding:6px 10px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px}
 .scan-alts button small{font-family:Inter,"Segoe UI",Arial,sans-serif;font-size:9px;font-weight:400;color:var(--muted)}
 .scan-pick{position:relative;touch-action:none;user-select:none;-webkit-user-select:none;cursor:crosshair;border-radius:10px;overflow:hidden}
 .scan-pick img{width:100%;display:block;pointer-events:none}
-#pkBox{position:absolute;border:2px solid #2f8f79;background:rgba(47,143,121,.2)}
+#pkBand{position:absolute;transform-origin:0 50%;border:2px solid #fff;border-radius:3px;background:rgba(47,143,121,.3);box-shadow:0 0 0 1px rgba(0,0,0,.55);pointer-events:none}
 #scanner .modal-actions{flex-wrap:wrap}
 @media(max-width:760px){.filters select{flex:1 1 40%}.mv-form{grid-template-columns:1fr;padding:18px 16px}.busybar{padding:10px 16px}input,select,textarea{font-size:16px}.filters input,.filters select{font-size:16px}label.field input,label.field select,label.field textarea{font-size:16px}}
 </style>
@@ -1345,11 +1345,16 @@ document.addEventListener("visibilitychange", () => {
 
 /* ============================================================
    SCAN A UNIT LABEL
-   Three routes, tried in order:
+   Four routes, tried in order:
      1. A barcode or QR on the label — instant and exact, read live
         while the camera is being aimed.
      2. The printed text, read several ways with the readings voting.
-     3. Ringing just the ID on the photo — the tightest, most accurate read.
+     3. An engraved or tilted ID: the photo is turned to find which way
+        the text runs, then the ID is read from a tight band.
+     4. Marking the ID on the photo by dragging along it — the tightest,
+        most accurate read, at any angle.
+   When only part of an ID is legible (paint, wear, glare), the closest
+   units on the register are offered instead of a guess.
    The register then helps choose between readings: a reading that
    matches a unit already on it wins, and lookalike characters
    (0/O, 1/I, 5/S, 8/B) are compared as equals when matching.
@@ -1359,7 +1364,7 @@ document.addEventListener("visibilitychange", () => {
    ============================================================ */
 const OCR_DIR = new URL("ocr", location.origin + location.pathname).href;
 const SCAN = {target: "", stream: null, track: null, torchOn: false, worker: null, warming: null, detector: null, loop: 0,
-  frames: null, shot: "", vote: null, label: null, busy: false, box: null, session: 0};
+  frames: null, shot: "", vote: null, label: null, busy: false, mark: null, session: 0};
 
 /* Fold every lookalike character to one representative, so a misread and the
    real ID collide while genuine nonsense does not. */
@@ -1522,20 +1527,31 @@ function ocrWorker(){
   })().catch(e => { SCAN.warming = null; throw e; });
   return SCAN.warming;
 }
-async function runOcr(canvas, oneLine){
+/* mode: "block" a label's worth of text, "line" one line holding only an ID,
+   "sparse" text scattered over a cluttered photo (engraving on a casing). */
+const UPPER = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-/";
+const OCR_MODES = {
+  block:  {tessedit_pageseg_mode: "6",  tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789:.-/+ "},
+  line:   {tessedit_pageseg_mode: "7",  tessedit_char_whitelist: UPPER},
+  sparse: {tessedit_pageseg_mode: "11", tessedit_char_whitelist: UPPER + " "},
+};
+/* Returns the text and, for finding where things are, each word with its box. */
+async function runOcr(canvas, mode){
   const w = await ocrWorker();
   /* A strict character set stops the reader inventing punctuation in an ID. */
-  await w.setParameters(oneLine
-    ? {tessedit_pageseg_mode: "7", tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-/"}
-    : {tessedit_pageseg_mode: "6", tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789:.-/+ "});
-  const r = await w.recognize(canvas);
-  return (r && r.data && r.data.text) || "";
+  await w.setParameters(OCR_MODES[mode] || OCR_MODES.block);
+  const r = await w.recognize(canvas), d = (r && r.data) || {};
+  return {text: d.text || "", words: (d.words || []).filter(x => x && x.bbox).map(x => ({t: x.text || "", conf: x.confidence || 0, x0: x.bbox.x0, y0: x.bbox.y0, x1: x.bbox.x1, y1: x.bbox.y1}))};
 }
 /* Grayscale with pushed contrast and a sharpen, never black-and-white:
-   thresholding destroys small print on a real label, this recovers it. */
+   thresholding destroys small print on a real label, this recovers it.
+   "flat" is for engraving and stamped metal: it removes the slow change in
+   lighting across the casing and keeps only the strokes, which is what makes
+   grey-on-grey characters stand out. */
 const OCR_SPECS = [{scale: 1.0, contrast: 2.2}, {scale: 1.0, contrast: 1.6}, {scale: 1.3, contrast: 2.6}, {scale: 1.0, contrast: 2.2, invert: true}];
+const FLAT = {scale: 1.0, contrast: 1.0, flat: 0.5, gain: 4};      // flat: radius as a share of the expected character height
 const OCR_MAX_W = 1100, OCR_MAX_PASSES = 6;
-function makeVariant(src, sp){
+function makeVariant(src, sp, charPx){
   let scale = sp.scale; if(src.width * scale > OCR_MAX_W) scale = OCR_MAX_W / src.width;
   const c = document.createElement("canvas");
   c.width = Math.max(8, Math.round(src.width * scale)); c.height = Math.max(8, Math.round(src.height * scale));
@@ -1543,8 +1559,29 @@ function makeVariant(src, sp){
   g.imageSmoothingQuality = "high"; g.drawImage(src, 0, 0, c.width, c.height);
   const w = c.width, h = c.height, d = g.getImageData(0, 0, w, h), px = d.data;
   const gray = new Float32Array(w * h);
-  for(let i = 0, p = 0; i < px.length; i += 4, p++){
-    let v = (px[i] * 0.299 + px[i + 1] * 0.587 + px[i + 2] * 0.114 - 128) * sp.contrast + 128;
+  for(let i = 0, p = 0; i < px.length; i += 4, p++) gray[p] = px[i] * 0.299 + px[i + 1] * 0.587 + px[i + 2] * 0.114;
+  if(sp.flat){
+    const I = new Float64Array((w + 1) * (h + 1));
+    for(let y = 0; y < h; y++){ let row = 0; for(let x = 0; x < w; x++){ row += gray[y * w + x]; I[(y + 1) * (w + 1) + x + 1] = I[y * (w + 1) + x + 1] + row; } }
+    const r = Math.max(4, Math.round((charPx || 36) * scale * sp.flat));
+    const diff = new Float32Array(w * h), hist = new Uint32Array(256);
+    for(let y = 0; y < h; y++){
+      const y0 = Math.max(0, y - r), y1 = Math.min(h, y + r + 1);
+      for(let x = 0; x < w; x++){
+        const x0 = Math.max(0, x - r), x1 = Math.min(w, x + r + 1);
+        const mean = (I[y1 * (w + 1) + x1] - I[y0 * (w + 1) + x1] - I[y1 * (w + 1) + x0] + I[y0 * (w + 1) + x0]) / ((x1 - x0) * (y1 - y0));
+        const dv = gray[y * w + x] - mean; diff[y * w + x] = dv; hist[Math.min(255, Math.round(Math.abs(dv) * 4))]++;
+      }
+    }
+    /* Camera grain is everywhere and faint; strokes are few and stronger. What most of the
+       picture does (the median) is grain, so that much is taken off before amplifying —
+       otherwise a plain surface turns into thousands of specks, each read as a character. */
+    let seen = 0, med = 0; while(med < 255 && (seen += hist[med]) < w * h / 2) med++;
+    const floor = Math.min(5, med / 4 * 1.5);
+    for(let p = 0; p < diff.length; p++){ const dv = diff[p], m = Math.abs(dv) - floor; gray[p] = 150 + (m > 0 ? (dv < 0 ? -m : m) * sp.gain : 0); }
+  }
+  for(let p = 0; p < gray.length; p++){
+    let v = (gray[p] - 128) * sp.contrast + 128;
     v = v < 0 ? 0 : v > 255 ? 255 : v;
     gray[p] = sp.invert ? 255 - v : v;
   }
@@ -1558,6 +1595,53 @@ function makeVariant(src, sp){
   g.putImageData(d, 0, 0);
   return c;
 }
+/* A copy of the picture turned by any angle (clockwise), fitted to maxSide. */
+function rotateCanvas(src, deg, maxSide){
+  const rad = deg * Math.PI / 180, sn = Math.abs(Math.sin(rad)), cs = Math.abs(Math.cos(rad));
+  const rw = src.width * cs + src.height * sn, rh = src.width * sn + src.height * cs, k = Math.min(1, (maxSide || 1e9) / Math.max(rw, rh));
+  const out = document.createElement("canvas"); out.width = Math.max(8, Math.round(rw * k)); out.height = Math.max(8, Math.round(rh * k));
+  const g = out.getContext("2d"); g.fillStyle = "#808080"; g.fillRect(0, 0, out.width, out.height); g.imageSmoothingQuality = "high";
+  g.translate(out.width / 2, out.height / 2); g.rotate(rad); g.scale(k, k); g.drawImage(src, -src.width / 2, -src.height / 2);
+  return out;
+}
+/* How far the edges in a photo lean away from square, in degrees (-45..45).
+   Text follows the edges of the part it is on, so this is the tilt to undo. */
+function dominantSkew(src){
+  const k = 420 / Math.max(src.width, src.height), w = Math.max(8, Math.round(src.width * k)), h = Math.max(8, Math.round(src.height * k));
+  const c = document.createElement("canvas"); c.width = w; c.height = h;
+  const g = c.getContext("2d", {willReadFrequently: true}); g.drawImage(src, 0, 0, w, h);
+  const px = g.getImageData(0, 0, w, h).data, gray = new Float32Array(w * h), hist = new Float32Array(90);
+  for(let i = 0, p = 0; i < px.length; i += 4, p++) gray[p] = px[i] * 0.299 + px[i + 1] * 0.587 + px[i + 2] * 0.114;
+  for(let y = 1; y < h - 1; y++) for(let x = 1; x < w - 1; x++){
+    const p = y * w + x;
+    const gx = gray[p - w + 1] + 2 * gray[p + 1] + gray[p + w + 1] - gray[p - w - 1] - 2 * gray[p - 1] - gray[p + w - 1];
+    const gy = gray[p + w - 1] + 2 * gray[p + w] + gray[p + w + 1] - gray[p - w - 1] - 2 * gray[p - w] - gray[p - w + 1];
+    const mag = Math.hypot(gx, gy); if(mag < 60) continue;
+    const a = ((Math.atan2(gy, gx) * 180 / Math.PI) % 90 + 90) % 90;
+    hist[Math.floor(a) % 90] += mag;
+  }
+  let best = 0, bestV = -1;
+  for(let i = 0; i < 90; i++){ let v = 0; for(let j = -3; j <= 3; j++) v += hist[(i + j + 90) % 90] * (4 - Math.abs(j)); if(v > bestV){ bestV = v; best = i; } }
+  return best > 45 ? best - 90 : best;
+}
+/* A band of the picture lying along any line, turned level: the ID from its
+   first character (p0) to its last (p1), bandH across. */
+function extractBand(src, p0, p1, bandH, outH){
+  const len = Math.max(8, Math.hypot(p1.x - p0.x, p1.y - p0.y)), th = Math.atan2(p1.y - p0.y, p1.x - p0.x);
+  const s = Math.min(outH / bandH, 1700 / len), c = document.createElement("canvas");
+  c.width = Math.max(8, Math.round(len * s)); c.height = Math.max(8, Math.round(bandH * s));
+  const g = c.getContext("2d"); g.fillStyle = "#808080"; g.fillRect(0, 0, c.width, c.height); g.imageSmoothingQuality = "high";
+  g.translate(c.width / 2, c.height / 2); g.scale(s, s); g.rotate(-th); g.translate(-(p0.x + p1.x) / 2, -(p0.y + p1.y) / 2); g.drawImage(src, 0, 0);
+  return c;
+}
+/* A point on a turned copy (rotateCanvas) back on the original picture. */
+function unturn(src, deg, turned, x, y){
+  const rad = deg * Math.PI / 180, cs = Math.cos(rad), sn = Math.sin(rad);
+  const k = turned.width / (src.width * Math.abs(cs) + src.height * Math.abs(sn));
+  const u = (x - turned.width / 2) / k, v = (y - turned.height / 2) / k;
+  return {x: src.width / 2 + u * cs + v * sn, y: src.height / 2 - u * sn + v * cs, k};
+}
+
 /* One winner out of several readings of the same ID that differ only in
    lookalikes: position by position, the character most readings saw. */
 function consensus(list){
@@ -1570,33 +1654,154 @@ function consensus(list){
   }
   return out;
 }
-/* Read the picture several ways and let the readings vote — but stop the moment
-   the answer is settled. Readings that differ only by lookalike characters count
-   as the same ID. The strongest treatment of every frame runs before the weaker
-   treatments of any, so a scan that stops early still saw each photo. */
-const labelPlan = frames => { const plan = []; OCR_SPECS.forEach(sp => frames.forEach(src => plan.push({src, sp, oneLine: false}))); return plan.slice(0, OCR_MAX_PASSES); };
-async function ocrVote(plan, onStep){
-  const groups = new Map(), texts = [];
-  const rep = k => consensus(groups.get(k)), score = k => scoreId(rep(k), groups.get(k).length);
-  const rank = () => [...groups.keys()].sort((a, b) => score(b) - score(a) || b.length - a.length);
-  let done = 0;
-  for(const step of plan){
-    const t = await runOcr(makeVariant(step.src, step.sp), step.oneLine);
-    texts.push(t);
-    const found = new Set(serialCandidates(t));
-    if(step.oneLine){ const whole = t.toUpperCase().replace(/[^A-Z0-9\-\/]/g, ""); if(alnum(whole).length >= 6) found.add(whole); }
-    for(const c of found){ const k = canonId(c); if(!groups.has(k)) groups.set(k, []); groups.get(k).push(c); }
-    done++; if(onStep) onStep(done, plan.length);
-    const r = rank();
-    if(r.length){
-      if(knownUnit(rep(r[0]))) break;                                              // already on the register: settled
-      const n0 = groups.get(r[0]).length, n1 = r[1] ? groups.get(r[1]).length : 0;
-      /* two readings agree and nothing else is close: either fewer votes, or clearly less like a unit ID */
-      if(n0 >= 2 && (!r[1] || n0 > n1 || score(r[0]) - score(r[1]) >= 25)) break;
+/* Everything one scan has read so far. Readings that differ only by lookalike
+   characters count as the same ID and vote together; every fragment is kept as
+   well, because fragments are what a worn or half-covered ID leaves behind. */
+function newTally(){ return {groups: new Map(), texts: [], reads: [], passes: 0}; }
+function tallyAdd(T, text, oneLine){
+  T.texts.push(text); T.passes++;
+  const found = new Set(serialCandidates(text));
+  if(oneLine){ const whole = String(text).toUpperCase().replace(/[^A-Z0-9\-\/]/g, ""); if(alnum(whole).length >= 6) found.add(whole); }
+  for(const c of found){ const k = canonId(c); if(!T.groups.has(k)) T.groups.set(k, []); T.groups.get(k).push(c); }
+  const seen = new Set();
+  for(const line of String(text).toUpperCase().split(/\n+/)){
+    const parts = line.match(/[A-Z0-9]+(?:[-\/][A-Z0-9]+)*/g) || [];
+    for(const p of parts.concat(parts.length > 1 && parts.length <= 4 ? [parts.join("")] : [])){
+      const c = canonId(p);
+      if(c.length >= 5 && c.length <= 34 && !LABEL_WORDS.test(p) && !seen.has(c)){ seen.add(c); T.reads.push(c); }
     }
   }
-  const ranked = rank().map(rep);
-  return {id: ranked[0] || "", votes: ranked.length ? groups.get(canonId(ranked[0])).length : 0, ranked, passes: done, text: texts.join("\n")};
+}
+function tallyRank(T){
+  return [...T.groups.keys()].map(k => { const id = consensus(T.groups.get(k)), n = T.groups.get(k).length; return {id, n, s: scoreId(id, n)}; })
+    .sort((a, b) => b.s - a.s || b.id.length - a.id.length);
+}
+/* A reading that is the opening or middle of a longer ID on the register has lost characters. */
+function cutShort(id){
+  const c = canonId(id); if(c.length < 5) return false;
+  for(const key of knowledge().canon.keys()) if(key.length > c.length && key.includes(c)) return true;
+  return false;
+}
+function tallySettled(T){
+  const r = tallyRank(T); if(!r.length) return false;
+  if(knownUnit(r[0].id)) return true;                                              // already on the register
+  /* two readings agree and nothing else is close: either fewer votes, or clearly less like a unit ID */
+  return r[0].n >= 2 && !cutShort(r[0].id) && (!r[1] || r[0].n > r[1].n || r[0].s - r[1].s >= 25);
+}
+function tallyResult(T){
+  const r = tallyRank(T);
+  return {id: r.length ? r[0].id : "", votes: r.length ? r[0].n : 0, ranked: r.map(x => x.id), passes: T.passes, text: T.texts.join("\n")};
+}
+/* Read the picture several ways and let the readings vote — but stop the moment
+   the answer is settled. */
+async function ocrVote(plan, onStep, T){
+  T = T || newTally();
+  let done = 0;
+  for(const step of plan){
+    const mode = step.mode || "block", r = await runOcr(makeVariant(step.src, step.sp, step.charPx), mode);
+    tallyAdd(T, r.text, mode === "line");
+    done++; if(onStep) onStep(done, plan.length);
+    if(tallySettled(T)) break;
+  }
+  return T;
+}
+/* The strongest treatment of every frame runs before the weaker treatments of
+   any, so a scan that stops early still saw each photo. */
+function labelPlan(frames){
+  const f0 = frames[0], plan = frames.map(src => ({src, sp: OCR_SPECS[0]}));
+  plan.push({src: f0, sp: OCR_SPECS[1]});
+  if(frames.length === 1) plan.push({src: f0, sp: OCR_SPECS[2]});
+  plan.push({src: f0, sp: FLAT, mode: "sparse", charPx: Math.max(16, Math.round(f0.width / 42))}, {src: f0, sp: OCR_SPECS[3]});
+  return plan;
+}
+
+/* ---------- when only part of an ID can be read ---------- */
+function longestShared(a, b){
+  let best = 0, at = 0, prev = new Uint8Array(b.length + 1), cur = new Uint8Array(b.length + 1);
+  for(let i = 1; i <= a.length; i++){
+    for(let j = 1; j <= b.length; j++){
+      if(a[i - 1] === b[j - 1]){ cur[j] = prev[j - 1] + 1; if(cur[j] > best){ best = cur[j]; at = j - best; } } else cur[j] = 0;
+    }
+    const t = prev; prev = cur; cur = t;
+  }
+  return {len: best, at};
+}
+/* Which units on the register the fragments point to. A fragment counts for a
+   unit when it shares a run covering most of that unit's ID, and longer runs
+   count for far more. One unit is put forward only when it clearly leads;
+   when a whole family of IDs fits equally (TW2601JM000…) none is, because
+   picking one of those would be a guess. */
+function registerShortlist(reads){
+  const count = new Map(); for(const r of reads) count.set(r, (count.get(r) || 0) + 1);
+  const rows = [];
+  for(const [key, u] of knowledge().canon){
+    if(!u) continue;
+    const need = Math.max(6, Math.ceil(key.length * 0.6)); let s = 0, best = 0, at = 0, support = 0;
+    for(const [r, n] of count){
+      const m = longestShared(r, key); if(m.len < need) continue;
+      if(new Set(key.slice(m.at, m.at + m.len)).size < 4) continue;      // a run of zeros matches anything
+      s += n * Math.pow(m.len - 4, 3); support += n; if(m.len > best){ best = m.len; at = m.at; }
+    }
+    if(s) rows.push({u, s, best, at, support, key});
+  }
+  rows.sort((a, b) => b.s - a.s || b.best - a.best);
+  if(!rows.length) return {lead: null, close: [], seen: ""};
+  const top = rows[0], crowd = rows.filter(r => r.s >= top.s * 0.8).length;
+  if(crowd > 4) return {lead: null, close: [], seen: "", crowd};
+  const a = alnum(top.u.Title), seen = (top.at > 0 ? "…" : "") + a.slice(top.at, top.at + top.best) + (top.at + top.best < a.length ? "…" : "");
+  /* to lead, a unit must share a longer run with the readings than any other, not merely more of the same */
+  return {lead: !rows[1] || (top.s >= rows[1].s * 1.3 && top.best > rows[1].best) ? top : null, close: rows.filter(r => r.s >= top.s * 0.4).slice(0, 4), seen};
+}
+
+/* ---------- engraved, stamped or tilted IDs ----------
+   An ID cut into a casing is grey on grey and sits at whatever angle the part
+   was photographed. So: work out which way the part's edges run, look at the
+   photo turned each of the four ways that could put the text level, and stop
+   at the first that shows a word opening like an ID already on the register.
+   Then go back to the full-size photo and read a tight band along that word.
+   (The reader's own confidence is no guide on engraving — correct words often
+   score zero — so the register is what decides which way is up.) */
+function idAnchors(words){
+  const out = [], keys = [...knowledge().canon.keys()];
+  for(const w of words){
+    const a = alnum(w.t), c = canonId(a), wd = w.x1 - w.x0, ht = w.y1 - w.y0;
+    if(a.length < 4 || wd < 16 || ht < 7 || wd < ht) continue;
+    const open = c.slice(0, Math.min(c.length, 5)); let exp = 0;
+    for(const key of keys) if(key.startsWith(open)) exp = Math.max(exp, key.length);
+    if(exp) out.push({w, n: a.length, exp, rank: Math.min(c.length, 5) * 10 + a.length});
+  }
+  return out.sort((x, y) => y.rank - x.rank);
+}
+const FLAT_STRONG = {scale: 1.0, contrast: 1.0, flat: 0.5, gain: 7};
+async function deepRead(full, T, say, skew){
+  const turns = (Math.abs(skew) >= 4 ? [-skew] : []).concat([-skew + 90, -skew + 270, -skew + 180]);
+  let hit = null;
+  for(let i = 0; i < turns.length && !hit; i++){
+    say("Checking for an engraved or tilted ID (" + (i + 1) + " of " + turns.length + ")…");
+    const deg = turns[i], c = rotateCanvas(full, deg, OCR_MAX_W);
+    for(const sp of [OCR_SPECS[0], FLAT_STRONG]){                         // print first, then engraving
+      const r = await runOcr(makeVariant(c, sp, Math.round(Math.max(c.width, c.height) / 42)), "sparse");
+      tallyAdd(T, r.text, false);
+      if(tallySettled(T)) return true;
+      const an = idAnchors(r.words)[0];
+      if(an){ hit = {deg, c, an}; break; }
+    }
+  }
+  if(!hit) return false;
+  say("Found text that opens like a unit ID — reading it closely…");
+  /* The word gives the place, the angle and the size of the characters; the band
+     runs on for as many characters as the longest ID with that opening, with
+     room to spare: a character touching the edge of a picture is not read. */
+  const w = hit.an.w, cw = (w.x1 - w.x0) / hit.an.n, yc = (w.y0 + w.y1) / 2;
+  const p0 = unturn(full, hit.deg, hit.c, w.x0 - cw * 1.5, yc), p1 = unturn(full, hit.deg, hit.c, w.x0 + cw * (Math.max(hit.an.exp, hit.an.n) + 3), yc);
+  const h = Math.min(w.y1 - w.y0, cw * 1.6) / p0.k;
+  for(const [tall, sp, mode] of [[1.5, FLAT, "line"], [1.9, FLAT, "line"], [1.5, FLAT_STRONG, "line"], [1.9, FLAT_STRONG, "line"], [1.5, OCR_SPECS[0], "line"], [1.9, FLAT, "sparse"]]){
+    const outH = Math.max(64, Math.min(120, Math.round(h * tall))), band = extractBand(full, p0, p1, h * tall, outH);
+    const r = await runOcr(makeVariant(band, sp, outH * 0.55), mode);
+    tallyAdd(T, r.text, mode === "line");
+    if(knownUnit(tallyResult(T).id)) break;
+  }
+  return true;
 }
 async function tryBarcode(source){
   try{
@@ -1618,7 +1823,7 @@ async function openScan(target){
   SCAN.frames = null; SCAN.shot = ""; SCAN.vote = null; SCAN.label = null; SCAN.busy = false;
   const dlg = scanEl();
   dlg.innerHTML = '<div class="modal-head"><h2>' + esc(SCAN_TITLES[SCAN.target] || "Scan a unit label") + '</h2><button class="close-btn" data-scan-act="close" aria-label="Close scanner">×</button></div>' +
-    '<div class="modal-body"><p class="small-note" style="margin-bottom:10px">Fill the box with the label and hold steady. A barcode or QR is read at once; otherwise press Capture to read the printed ID.</p>' +
+    '<div class="modal-body"><p class="small-note" style="margin-bottom:10px">Fill the box with the label or the engraved ID and hold steady. A barcode or QR is read at once; otherwise press Capture to read the ID.</p>' +
     '<div class="scan-stage" id="scStage"><video id="scVid" playsinline muted autoplay></video><div class="scan-guide" id="scGuide"></div><img id="scShot" alt="Captured label" hidden></div>' +
     '<div class="scan-msg inf" id="scMsg">Starting the camera…</div><div id="scFields"></div></div>' +
     '<div class="modal-actions" id="scBtns"></div><input type="file" id="scFile" accept="image/*" hidden>';
@@ -1638,7 +1843,7 @@ async function openScan(target){
     const caps = SCAN.track.getCapabilities ? SCAN.track.getCapabilities() : {};
     if(caps && caps.torch) document.getElementById("scTorch").hidden = false;
     document.getElementById("scCap").disabled = false;
-    scanSay("Line the label up inside the box, then Capture.", "inf");
+    scanSay("Line the ID up inside the box, then Capture.", "inf");
     if("BarcodeDetector" in window){
       /* Watch for a barcode or QR while aiming: when one is there, no photo is needed. */
       clearInterval(SCAN.loop);
@@ -1701,7 +1906,8 @@ async function scanCapture(){
      character lost in one is often clean in another. */
   const frames = [cropToGuide(v)];
   for(let i = 0; i < 2; i++){ await sleep(90); frames.push(cropToGuide(v)); }
-  showShot(frames[0]); stopCamera();
+  /* The whole frame is what is shown and kept: an ID just outside the box can still be marked on it. */
+  showShot(full); stopCamera();
   await readFrames(full, frames);
 }
 async function scanFile(file){
@@ -1716,61 +1922,107 @@ async function scanFile(file){
   }catch(e){ SCAN.busy = false; scanSay("<b>That photo could not be opened.</b> " + esc(e.message), "err"); }
 }
 const SCAN_RETRY = '<button data-scan-act="again">Scan again</button><button data-scan-act="file">Choose photo</button><button data-scan-act="close">Cancel</button>';
+function scanReaderFailed(e){
+  SCAN.busy = false;
+  scanSay("<b>The text reader could not run.</b> " + esc(e.message) + '<div class="small-note">It needs a connection the first time it is used on a device. Type the ID instead, or try again.</div>', "err");
+  scanButtons(SCAN_RETRY);
+}
 async function readFrames(full, frames){
-  const mine = SCAN.session;
+  const mine = SCAN.session, say = t => { if(mine === SCAN.session) scanSay(esc(t), "inf"); };
   SCAN.frames = frames; SCAN.vote = null; SCAN.label = null;
   scanButtons('<button data-scan-act="close">Cancel</button>');
-  scanSay("Looking for a barcode…", "inf");
+  say("Looking for a barcode…");
   const code = await tryBarcode(full);
   if(mine !== SCAN.session) return;
   if(code){ SCAN.busy = false; return showScanResult({id: code}, "barcode"); }
-  scanSay("No barcode on this label — reading the text…", "inf");
+  say("No barcode here — reading the text…");
   try{
-    const res = await ocrVote(labelPlan(frames), d => { if(mine === SCAN.session) scanSay(d === 1 ? "Reading the label…" : "Checking the reading — pass " + (d + 1) + "…", "inf"); });
-    if(mine !== SCAN.session) return;
-    SCAN.busy = false; SCAN.vote = res; SCAN.label = parseLabel(res.text);
-    if(!res.id){
-      scanSay("<b>Could not find an ID on the label.</b> Try again with more light and the label filling the box, or ring just the ID on this photo.", "err");
-      return scanButtons('<button class="primary" data-scan-act="ring">Ring just the ID</button>' + SCAN_RETRY);
+    const T = newTally(), skew = dominantSkew(full), straight = () => ocrVote(labelPlan(frames), d => say(d === 1 ? "Reading the label…" : "Checking the reading — pass " + (d + 1) + "…"), T);
+    /* Nothing, one unconvincing reading, or one that has lost characters: the ID may be engraved or lying at an angle. */
+    const doubtful = () => { const f = tallyRank(T)[0]; return !f || (!knownUnit(f.id) && ((f.n <= 1 && !prefixKnown(f.id)) || cutShort(f.id) || !!lengthNote(f.id))); };
+    if(Math.abs(skew) >= 10){
+      /* Plainly photographed at an angle: reading it as it lies would only waste time, so level it first. */
+      const close = await deepRead(full, T, say, skew);
+      if(mine !== SCAN.session) return;
+      if(!close && !tallySettled(T)) await straight();
+    }else{
+      await straight();
+      if(mine !== SCAN.session) return;
+      if(doubtful()) await deepRead(full, T, say, skew);
     }
-    showScanResult({id: res.id, votes: res.votes}, "text");
-  }catch(e){
     if(mine !== SCAN.session) return;
-    SCAN.busy = false;
-    scanSay("<b>The text reader could not run.</b> " + esc(e.message) + '<div class="small-note">It needs a connection the first time it is used on a device. Type the ID instead, or try again.</div>', "err");
-    scanButtons(SCAN_RETRY);
-  }
+    finishRead(T, true);
+  }catch(e){ if(mine === SCAN.session) scanReaderFailed(e); }
+}
+/* Decide what the readings amount to: a unit on the register, a new ID, part
+   of an ID with the register's closest units, or nothing. */
+function finishRead(T, whole){
+  const res = tallyResult(T);
+  SCAN.busy = false; SCAN.vote = res; if(whole) SCAN.label = parseLabel(res.text);
+  const st = document.getElementById("scStage"); if(st) st.hidden = false;
+  if(res.id && knownUnit(res.id)) return showScanResult({id: res.id, votes: res.votes}, "text");
+  const part = registerShortlist(T.reads), cut = !!res.id && cutShort(res.id), some = part.lead || part.close.length;
+  /* A reading that is not on the register, while units very like it are: treat it as incomplete when it is cut
+     short, the wrong length for its family, or seen only once against several fragments pointing at one unit. */
+  if(some && (!res.id || cut || lengthNote(res.id) || (res.votes <= 1 && part.lead && part.lead.support >= 2))) return showScanResult({id: res.id, votes: res.votes, part}, "partial");
+  if(res.id) return showScanResult({id: res.id, votes: res.votes, part}, "text");
+  document.getElementById("scFields").innerHTML = "";
+  scanSay(whole ? "<b>Could not find an ID in this photo.</b> Try again closer, with more light and the ID running left to right in the box — or mark where the ID is on this photo."
+    : "<b>Nothing readable along that line.</b> Mark it again from the first character to the last, or type the ID.", "err");
+  scanButtons('<button class="primary" data-scan-act="mark">Mark the ID</button>' + SCAN_RETRY);
 }
 
 /* ---------- confirm before anything is used ---------- */
+/* Shorter than every ID of its family on the register: characters were probably lost. (Longer is left alone — a new batch may run longer.) */
+function lengthNote(id){
+  const k = knowledge(), a = alnum(id), p = canonId(a).slice(0, 3);
+  if(!prefixKnown(id)) return "";
+  const lens = [...k.lens].filter(x => x.startsWith(p + ":")).map(x => +x.split(":")[1]).sort((x, y) => x - y);
+  return lens.length && a.length < lens[0] ? "Similar units on the register have " + lens.join(" or ") + " characters; this has " + a.length + "." : "";
+}
 function showScanResult(got, how){
   SCAN.busy = false;
-  const read = got.id, exact = D.byTitle.get(read), unit = exact || knownUnit(read);
-  const fix = unit || how === "barcode" ? {id: read, changed: false, notes: [], suggest: ""} : patternFix(read);
-  const id = unit ? unit.Title : fix.id, snapped = unit && !exact;
+  const read = got.id || "", part = got.part || {lead: null, close: [], seen: ""}, partial = how === "partial";
+  const exact = D.byTitle.get(read), unit = partial ? null : exact || knownUnit(read);
+  const fix = unit || partial || how === "barcode" ? {id: read, changed: false, notes: [], suggest: ""} : patternFix(read);
+  const snapped = unit && !exact, lead = part.lead ? part.lead.u.Title : "";
+  /* A partial read is never put in the box itself: it would be registered or searched as if whole. Registering is
+     for units that are NOT on the register, so the closest existing unit is not put there either — only offered. */
+  const id = unit ? unit.Title : partial ? (SCAN.target === "reg" ? "" : lead) : fix.id;
   const alts = [];
   const add = (v, why) => { if(v && v !== id && !alts.some(a => a.v === v)) alts.push({v, why}); };
   if(how !== "barcode"){
     if(snapped || fix.changed) add(read, "exactly as read");
-    if(!unit){ add(fix.suggest, "fits similar units"); nearUnits(id).forEach(t => add(t, "on the register, one character different")); }
+    if(partial){ add(lead, "closest on the register"); add(read, "as read — may be incomplete"); }
+    part.close.forEach(r => add(r.u.Title, "also close on the register"));
+    if(!unit && !partial){ add(fix.suggest, "fits similar units"); nearUnits(id).forEach(t => add(t, "on the register, one character different")); }
     ((SCAN.vote && SCAN.vote.ranked) || []).slice(0, 4).forEach(t => add(t, "another reading"));
   }
-  const weak = how === "text" && !unit && (got.votes || 0) <= 1, warn = how !== "barcode" && !unit ? confusables(id) : "";
+  const weak = how === "text" && !unit && (got.votes || 0) <= 1, warn = how !== "barcode" && !unit && !partial ? confusables(id) : "";
+  const odd = how === "text" && !unit ? lengthNote(id) : "", lost = how === "text" && !unit && (!!odd || cutShort(id));
+  const fits = part.close.map(r => r.u.Title);
+  /* Moving or finding needs a unit that IS on the register: a reading that is not, with near matches that are, is said plainly. */
+  const stray = how === "text" && !unit && SCAN.target !== "reg" && fits.length > 0;
   scanSay(how === "barcode" ? "<b>Barcode read.</b> Check it matches the unit before continuing."
+    : partial ? "<b>Only part of the ID could be read</b>" + (part.seen ? " — " + esc(part.seen) : "") + ". " +
+        (lead ? "The closest unit on the register is <b>" + esc(lead) + "</b>." : "Units on the register that fit: " + esc(fits.join(", ")) + ".") +
+        (SCAN.target === "reg" ? " Check the unit itself and type the characters that are missing." : " Check the remaining characters on the unit itself before using it.")
     : snapped ? "<b>Matched to a unit on the register.</b> Read as " + esc(read) + ", which matches <b>" + esc(id) + "</b>."
     : unit ? "<b>Read, and found on the register.</b>"
-    : (weak ? "<b>Read, but only one pass produced this.</b> Check every character against the label, or scan again."
+    : (lost ? "<b>Read, but it looks incomplete.</b> " + esc(odd || "Longer IDs on the register start exactly like this.") + " Check it against the unit, or mark the ID on the photo."
+       : weak ? "<b>Read, but only one pass produced this.</b> Check every character against the label, or scan again."
             : "<b>Read from the label</b>" + (got.votes ? " (" + got.votes + " readings agreed)" : "") + ". Check it against the label.") +
-      (fix.changed ? " Adjusted: " + esc(fix.notes.join("; ")) + ". It was read as " + esc(read) + "." : ""), weak ? "err" : "ok");
+      (fix.changed ? " Adjusted: " + esc(fix.notes.join("; ")) + ". It was read as " + esc(read) + "." : "") +
+      (stray ? " <b>This ID is not on the register</b> — the closest units on it are listed below." : ""), partial || stray || lost ? "warn" : weak ? "err" : "ok");
   const lab = SCAN.label || {}, extra = [lab.cat, lab.oem, lab.model && ("model " + lab.model)].filter(Boolean);
   document.getElementById("scFields").innerHTML =
-    '<label class="field" style="margin-top:12px">Unit ID<input id="scId" class="scan-id" maxlength="100" autocapitalize="characters" autocomplete="off" spellcheck="false" value="' + esc(id) + '"></label>' +
+    '<label class="field" style="margin-top:12px">Unit ID<input id="scId" class="scan-id" maxlength="100" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="' + (partial ? "Pick one below, or type the ID" : "") + '" value="' + esc(id) + '"></label>' +
     '<p class="small-note" id="scKnown" style="margin-top:6px"></p>' +
     (warn ? '<p class="small-note" style="color:#96752c">Contains ' + esc(warn) + ' — the characters a reader most often confuses. Check them against the label.</p>' : '') +
-    (alts.length ? '<div class="scan-alts"><span class="small-note">Other readings:</span>' + alts.slice(0, 5).map(a => '<button data-scan-alt="' + esc(a.v) + '" title="' + esc(a.why) + '">' + esc(a.v) + '<small>' + esc(a.why) + '</small></button>').join("") + '</div>' : '') +
+    (alts.length ? '<div class="scan-alts"><span class="small-note">' + (partial ? "Other possibilities:" : "Other readings:") + '</span>' + alts.slice(0, 5).map(a => '<button data-scan-alt="' + esc(a.v) + '" title="' + esc(a.why) + '">' + esc(a.v) + '<small>' + esc(a.why) + '</small></button>').join("") + '</div>' : '') +
     (SCAN.target === "reg" && extra.length ? '<p class="small-note" style="margin-top:8px">Also read from the label: ' + esc(extra.join(" · ")) + '.</p>' : '');
   scanKnownNote();
-  scanButtons('<button class="primary" data-scan-act="use">Use this ID</button>' + (SCAN.shot && how !== "barcode" ? '<button data-scan-act="ring">Ring just the ID</button>' : '') + '<button data-scan-act="again">Scan again</button><button data-scan-act="close">Cancel</button>');
+  scanButtons('<button class="primary" data-scan-act="use">Use this ID</button>' + (SCAN.shot && how !== "barcode" ? '<button data-scan-act="mark">Mark the ID</button>' : '') + '<button data-scan-act="again">Scan again</button><button data-scan-act="close">Cancel</button>');
 }
 function scanKnownNote(){
   const box = document.getElementById("scKnown"), inp = document.getElementById("scId"); if(!box || !inp) return;
@@ -1778,52 +2030,73 @@ function scanKnownNote(){
   box.textContent = u ? "On the register: " + (u.stage === "other" ? (u.Availability || "no status") : STAGES[u.stage]) + " · " + (u.CurrentLocation || "no location") + "."
     : inp.value.trim() ? "Not on the register yet." : "";
 }
-/* When the whole-label read fails, ring just the ID: a tight crop read as a
-   single line with a strict character set is the most accurate pass there is. */
+/* When the whole-photo read is wrong or finds nothing, the user shows where
+   the ID is by dragging along it, first character to last. A line (not a box)
+   because it also gives the angle: the band under it is turned level and read
+   as one line with a strict character set — the most accurate pass there is,
+   and the only one that needs no guessing about which way is up. */
 function scanPickId(){
   if(!SCAN.shot) return toast("Capture a photo first.", true);
-  SCAN.box = null;
+  SCAN.mark = null;
   document.getElementById("scStage").hidden = true;
-  document.getElementById("scFields").innerHTML = '<div class="scan-pick" id="pkWrap"><img id="pkImg" alt="Captured label" src="' + SCAN.shot + '"><div id="pkBox" hidden></div></div>';
-  scanSay("Drag a box around the unit ID only — nothing else.", "inf");
-  scanButtons('<button class="primary" data-scan-act="readbox" id="pkGo" disabled>Read this</button><button data-scan-act="again">Scan again</button><button data-scan-act="close">Cancel</button>');
-  const wrap = document.getElementById("pkWrap"), box = document.getElementById("pkBox");
-  let sx = 0, sy = 0, drag = false;
+  document.getElementById("scFields").innerHTML = '<div class="scan-pick" id="pkWrap"><img id="pkImg" alt="Captured photo" src="' + SCAN.shot + '"><div id="pkBand" hidden></div></div>';
+  scanSay("Drag along the ID, from its first character to its last. It can run at any angle.", "inf");
+  scanButtons('<button class="primary" data-scan-act="readmark" id="pkGo" disabled>Read this</button><button data-scan-act="again">Scan again</button><button data-scan-act="close">Cancel</button>');
+  const wrap = document.getElementById("pkWrap"), band = document.getElementById("pkBand");
+  let sx = 0, sy = 0, last = null, drag = false;
   const pt = e => { const r = wrap.getBoundingClientRect(); return {x: Math.max(0, Math.min(r.width, e.clientX - r.left)), y: Math.max(0, Math.min(r.height, e.clientY - r.top))}; };
-  wrap.addEventListener("pointerdown", e => { const p = pt(e); sx = p.x; sy = p.y; drag = true; wrap.setPointerCapture(e.pointerId);
-    box.hidden = false; box.style.left = sx + "px"; box.style.top = sy + "px"; box.style.width = "0px"; box.style.height = "0px"; e.preventDefault(); });
-  wrap.addEventListener("pointermove", e => { if(!drag) return; const p = pt(e);
-    box.style.left = Math.min(sx, p.x) + "px"; box.style.top = Math.min(sy, p.y) + "px"; box.style.width = Math.abs(p.x - sx) + "px"; box.style.height = Math.abs(p.y - sy) + "px"; });
+  const draw = p => {
+    const dx = p.x - sx, dy = p.y - sy, len = Math.hypot(dx, dy), h = Math.max(14, len * 0.2);
+    band.hidden = false; band.style.left = sx + "px"; band.style.top = (sy - h / 2) + "px"; band.style.width = len + "px"; band.style.height = h + "px";
+    band.style.transform = "rotate(" + Math.atan2(dy, dx) + "rad)";
+  };
+  wrap.addEventListener("pointerdown", e => { const p = pt(e); sx = p.x; sy = p.y; last = p; drag = true; wrap.setPointerCapture(e.pointerId); draw(p); e.preventDefault(); });
+  wrap.addEventListener("pointermove", e => { if(!drag) return; last = pt(e); draw(last); });
   const up = () => { if(!drag) return; drag = false;
-    SCAN.box = {l: parseFloat(box.style.left), t: parseFloat(box.style.top), w: parseFloat(box.style.width), h: parseFloat(box.style.height), cw: wrap.clientWidth, ch: wrap.clientHeight};
-    document.getElementById("pkGo").disabled = !(SCAN.box.w > 12 && SCAN.box.h > 8); };
+    SCAN.mark = {x0: sx, y0: sy, x1: last.x, y1: last.y, cw: wrap.clientWidth, ch: wrap.clientHeight};
+    document.getElementById("pkGo").disabled = Math.hypot(last.x - sx, last.y - sy) < 36; };
   wrap.addEventListener("pointerup", up); wrap.addEventListener("pointercancel", up);
 }
-async function scanReadBox(){
-  const b = SCAN.box; if(!b || SCAN.busy) return;
+/* The reader is most accurate with characters around 40-60 pixels tall, so the
+   band is brought to that size, never blown up further. Several band widths are
+   tried because the line says how long the ID is, not how tall. */
+const MARK_PLAN = [[0.22, FLAT, "line"], [0.16, FLAT, "line"], [0.22, OCR_SPECS[0], "block"], [0.12, OCR_SPECS[0], "line"], [0.22, FLAT_STRONG, "line"],
+  [0.16, OCR_SPECS[0], "line"], [0.3, FLAT, "sparse"], [0.09, OCR_SPECS[0], "line"]];
+async function readAlong(src, p0, p1, plan){
+  const T = newTally(), len = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+  for(const [tall, sp, mode] of plan){
+    const h = Math.max(10, len * tall), outH = Math.max(64, Math.min(120, Math.round(h)));
+    const r = await runOcr(makeVariant(extractBand(src, p0, p1, h, outH), sp, outH * 0.55), mode);
+    tallyAdd(T, r.text, mode === "line");
+    if(tallySettled(T)) break;
+  }
+  const top = tallyRank(T)[0], part = registerShortlist(T.reads);
+  T.worth = (top ? top.s : 0) + (part.close.length ? 60 + part.close[0].best : 0);
+  /* Crisp print read upside down gives nonsense that repeats, so agreement alone proves nothing about direction: only the register does. */
+  T.sure = !!top && (!!knownUnit(top.id) || prefixKnown(top.id)) || (part.close.length > 0 && part.close[0].best >= Math.max(7, part.close[0].key.length * 0.7));
+  return T;
+}
+async function scanReadMark(){
+  const m = SCAN.mark; if(!m || SCAN.busy) return;
   SCAN.busy = true; const mine = SCAN.session;
-  scanSay("Reading…", "inf");
+  scanSay("Reading along the line…", "inf");
   try{
-    const img = document.getElementById("pkImg"), kx = img.naturalWidth / b.cw, ky = img.naturalHeight / b.ch;
-    const pad = Math.round(b.h * ky * 0.15), sw = b.w * kx + pad * 2, sh = b.h * ky + pad * 2;
-    /* The reader is most accurate with characters around 40-60 pixels tall;
-       blowing a tight crop up further makes it worse, not better. */
-    const crop = tall => {
-      const scale = Math.min(tall / sh, 1700 / sw), c = document.createElement("canvas");
-      c.width = Math.max(8, Math.round(sw * scale)); c.height = Math.max(8, Math.round(sh * scale));
-      const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.imageSmoothingQuality = "high";
-      g.drawImage(img, b.l * kx - pad, b.t * ky - pad, sw, sh, 0, 0, c.width, c.height);
-      return c;
-    };
-    const small = crop(80), large = crop(120), sp = OCR_SPECS[0];
-    const res = await ocrVote([{src: large, sp, oneLine: true}, {src: small, sp, oneLine: false}, {src: small, sp, oneLine: true},
-      {src: large, sp, oneLine: false}, {src: large, sp: OCR_SPECS[3], oneLine: true}]);
+    const img = document.getElementById("pkImg"), kx = img.naturalWidth / m.cw, ky = img.naturalHeight / m.ch;
+    const src = document.createElement("canvas"); src.width = img.naturalWidth; src.height = img.naturalHeight; src.getContext("2d").drawImage(img, 0, 0);
+    /* a little past both ends, so a first or last character under the fingertip is not clipped */
+    const ax = m.x0 * kx, ay = m.y0 * ky, bx = m.x1 * kx, by = m.y1 * ky, ex = (bx - ax) * 0.1, ey = (by - ay) * 0.1;
+    const a = {x: ax - ex, y: ay - ey}, b = {x: bx + ex, y: by + ey};
+    let T = await readAlong(src, a, b, MARK_PLAN);
     if(mine !== SCAN.session) return;
-    SCAN.busy = false; SCAN.vote = res;
-    document.getElementById("scStage").hidden = false;
-    if(!res.id){ scanPickId(); return scanSay("<b>Nothing readable in that box.</b> Ring it again a little wider, or type the ID.", "err"); }
-    showScanResult({id: res.id, votes: res.votes}, "text");
-  }catch(e){ SCAN.busy = false; scanSay("Could not read that area — " + esc(e.message), "err"); }
+    if(!T.sure){
+      /* Nothing convincing: the line may have been drawn from the last character back to the first. */
+      const R = await readAlong(src, b, a, MARK_PLAN);
+      if(mine !== SCAN.session) return;
+      if(R.worth >= T.worth + 30) T = R;
+    }
+    finishRead(T, false);
+    if(!document.getElementById("scId")) scanPickId(), scanSay("<b>Nothing readable along that line.</b> Mark it again from the first character to the last, or type the ID.", "err");
+  }catch(e){ if(mine === SCAN.session) scanReaderFailed(e); }
 }
 function scanUse(){
   const inp = document.getElementById("scId"), id = inp ? inp.value.trim() : "";
@@ -1862,8 +2135,8 @@ function scanAct(act){
     case "torch": scanTorch(); break;
     case "file": document.getElementById("scFile").click(); break;
     case "again": openScan(SCAN.target); break;
-    case "ring": scanPickId(); break;
-    case "readbox": scanReadBox(); break;
+    case "mark": scanPickId(); break;
+    case "readmark": scanReadMark(); break;
     case "use": scanUse(); break;
   }
 }
