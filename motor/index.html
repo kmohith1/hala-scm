@@ -1890,7 +1890,7 @@ async function tryBarcode(source){
      never swapped for a unit that is. */
 const RD_STORE = "hala_motor_reader";
 const RD = {host: "https://generativelanguage.googleapis.com/v1beta", keyPage: "https://aistudio.google.com/apikey",
-  models: ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-2.5-flash"]};
+  models: ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-3.5-flash"]};
 const RD_ASK = "This is a photo of a part of an electric two-wheeler in a warehouse: a hub motor or a motor controller.\n" +
   "Find the unit's own ID (serial number). It is one code of about 8 to 22 capital letters and digits, sometimes with hyphens, " +
   "shaped like ABCD1EFG2345, XY2601AB0001234 or AB-0925-40W-CD01234. It is often engraved or stamped into the metal casing, " +
@@ -1929,14 +1929,16 @@ function readerTrouble(e){
   if(e.status === 403) return "Google refused the key for this service.";
   return "Google answered: " + m.slice(0, 160);
 }
-/* The Flash models this key can use, best first: full before lite, released before preview, newest before older. */
+/* The Flash models this key can use, in the order to try them. Reading an ID is a small job that has to come back in
+   a couple of seconds, so the light ("lite") models go first, newest first; then the full ones, oldest first — on the
+   free plan the newest full models are the slowest to answer and the first to run out of allowance. After that the
+   order looks after itself: a model that answers moves to the front, one that fails moves to the back. */
 async function readerModels(key){
   const j = await readerCall("/models?pageSize=1000", key, null, 20000);
   const ok = (j.models || []).filter(m => !m.supportedGenerationMethods || m.supportedGenerationMethods.includes("generateContent"))
-    .map(m => String(m.name || "").replace(/^models\//, "")).filter(n => /^gemini-\d+(\.\d+)?-flash(-lite)?(-preview)?$/.test(n));
-  const ver = n => parseFloat(n.split("-")[1]) || 0, has = (n, w) => n.includes(w) ? 1 : 0;
-  ok.sort((a, b) => has(a, "preview") - has(b, "preview") || has(a, "lite") - has(b, "lite") || ver(b) - ver(a));
-  return ok.slice(0, 5);
+    .map(m => String(m.name || "").replace(/^models\//, "")).filter(n => /^gemini-\d+(\.\d+)?-flash(-lite)?$/.test(n));
+  const ver = n => parseFloat(n.split("-")[1]) || 0, lite = ok.filter(n => n.endsWith("-lite")).sort((a, b) => ver(b) - ver(a)), full = ok.filter(n => !n.endsWith("-lite")).sort((a, b) => ver(a) - ver(b));
+  return lite.concat(full).slice(0, 8);
 }
 function readerPicture(canvas, side){
   const k = Math.min(1, side / Math.max(canvas.width, canvas.height));
@@ -1952,27 +1954,43 @@ function readerReply(text){
   if(!o || typeof o !== "object") return {ids: serialCandidates(t), text: t};          // not the form asked for: take what is ID-shaped
   return {ids: (Array.isArray(o.ids) ? o.ids : [o.ids]).filter(x => typeof x === "string" && x.trim()).slice(0, 6), text: typeof o.text === "string" ? o.text : ""};
 }
-/* Ask for the ID in a picture. Tries the models this key can use in turn when one is missing, busy or out of allowance. */
+/* How a model is asked, most demanding first. All ask for a strict answer form and a close look at fine detail, and
+   differ in how the model is told not to deliberate (which would cost many seconds for no gain here); models differ
+   in which wording they accept, so a refused form falls to the next and the one that works is remembered. */
+const RD_STRICT = {temperature: 0, response_mime_type: "application/json", response_schema: RD_SHAPE, media_resolution: "MEDIA_RESOLUTION_HIGH"};
+const RD_FORMS = [Object.assign({thinkingConfig: {thinkingLevel: "minimal"}}, RD_STRICT), Object.assign({thinkingConfig: {thinkingBudget: 0}}, RD_STRICT), RD_STRICT, {temperature: 0}];
+const readerSave = cfg => lsSet(RD_STORE, JSON.stringify(cfg));
+/* Ask for the ID in a picture. A model gets a few seconds; one that is slow, busy, missing or out of allowance is
+   passed over for the next, and the whole attempt gives up after half a minute so the built-in reader can take over. */
 async function readerAsk(canvas){
-  const cfg = readerCfg(); if(!cfg) throw new Error("no key");
-  const parts = [{text: RD_ASK}, {inline_data: {mime_type: "image/jpeg", data: readerPicture(canvas, 2000)}}];
-  /* "rich" asks for a strict answer form and a close look at fine detail; a model that does not take those settings is asked plainly. */
-  const rich = {temperature: 0, response_mime_type: "application/json", response_schema: RD_SHAPE, media_resolution: "MEDIA_RESOLUTION_HIGH"}, plain = {temperature: 0};
-  const models = cfg.models && cfg.models.length ? cfg.models : RD.models;
-  let last = null;
-  for(const model of models){
-    for(const gen of (cfg.plain ? [plain] : [rich, plain])){
+  let cfg = readerCfg(); if(!cfg) throw new Error("no key");
+  if(cfg.v !== 2){                                                              // saved by an earlier version: choose the models afresh
+    let models = []; try{ models = await readerModels(cfg.key); }catch(e){}
+    cfg = {v: 2, key: cfg.key, models: models.length ? models : RD.models, how: {}}; readerSave(cfg);
+  }
+  const parts = [{text: RD_ASK}, {inline_data: {mime_type: "image/jpeg", data: readerPicture(canvas, 2000)}}], until = Date.now() + 32000;
+  let models = cfg.models.slice(), last = null;
+  const settle = (model, ok, form) => {                                       // answered: to the front; failed: to the back
+    models = ok ? [model].concat(models.filter(m => m !== model)) : models.filter(m => m !== model).concat([model]);
+    const how = Object.assign({}, cfg.how); if(ok) how[model] = form;
+    cfg = Object.assign({}, cfg, {models, how}); readerSave(cfg);
+  };
+  for(const model of cfg.models){
+    for(let form = cfg.how[model] || 0; form < RD_FORMS.length; form++){
+      const left = until - Date.now(); if(left < 3000) throw last || new Error("no answer in time");
       try{
-        const j = await readerCall("/models/" + encodeURIComponent(model) + ":generateContent", cfg.key, {contents: [{parts}], generationConfig: gen}, 40000);
+        const j = await readerCall("/models/" + encodeURIComponent(model) + ":generateContent", cfg.key, {contents: [{parts}], generationConfig: RD_FORMS[form]}, Math.min(12000, left));
         const text = ((((j.candidates || [])[0] || {}).content || {}).parts || []).map(p => p.text || "").join("");
-        if(model !== models[0] || (gen === plain && !cfg.plain)) lsSet(RD_STORE, JSON.stringify(Object.assign({}, cfg, {models: [model].concat(models.filter(m => m !== model)), plain: gen === plain})));
+        if(model !== cfg.models[0] || cfg.how[model] !== form) settle(model, true, form);
         return readerReply(text);
       }catch(e){
         last = e;
-        if(!(e.status === 400 && !badKey(e) && gen === rich)) break;
+        if(e.status === 400 && !badKey(e)) continue;                            // a form this model does not take
+        break;
       }
     }
-    if(badKey(last) || ![400, 404, 429, 500, 503].includes(last.status)) break;
+    if(badKey(last) || last.status === 403) break;                              // the key itself: no other model will do better
+    settle(model, false);
   }
   throw last;
 }
@@ -2008,7 +2026,7 @@ async function scanReaderSave(){
   scanSay("Checking the key with Google…", "inf");
   try{
     let models = []; try{ models = await readerModels(key); }catch(e){ if(e.status !== 404) throw e; }
-    lsSet(RD_STORE, JSON.stringify({key, models: models.length ? models : RD.models, plain: false}));
+    readerSave({v: 2, key, models: models.length ? models : RD.models, how: {}});
     SCAN.busy = false;
     scanReaderPanel("<b>Working.</b> The online reader is on for this device, using " + esc((models.length ? models : RD.models)[0]) + ".", "ok");
   }catch(e){ SCAN.busy = false; scanSay("<b>The key was not saved.</b> " + esc(readerTrouble(e)), "err"); }
@@ -2189,10 +2207,11 @@ function finishRead(T, whole, texts, searched, online){
   if(res.id && knownUnit(res.id)) return showScanResult({id: res.id, votes: res.votes, online}, "text");
   const part = registerShortlist(T.reads), some = part.lead || part.close.length;
   const cut = !!res.id && cutShort(res.id), short = !!res.id && !!lengthNote(res.id);
-  /* A whole ID from the online reader stands as read: it is offered the close units, never replaced by one. */
-  if(online && res.id && !cut && !short) return showScanResult({id: res.id, votes: res.votes, part, online}, "text");
+  /* A whole ID from the online reader stands as read and is only offered the close units — except when finding or
+     moving a unit, which must be on the register: there a reading one character off an existing unit is that unit. */
+  if(online && res.id && !cut && !short && !(part.near && SCAN.target !== "reg")) return showScanResult({id: res.id, votes: res.votes, part, online}, "text");
   /* Nearly the whole of one unit's ID was seen, and there is no clean reading to set against it. */
-  if(part.near && (!res.id || cut || short || res.votes <= 1 || !prefixKnown(res.id))) return showScanResult({id: res.id, votes: res.votes, part}, "near");
+  if(part.near && (online || !res.id || cut || short || res.votes <= 1 || !prefixKnown(res.id))) return showScanResult({id: res.id, votes: res.votes, part}, "near");
   /* A reading that is not on the register, while units very like it are: treat it as incomplete when it is cut
      short, the wrong length for its family, or was seen only once — except that when registering, a single
      reading stands unless one existing unit clearly fits it. */
