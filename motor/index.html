@@ -73,6 +73,13 @@ td.wrap{white-space:normal;min-width:220px}
 #pkBand{position:absolute;transform-origin:0 50%;border:2px solid #fff;border-radius:3px;background:rgba(47,143,121,.3);box-shadow:0 0 0 1px rgba(0,0,0,.55);pointer-events:none}
 #scanner .modal-actions{flex-wrap:wrap}
 @media(max-width:760px){.filters select{flex:1 1 40%}.mv-form{grid-template-columns:1fr;padding:18px 16px}.busybar{padding:10px 16px}input,select,textarea{font-size:16px}.filters input,.filters select{font-size:16px}label.field input,label.field select,label.field textarea{font-size:16px}}
+.mode-tabs{margin:0 0 18px}.mode-tabs .chip{font-weight:600}
+.lot-groups{display:flex;align-items:center;gap:12px;padding:16px 23px 0;flex-wrap:wrap}.lot-groups .chips{margin:0}
+.lot-table select,.lot-table input{height:38px;font-size:12px;width:100%;min-width:130px;padding-top:0;padding-bottom:0}.lot-table td{padding-top:11px;padding-bottom:11px;vertical-align:middle}
+.lot-table td:nth-child(4){min-width:220px}.lot-table button{padding:8px 14px;font-size:12px}
+.unit-sub.repeat{color:#96752c;font-weight:600}
+@media(max-width:760px){.lot-groups{padding:14px 16px 0}.lot-table select,.lot-table input{font-size:16px}}
+.chip.active:hover:not(:disabled){background:var(--deep);color:#fff}
 </style>
 </head>
 <body>
@@ -306,7 +313,7 @@ const filterEq = (col, v) => "$filter=" + encodeURIComponent(col + " eq " + odq(
    ============================================================ */
 const ITEM_COLS = "Id,Title,ItemType,OEMMake,Model,SerialNo,DateFirstReceived,WarrantyStart,WarrantyMonths,CurrentLocation,Availability,LastMovementDate,LastTestDate,LatestTestResult,TimesInspected,TimesClaimed,AtJeedimetla,Condition";
 const CLAIM_COLS = "Id,Title,ItemID,ItemType,OEMSupplier,FaultReported,DateSentToOEM,DocketNo,WarrantyAtDespatch,ClaimStatus,Resolution,ReplacementSerial,DC_x0020_Number,DC_x0020_URL,DC_x0020_Generated_x0020_Date,Created";
-const D = {units: [], claims: [], byTitle: new Map(), latestClaim: new Map(), loaded: false, lastLoad: 0, loadSecs: "",
+const D = {units: [], claims: [], tested: new Map(), byTitle: new Map(), latestClaim: new Map(), loaded: false, lastLoad: 0, loadSecs: "",
   locations: [], reasons: [], oems: [], itemTypes: [], recentMoves: null, activity: null, error: ""};
 
 function stageOf(u){
@@ -326,11 +333,14 @@ function reindex(){
   for(const c of D.claims){ const p = D.latestClaim.get(c.ItemID); if(!p || c.Id > p.Id) D.latestClaim.set(c.ItemID, c); }
 }
 async function loadCore(){
-  const [items, claims] = await Promise.all([
+  const [items, claims, tests] = await Promise.all([
     listAll(L("Items") + "/items?$select=" + ITEM_COLS + "&$top=5000"),
     listAll(L("Claims") + "/items?$select=" + CLAIM_COLS + "&$top=5000"),
+    listAll(L("Inspections") + "/items?$select=ItemID&$top=5000"),
   ]);
-  D.units = items; D.claims = claims; reindex(); D.lastLoad = Date.now();
+  D.units = items; D.claims = claims; D.tested = new Map();
+  for(const t of tests) if(t.ItemID) D.tested.set(t.ItemID, (D.tested.get(t.ItemID) || 0) + 1);
+  reindex(); D.lastLoad = Date.now();
 }
 async function loadRef(){
   const rows = await listAll(L("RefData") + "/items?$select=Title,Category,SortOrder,IsActive,Code&$top=5000");
@@ -473,6 +483,82 @@ function challanPdf(dc){
   out += "trailer\n<< /Size " + objects.length + " /Root " + catalog + " 0 R >>\nstartxref\n" + start + "\n%%EOF\n";
   return new TextEncoder().encode(out);
 }
+/* ============================================================
+   MORNING INSPECTION WORKSHEET PDF — same content and order as
+   the Power App's worksheet: details, counts, then one ruled row
+   per unit with warranty status and remarks left blank to be
+   filled in by hand. Dependency-free A4, like the challan.
+   ============================================================ */
+function worksheetPdf(ws){
+  const W = 595, H = 842, M = 40, CW = W - 2 * M, ROW = 27, FIRST = 16, LATER = 26;
+  const TEAL = "#00756f", INK = "#1f2d3d", GREY = "#6b7c8f", RULE = "#d1d8e0";
+  const cols = [31, 72, 155, 93, 164], heads = ["S.NO", "COMPONENT", "ID / SERIAL NO.", "WARRANTY STATUS", "REMARKS / ISSUE DESCRIPTION"];
+  const n = ws.units.length, nM = ws.units.filter(u => u.type === "Motor").length, nC = ws.units.filter(u => u.type === "Controller").length;
+  const batches = [ws.units.slice(0, FIRST)]; for(let i = FIRST; i < n; i += LATER) batches.push(ws.units.slice(i, i + LATER));
+  const objects = [""], add = s => (objects.push(s), objects.length - 1), pageRefs = [];
+  const catalog = add(""), tree = add(""), f1 = add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"),
+    f2 = add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>"), f3 = add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-BoldOblique >>");
+  const rgb = h => { const v = parseInt(h.slice(1), 16); return [v >> 16 & 255, v >> 8 & 255, v & 255].map(x => (x / 255).toFixed(3)).join(" "); };
+  const num = v => (Math.round(v * 10) / 10).toString();
+  let s = "", index = 0;
+  const fill = (x, y, w, h, c) => { s += rgb(c) + " rg " + num(x) + " " + num(H - y - h) + " " + num(w) + " " + num(h) + " re f\n"; };
+  const box = (x, y, w, h) => { s += rgb(RULE) + " RG 0.6 w " + num(x) + " " + num(H - y - h) + " " + num(w) + " " + num(h) + " re S\n"; };
+  const text = (x, y, size, str, font, c) => { s += rgb(c || INK) + " rg BT /" + (font || "F1") + " " + size + " Tf 1 0 0 1 " + num(x) + " " + num(H - y) + " Tm (" + pdfLit(str) + ") Tj ET\n"; };
+  const bar = (y, label) => { fill(M, y, CW, 20, "#eef8f7"); fill(M, y, 3, 20, TEAL); text(M + 10, y + 13.5, 10, label, "F2", TEAL); };
+  const tableHead = y => { fill(M, y, CW, 20, TEAL); let x = M; heads.forEach((h, i) => { text(x + 5, y + 13, 7.5, h, "F2", "#ffffff"); x += cols[i]; }); };
+  batches.forEach((batch, p) => {
+    s = ""; let y;
+    if(p === 0){
+      text(M, 60, 28, "Hala", "F3", "#1aa39a");
+      text(300, 38, 10, "HALA MOBILITY PVT LTD", "F2", TEAL); text(300, 57, 14, "MORNING INSPECTION WORKSHEET", "F2", "#14273c"); text(300, 70, 8, "Document ID: " + ws.docId, "F1", GREY);
+      fill(M, 80, CW, 1.5, TEAL);
+      bar(92, "1. GENERAL & TECHNICAL DETAILS");
+      const part = nM > 0 && nC > 0 ? "Motor / Controller" : nC > 0 ? "Controller" : "Motor";
+      const rows = [["Report Prepared By", ws.by, "Date of Inspection", ws.day], ["Dealer Name", ws.oem, "Dealer City", "Hyderabad"], ["Report Title", "Inspection worksheet", "Main Part Affected", part],
+        ["Total Batch Units", n + " Units"], ["Technician", ws.technician || "________________", "Tested by", ws.inHouse ? "Our technician" : "OEM technician"]];
+      const lw = 110, vw = (CW - 2 * lw) / 2; y = 122;
+      for(const r of rows){
+        const cell = (x, w, str, label) => { if(label) fill(x, y, w, 20, "#f4f7fa"); box(x, y, w, 20); text(x + 6, y + 13.5, 8.5, ascii(str).slice(0, label ? 24 : Math.floor(w / 4.6)), label ? "F2" : "F1"); };
+        cell(M, lw, r[0], true);
+        if(r.length === 2) cell(M + lw, CW - lw, r[1]);
+        else { cell(M + lw, vw, r[1]); cell(M + lw + vw, lw, r[2], true); cell(M + 2 * lw + vw, vw, r[3]); }
+        y += 20;
+      }
+      y += 12;
+      const kw = (CW - 24) / 5;
+      [["SELECTED FOR INSPECTION", String(n), TEAL], ["MOTORS", String(nM), "#b86e00"], ["CONTROLLERS", String(nC), "#0b5c8a"], ["IN WARRANTY", "____", "#1e7a3c"], ["OUT OF WARRANTY", "____", "#b83838"]]
+        .forEach(([cap, val, c], i) => { const x = M + i * (kw + 6); box(x, y, kw, 42); text(x + 7, y + 13, 6.5, cap, "F2", GREY); text(x + 7, y + 34, 16, val, "F2", c); });
+      y += 54;
+      bar(y, "2. UNITS TO INSPECT (ITEMS 1 - " + n + ")"); y += 32;
+    }else y = 50;
+    tableHead(y); y += 20;
+    for(const u of batch){
+      index++; let x = M;
+      cols.forEach(w => { box(x, y, w, ROW); x += w; });
+      text(M + 11, y + 17, 9, String(index));
+      const motor = u.type === "Motor", tag = ascii(u.type || "UNIT").toUpperCase();
+      fill(M + cols[0] + 5, y + 8, tag.length * 4.6 + 8, 12, motor ? "#fff3cd" : "#e3f2fd"); text(M + cols[0] + 9, y + 17, 7, tag, "F2", motor ? "#8a5a00" : "#0b5c8a");
+      const id = ascii(u.id), size = id.length > 24 ? 7.5 : 9;
+      text(M + cols[0] + cols[1] + 6, y + (u.serial ? 12 : 17), size, id.slice(0, 34), "F2");
+      if(u.serial) text(M + cols[0] + cols[1] + 6, y + 22, 7, "Serial: " + ascii(u.serial).slice(0, 34), "F1", GREY);
+      y += ROW;
+    }
+    fill(M, 806, CW, 0.6, RULE);
+    text(M, 818, 7.5, "Hala Mobility Pvt Ltd - Inspection worksheet - findings to be completed by technician - Generated " + ws.made, "F1", GREY);
+    text(W - M - 48, 818, 7.5, "Page " + (p + 1) + " of " + batches.length, "F1", GREY);
+    const content = add("<< /Length " + s.length + " >>\nstream\n" + s + "endstream");
+    pageRefs.push(add("<< /Type /Page /Parent " + tree + " 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 " + f1 + " 0 R /F2 " + f2 + " 0 R /F3 " + f3 + " 0 R >> >> /Contents " + content + " 0 R >>"));
+  });
+  objects[catalog] = "<< /Type /Catalog /Pages " + tree + " 0 R >>";
+  objects[tree] = "<< /Type /Pages /Count " + pageRefs.length + " /Kids [" + pageRefs.map(r => r + " 0 R").join(" ") + "] >>";
+  let out = "%PDF-1.4\n"; const offsets = [0];
+  for(let i = 1; i < objects.length; i++){ offsets[i] = out.length; out += i + " 0 obj\n" + objects[i] + "\nendobj\n"; }
+  const start = out.length;
+  out += "xref\n0 " + objects.length + "\n0000000000 65535 f \n";
+  for(let i = 1; i < objects.length; i++) out += String(offsets[i]).padStart(10, "0") + " 00000 n \n";
+  out += "trailer\n<< /Size " + objects.length + " /Root " + catalog + " 0 R >>\nstartxref\n" + start + "\n%%EOF\n";
+  return new TextEncoder().encode(out);
+}
 function saveBlob(blob, name){
   const url = URL.createObjectURL(blob), a = document.createElement("a");
   a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
@@ -499,7 +585,9 @@ let claimOem = "", dcOem = "", busy = null, notice = null;
 const selected = new Set(), dcSelected = new Set();
 const prefs = lsJson("hala_motor_prefs", {});
 const F = {
-  insp: {date: todayIST(), by: prefs.by || "", technician: prefs.technician || "", result: "", decision: "", fault: "", scope: "queue"},
+  insp: {mode: "batch", date: todayIST(), by: prefs.by || "", technician: prefs.technician || "", result: "", decision: "", fault: "", scope: "queue"},
+  /* Lot results and Print worksheet share the group, date and technician; rows holds the result entered against each unit. */
+  lot: {group: "", date: todayIST(), by: "", technician: "", rows: {}, picked: new Set()},
   dc: {address: "", vehicle: ""},
 };
 /* Log inward / outward keeps its own small state so typing never redraws the page. */
@@ -617,7 +705,7 @@ function unitTable(units, check, withLocation){
     '<th>Unit / serial</th><th>Type</th><th>OEM</th><th>Status</th>' + (withLocation ? '<th>Location</th>' : '') + '<th>Last test</th><th></th></tr></thead><tbody>' +
     (units.length ? units.map(u => '<tr class="' + (selected.has(u.Id) ? "row-select" : "") + '">' +
       (check ? '<td><input class="check" type="checkbox" data-unit="' + u.Id + '" aria-label="Select ' + esc(u.Title) + '"' + (selected.has(u.Id) ? " checked" : "") + '></td>' : '') +
-      '<td><span class="unit-icon">' + icon("motor") + '<span class="unit-id">' + esc(u.Title) + '<span class="unit-sub">' + esc(u.SerialNo && u.SerialNo !== u.Title ? u.SerialNo : (u.Model || "")) + '</span></span></span></td>' +
+      '<td><span class="unit-icon">' + icon("motor") + '<span class="unit-id">' + esc(u.Title) + '<span class="unit-sub">' + esc(u.SerialNo && u.SerialNo !== u.Title ? u.SerialNo : (u.Model || "")) + '</span>' + (view === "inspections" ? repeatTag(u) : "") + '</span></span></td>' +
       '<td>' + esc(u.ItemType) + '</td><td>' + esc(u.OEMMake || "—") + '</td><td>' + badge(u) + '</td>' + (withLocation ? '<td>' + esc(u.CurrentLocation || "—") + '</td>' : '') +
       '<td>' + fmt(u.LastTestDate) + (u.LatestTestResult ? '<span class="unit-sub">' + esc(u.LatestTestResult) + '</span>' : '') + '</td>' +
       '<td><button class="text-button" data-history="' + u.Id + '">View →</button></td></tr>').join("")
@@ -637,9 +725,101 @@ function inventory(){
     '<button class="text-button" data-action="export">Export this view</button></div></section>';
 }
 const field = (label, html, wide) => '<label class="field ' + (wide ? "wide" : "") + '">' + label + html + '</label>';
+/* ---------- Inspections: the three ways of working, as in the Power App ----------
+   Record inspections — pick any units and give them all the same result;
+   Lot results        — one OEM's queue, a result per unit, saved row by row or all at once;
+   Print worksheet    — the morning inspection worksheet for a lot, as a PDF (saves nothing). */
+const INSP_MODES = {batch: "Record inspections", lot: "Lot results", print: "Print worksheet"};
+/* The Power App's four groups. Any other OEM with units waiting gets a group of its own after these. */
+const LOT_PRESETS = [
+  {key: "ody", label: "Odysse", oem: "Odysse", status: AV.bench, inHouse: false},
+  {key: "spr", label: "E-Sprinto", oem: "E - Sprinto", status: AV.bench, inHouse: false},
+  {key: "hgr", label: "HGR our check", oem: "Gemopai - HGR", status: AV.bench, inHouse: true},
+  {key: "hgro", label: "HGR OEM", oem: "Gemopai - HGR", status: AV.oemInsp, inHouse: false}];
+const lotOf = (oemName, status) => D.units.filter(u => u.AtJeedimetla && u.Availability === status && (u.OEMMake || "") === oemName).sort(byTitle);
+function lotGroups(){
+  const out = LOT_PRESETS.map(g => Object.assign({n: lotOf(g.oem, g.status).length}, g)), seen = new Set(out.map(g => g.oem + "|" + g.status));
+  for(const u of D.units){
+    if(!u.AtJeedimetla || (u.Availability !== AV.bench && u.Availability !== AV.oemInsp)) continue;
+    const k = (u.OEMMake || "") + "|" + u.Availability; if(seen.has(k)) continue; seen.add(k);
+    out.push({key: "x:" + k, label: (u.OEMMake || "No OEM") + (u.Availability === AV.oemInsp ? " OEM" : ""), oem: u.OEMMake || "", status: u.Availability,
+      inHouse: u.Availability === AV.bench, n: lotOf(u.OEMMake || "", u.Availability).length});
+  }
+  return out;
+}
+const lotGroup = () => lotGroups().find(g => g.key === F.lot.group) || null;
+function lotUnits(g, all){
+  const q = all ? "" : search.trim().toLowerCase();
+  return lotOf(g.oem, g.status).filter(u => !q || [u.Title, u.SerialNo, u.ItemType].join(" ").toLowerCase().includes(q));
+}
+const lotReady = r => !!r && (r.result === "Working" || (r.result === "Not working" && (r.decision === "Approved" || r.decision === "Rejected")));
+const lotEntered = () => Object.values(F.lot.rows).filter(r => r.result).length;
+const lotDirty = () => lotEntered() > 0 || F.lot.picked.size > 0;
+/* How often a unit has been through inspection before — the Power App's "REPEAT REPAIR" note. */
+const testedBefore = u => Math.max(D.tested.get(u.Title) || 0, 0);
+const repeatTag = u => { const n = testedBefore(u); return n ? '<span class="unit-sub repeat">Repeat repair · tested ' + n + (n === 1 ? ' time' : ' times') + ' before</span>' : ''; };
+function inspTabs(){
+  return '<div class="chips mode-tabs" role="tablist">' + Object.entries(INSP_MODES).map(([k, label]) =>
+    '<button class="chip ' + (F.insp.mode === k ? "active" : "") + '" role="tab" aria-selected="' + (F.insp.mode === k) + '" data-insp-mode="' + k + '">' + label + '</button>').join("") + '</div>';
+}
+function lotHead(forPrint){
+  const f = F.lot, g = lotGroup();
+  return '<div class="lot-groups"><span class="small-note">Group</span><div class="chips">' + lotGroups().map(x =>
+      '<button class="chip ' + (x.key === f.group ? "active" : "") + '" data-lot-group="' + esc(x.key) + '">' + esc(x.label) + ' <span>' + x.n + '</span></button>').join("") + '</div></div>' +
+    '<div class="inspection-form">' +
+    field("Inspection date", '<input id="lot-date" type="date" max="' + todayIST() + '" value="' + esc(f.date) + '" required>') +
+    field("Tested by", '<select id="lot-by" aria-label="Tested by"' + (g ? "" : " disabled") + '><option value="">Choose a group first</option>' + options(["Our Technician", "OEM Technician"], f.by) + '</select>') +
+    field(forPrint ? "Technician name · optional" : "Technician name", '<input id="lot-technician" maxlength="120" placeholder="' + (f.by === "Our Technician" ? "Our technician name" : f.by ? "OEM technician name" : "Technician name") + '" value="' + esc(f.technician) + '">') + '</div>' +
+    '<div class="filters"><label class="search">' + icon("search") + '<input id="search" aria-label="Search this group" placeholder="Search this group by unit ID or serial…" value="' + esc(search) + '">' + scanBtn("search") + '</label></div>';
+}
+const lotEmpty = (cols, h, p) => '<tr><td colspan="' + cols + '"><div class="empty">' + icon("inspections") + '<h3>' + h + '</h3><p>' + p + '</p></div></td></tr>';
+function lotTable(){
+  const g = lotGroup(), units = g ? lotUnits(g) : [];
+  /* results entered for units that have since left the group are dropped */
+  if(g){ const live = new Set(lotOf(g.oem, g.status).map(u => String(u.Id))); for(const id of Object.keys(F.lot.rows)) if(!live.has(id)) delete F.lot.rows[id]; }
+  return '<div class="table-wrap"><table class="lot-table"><thead><tr><th>Unit / serial</th><th>Bench test result</th><th>Warranty decision</th><th>Fault observed</th><th></th></tr></thead><tbody>' +
+    (!g ? lotEmpty(5, "Choose a group", "Pick Odysse, E-Sprinto, HGR our check or HGR OEM above to list its units.")
+      : !units.length ? lotEmpty(5, "No units in this group", search ? "Nothing in this group matches the search." : "Nothing is waiting here.")
+      : units.map(u => { const r = F.lot.rows[u.Id] || {};
+        return '<tr class="' + (r.result ? "row-select" : "") + '"><td><span class="unit-icon">' + icon("motor") + '<span class="unit-id">' + esc(u.Title) +
+          '<span class="unit-sub">' + esc(u.ItemType || "") + ' · received ' + fmt(u.DateFirstReceived) + '</span>' + repeatTag(u) + '</span></span></td>' +
+          '<td><select data-lot-res="' + u.Id + '" aria-label="Result for ' + esc(u.Title) + '"><option value="">—</option>' + options(["Working", "Not working"], r.result) + '</select></td>' +
+          '<td><select data-lot-dec="' + u.Id + '" aria-label="Warranty decision for ' + esc(u.Title) + '"' + (r.result === "Not working" ? "" : " hidden") + '><option value="">Choose decision</option>' + options(["Approved", "Rejected"], r.decision) + '</select></td>' +
+          '<td><input data-lot-fault="' + u.Id + '" maxlength="500" placeholder="Fault observed" aria-label="Fault observed for ' + esc(u.Title) + '" value="' + esc(r.fault || "") + '"></td>' +
+          '<td><button data-lot-save="' + u.Id + '"' + (lotReady(r) ? "" : " disabled") + '>Save</button></td></tr>'; }).join("")) +
+    '</tbody></table></div>';
+}
+function printTable(){
+  const g = lotGroup(), units = g ? lotUnits(g) : [];
+  if(g){ const live = new Set(lotOf(g.oem, g.status).map(u => u.Id)); for(const id of [...F.lot.picked]) if(!live.has(id)) F.lot.picked.delete(id); }
+  return '<div class="table-wrap"><table><thead><tr><th><input class="check" type="checkbox" data-select-all="picks" aria-label="Select all listed"' + (units.length && units.every(u => F.lot.picked.has(u.Id)) ? " checked" : "") + '></th>' +
+    '<th>Unit / serial</th><th>Type</th><th>Received</th><th>Last test</th></tr></thead><tbody>' +
+    (!g ? lotEmpty(5, "Choose a group", "Pick Odysse, E-Sprinto, HGR our check or HGR OEM above to plan its inspections.")
+      : !units.length ? lotEmpty(5, "No units in this group", search ? "Nothing in this group matches the search." : "Nothing is waiting here.")
+      : units.map(u => '<tr class="' + (F.lot.picked.has(u.Id) ? "row-select" : "") + '"><td><input class="check" type="checkbox" data-pick="' + u.Id + '" aria-label="Select ' + esc(u.Title) + '"' + (F.lot.picked.has(u.Id) ? " checked" : "") + '></td>' +
+        '<td><span class="unit-icon">' + icon("motor") + '<span class="unit-id">' + esc(u.Title) + '<span class="unit-sub">' + esc(u.SerialNo && u.SerialNo !== u.Title ? u.SerialNo : (u.Model || "")) + '</span>' + repeatTag(u) + '</span></span></td>' +
+        '<td>' + esc(u.ItemType) + '</td><td>' + fmt(u.DateFirstReceived) + '</td><td>' + fmt(u.LastTestDate) + (u.LatestTestResult ? '<span class="unit-sub">' + esc(u.LatestTestResult) + '</span>' : '') + '</td></tr>').join("")) +
+    '</tbody></table></div>';
+}
 function inspections(){
-  const f = F.insp;
-  return title("Bench testing", "Inspection queue", "Select a batch, record the test result, and move every unit to its next stage.") +
+  const f = F.insp, mode = f.mode, head = title("Bench testing", "Inspection queue", "Record results one batch or one lot at a time, or print the morning worksheet.") + inspTabs();
+  if(mode === "lot"){
+    const g = lotGroup(), n = lotEntered();
+    return head + '<div class="instruction">' + icon("info") + '<div><strong>One result per unit.</strong> Choose a group, enter Working or Not working against each unit — with Approved or Rejected for a Not working one — then save a row at a time or the whole lot.</div></div>' +
+      '<section class="panel"><div class="panel-head"><h2>Lot results</h2><span class="small-note">' + (g ? esc(g.label) + ' · ' + g.n + ' units' : count("inspection") + ' awaiting inspection') + '</span></div>' + lotHead(false) +
+      '<div id="unit-table">' + lotTable() + '</div><div class="bulkbar"><span id="lot-count">' + n + (n === 1 ? ' result entered' : ' results entered') + '</span><div class="head-actions">' +
+      '<button data-action="lot-clear"' + (n ? "" : " disabled") + '>Clear entries</button><button class="primary" data-action="lot-save"' + (n ? "" : " disabled") + '>Save lot results (' + n + ') ' + icon("arrow") + '</button></div></div></section>';
+  }
+  if(mode === "print"){
+    const g = lotGroup(), n = F.lot.picked.size, all = g ? g.n : 0;
+    return head + '<div class="instruction">' + icon("info") + '<div><strong>Plan morning inspections.</strong> Select IDs below, or use All &amp; PDF for every unit in the group. The PDF leaves findings and warranty checks blank for the technician; printing does not save inspection results.</div></div>' +
+      '<section class="panel"><div class="panel-head"><h2>Print worksheet</h2><span class="small-note" id="pick-note">' + (g ? esc(g.label) + ' · ' + (F.lot.by === "Our Technician" ? "Our technician" : "OEM technician") : "Choose a group") + '</span></div>' + lotHead(true) +
+      '<div id="unit-table">' + printTable() + '</div><div class="bulkbar"><span id="pick-count">' + n + ' selected</span><div class="head-actions">' +
+      '<button data-action="print-clear"' + (n ? "" : " disabled") + '>Clear selection</button>' +
+      '<button data-action="print-selected"' + (n ? "" : " disabled") + '>Print selected units (' + n + ')</button>' +
+      '<button class="primary" data-action="print-all"' + (all ? "" : " disabled") + '>' + (g ? esc(g.label) + ' - All &amp; PDF (' + all + ')' : "Choose a group") + '</button></div></div></section>';
+  }
+  return head +
     '<div class="instruction">' + icon("info") + '<div><strong>Working → Available to use.</strong> For Not working units, Approved → warranty claim; Rejected → scrap. The warranty decision is only asked after a failed test.</div></div>' +
     '<section class="panel"><div class="panel-head"><h2>Record an inspection</h2><span class="small-note">' + count("inspection") + ' awaiting inspection</span></div><div class="inspection-form">' +
     field("Inspection date", '<input id="inspect-date" type="date" max="' + todayIST() + '" value="' + esc(f.date) + '" required>') +
@@ -806,6 +986,23 @@ async function patchUnit(u, patch){
   }
 }
 
+const nextAvail = (result, decision) => result === "Working" ? AV.availBench : decision === "Approved" ? AV.claimReady : AV.scrap;
+/* One inspection, exactly as the Power App writes it: the Inspections row first, then the unit. */
+async function inspectOne(id, f, seen){
+  const u = D.units.find(x => x.Id === id);
+  if(!u) throw new Skip("no longer in the register");
+  if(!u.AtJeedimetla) throw new Skip("no longer at Jeedimetla");
+  if(u.Availability !== seen.get(id)) throw new Skip("changed by someone else (now " + (u.Availability || "no status") + ")");
+  const next = nextAvail(f.result, f.decision), iso = istMidnight(f.date), fault = String(f.fault || "").trim();
+  const row = {Title: u.Title, ItemID: u.Title, InspectionDate: iso, TestedBy: f.by, TechnicianName: f.technician.trim(),
+    TestedAt: u.CurrentLocation || HOME, TestResult: f.result, NextAction: next, InHouseResult: f.result};
+  if(u.ItemType) row.ItemType = u.ItemType;
+  if(fault) row.FaultObserved = fault;
+  if(f.result === "Not working") row.OEMDecision = f.decision;
+  await spCreate("Inspections", row);
+  await patchUnit(u, {LastTestDate: iso, LatestTestResult: f.result, TimesInspected: (Number(u.TimesInspected) || 0) + 1, Availability: next});
+}
+const seenNow = ids => new Map(ids.map(id => { const u = D.units.find(x => x.Id === id); return [id, u ? u.Availability : ""]; }));
 function inspectProblem(){
   const f = F.insp;
   if(!selected.size) return "Select at least one unit.";
@@ -819,29 +1016,61 @@ function inspectProblem(){
 }
 async function actInspect(){
   const why = inspectProblem(); if(why) return toast(why, true);
-  const f = Object.assign({}, F.insp), ids = [...selected];
-  const next = f.result === "Working" ? AV.availBench : f.decision === "Approved" ? AV.claimReady : AV.scrap;
-  const seen = new Map(ids.map(id => { const u = D.units.find(x => x.Id === id); return [id, u ? u.Availability : ""]; }));
+  const f = Object.assign({}, F.insp), ids = [...selected], next = nextAvail(f.result, f.decision), seen = seenNow(ids);
   prefs.by = f.by; prefs.technician = f.technician.trim(); lsSet("hala_motor_prefs", JSON.stringify(prefs));
   await withBusy("Saving inspections…", async prog => {
     await loadCore();
-    const iso = istMidnight(f.date);
-    const out = await runBatch(ids, id => (D.units.find(x => x.Id === id) || {}).Title || ("unit " + id), async id => {
-      const u = D.units.find(x => x.Id === id);
-      if(!u) throw new Skip("no longer in the register");
-      if(!u.AtJeedimetla) throw new Skip("no longer at Jeedimetla");
-      if(u.Availability !== seen.get(id)) throw new Skip("changed by someone else (now " + (u.Availability || "no status") + ")");
-      const row = {Title: u.Title, ItemID: u.Title, InspectionDate: iso, TestedBy: f.by, TechnicianName: f.technician.trim(),
-        TestedAt: u.CurrentLocation || HOME, TestResult: f.result, NextAction: next, InHouseResult: f.result};
-      if(u.ItemType) row.ItemType = u.ItemType;
-      if(f.fault.trim()) row.FaultObserved = f.fault.trim();
-      if(f.result === "Not working") row.OEMDecision = f.decision;
-      await spCreate("Inspections", row);
-      await patchUnit(u, {LastTestDate: iso, LatestTestResult: f.result, TimesInspected: (Number(u.TimesInspected) || 0) + 1, Availability: next});
-    }, prog);
+    const out = await runBatch(ids, id => (D.units.find(x => x.Id === id) || {}).Title || ("unit " + id), id => inspectOne(id, f, seen), prog);
     selected.clear(); F.insp.result = ""; F.insp.decision = ""; F.insp.fault = ""; D.activity = null;
     report(out, n => n + (n === 1 ? " inspection" : " inspections") + " saved. Units moved to: " + (next === AV.availBench ? "Available to use" : next === AV.claimReady ? "Ready for warranty claim" : "Scrap") + ".");
   });
+}
+/* Lot results: every unit carries its own result, decision and fault. One row, or every row that has a result. */
+function lotProblem(ids){
+  const f = F.lot;
+  if(!lotGroup()) return "Choose a group first.";
+  if(!ids.length) return "Enter a result for at least one unit.";
+  if(!validDay(f.date)) return "Choose the inspection date.";
+  if(f.date > todayIST()) return "Inspection date cannot be in the future.";
+  if(!f.by) return "Choose who tested: our technician or the OEM technician.";
+  if(!f.technician.trim()) return "Enter the technician name.";
+  if(ids.some(id => !lotReady(f.rows[id]))) return "Choose Approved or Rejected for every Not working unit.";
+  return "";
+}
+async function actLot(onlyId){
+  const f = F.lot, ids = onlyId ? [onlyId] : Object.keys(f.rows).map(Number).filter(id => f.rows[id].result);
+  const why = lotProblem(ids); if(why) return toast(why, true);
+  const base = {date: f.date, by: f.by, technician: f.technician}, rows = Object.fromEntries(ids.map(id => [id, Object.assign({}, f.rows[id])])), seen = seenNow(ids), done = [];
+  await withBusy(onlyId ? "Saving inspection…" : "Saving lot results…", async prog => {
+    await loadCore();
+    const out = await runBatch(ids, id => (D.units.find(x => x.Id === id) || {}).Title || ("unit " + id), async id => { await inspectOne(id, Object.assign({}, base, rows[id]), seen); done.push(id); }, prog);
+    done.forEach(id => { delete F.lot.rows[id]; }); D.activity = null;
+    report(out, n => n + (n === 1 ? " inspection" : " inspections") + " saved.");
+  });
+}
+/* Print worksheet: nothing is saved — it only makes the PDF. */
+function actWorksheet(all){
+  const f = F.lot, g = lotGroup(); if(!g) return toast("Choose a group first.", true);
+  if(!validDay(f.date)) return toast("Choose the inspection date.", true);
+  const units = all ? lotUnits(g, true) : lotUnits(g, true).filter(u => f.picked.has(u.Id));
+  if(!units.length) return toast(all ? "No units in this group." : "Select the units to print.", true);
+  const now = new Date(), part = o => new Intl.DateTimeFormat("en-GB", Object.assign({timeZone: "Asia/Kolkata"}, o)).format(now);
+  const stamp = part({day: "2-digit", month: "2-digit", year: "numeric"}).replace(/\//g, "") + "_" + part({hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false}).replace(/:/g, "");
+  const [y, m, d] = f.date.split("-");
+  const pdf = worksheetPdf({oem: g.oem, inHouse: f.by === "Our Technician", technician: f.technician.trim(), by: AUTH.name || AUTH.upn || "",
+    day: d + "/" + m + "/" + y, docId: "PLAN-HM-" + y + "-" + m + d + "-" + g.oem.replace(/\s/g, "").slice(0, 3).toUpperCase(),
+    made: part({day: "2-digit", month: "2-digit", year: "numeric"}) + " " + part({hour: "2-digit", minute: "2-digit", hour12: false}),
+    units: units.map(u => ({id: u.Title, type: u.ItemType || "", serial: u.SerialNo && u.SerialNo !== u.Title ? u.SerialNo : ""}))});
+  saveBlob(new Blob([pdf], {type: "application/pdf"}), "Inspection_Worksheet_" + g.oem.replace(/[\s-]/g, "") + "_" + stamp + ".pdf");
+  toast("Worksheet ready — " + units.length + (units.length === 1 ? " unit" : " units") + ". No inspection results were saved.");
+}
+function syncLot(){
+  const n = lotEntered(), lc = $("#lot-count"); if(lc) lc.textContent = n + (n === 1 ? " result entered" : " results entered");
+  const ls = $('[data-action="lot-save"]'); if(ls){ ls.disabled = !n; ls.firstChild.textContent = "Save lot results (" + n + ") "; }
+  const lx = $('[data-action="lot-clear"]'); if(lx) lx.disabled = !n;
+  const p = F.lot.picked.size, pc = $("#pick-count"); if(pc) pc.textContent = p + " selected";
+  const ps = $('[data-action="print-selected"]'); if(ps){ ps.disabled = !p; ps.textContent = "Print selected units (" + p + ")"; }
+  const px = $('[data-action="print-clear"]'); if(px) px.disabled = !p;
 }
 
 async function askClaim(){
@@ -1241,6 +1470,7 @@ async function moveSave(){
    ============================================================ */
 function redrawTable(){
   const box = $("#unit-table"); if(!box) return;
+  if(view === "inspections" && F.insp.mode !== "batch"){ box.innerHTML = F.insp.mode === "lot" ? lotTable() : printTable(); syncLot(); return; }
   box.innerHTML = pagedTable(view === "inspections", view === "inventory");
   const rc = $("#result-count"); if(rc) rc.textContent = filtered().length + " matching units";
   syncSelection();
@@ -1258,6 +1488,12 @@ document.addEventListener("click", async e => {
   if(d.scanAct){ scanAct(d.scanAct); return; }
   if(d.scanAlt !== undefined){ const box = document.getElementById("scId"); if(box){ box.value = d.scanAlt; scanKnownNote(); } return; }
   if(d.page){ page = Number(d.page); redrawTable(); return; }
+  if(d.inspMode){ F.insp.mode = d.inspMode; selected.clear(); search = ""; page = 1; render(); return; }
+  if(d.lotGroup){
+    const g = lotGroups().find(x => x.key === d.lotGroup); if(!g) return;
+    F.lot.group = g.key; F.lot.by = g.inHouse ? "Our Technician" : "OEM Technician"; F.lot.rows = {}; F.lot.picked.clear(); search = ""; render(); return;
+  }
+  if(d.lotSave){ await actLot(Number(d.lotSave)); return; }
   if(d.nav){ $("#modal").open && $("#modal").close(); nav(d.nav); return; }
   if(d.stage){ nav("inventory"); stage = d.stage; render(); return; }
   if(d.claimOem){ claimOem = d.claimOem; render(); return; }
@@ -1290,6 +1526,11 @@ document.addEventListener("click", async e => {
     case "export": exportView(); break;
     case "register": askRegister(); break;
     case "inspect": await actInspect(); break;
+    case "lot-save": await actLot(); break;
+    case "lot-clear": F.lot.rows = {}; redrawTable(); break;
+    case "print-selected": actWorksheet(false); break;
+    case "print-all": actWorksheet(true); break;
+    case "print-clear": F.lot.picked.clear(); redrawTable(); break;
     case "select-matching": filtered().forEach(u => selected.add(u.Id)); redrawTable(); break;
     case "clear-selection": selected.clear(); redrawTable(); break;
     case "claim": await askClaim(); break;
@@ -1298,7 +1539,7 @@ document.addEventListener("click", async e => {
     case "connection":
       modal("Hala workspace", '<p>Signed in as <strong>' + esc(AUTH.name || AUTH.upn) + '</strong>' + (AUTH.upn && AUTH.name ? ' (' + esc(AUTH.upn) + ')' : '') + '.</p>' +
         '<p>Records are read from and saved to the Fleet Ops SharePoint lists under your own account, so your SharePoint permissions apply.</p>' +
-        '<p>OEM decisions, hub receipts, QR operations, labels, worksheets and masters remain in the Power App: <a href="' + esc(CFG.powerApp) + '" rel="noopener" target="_blank">open Motor Tracker in Power Apps</a>.</p>',
+        '<p>OEM decisions, hub receipts, QR operations, labels and masters remain in the Power App: <a href="' + esc(CFG.powerApp) + '" rel="noopener" target="_blank">open Motor Tracker in Power Apps</a>.</p>',
         '<button data-action="signout">Sign out</button>');
       break;
   }
@@ -1310,6 +1551,9 @@ document.addEventListener("input", e => {
   if(id === "inspect-technician") F.insp.technician = e.target.value;
   else if(id === "inspect-fault") F.insp.fault = e.target.value;
   else if(id === "inspect-date") F.insp.date = e.target.value;
+  else if(id === "lot-date") F.lot.date = e.target.value;
+  else if(id === "lot-technician") F.lot.technician = e.target.value;
+  else if(e.target.dataset.lotFault){ const k = e.target.dataset.lotFault; F.lot.rows[k] = Object.assign(F.lot.rows[k] || {}, {fault: e.target.value}); }
   else if(id === "dc-address") F.dc.address = e.target.value;
   else if(id === "dc-vehicle") F.dc.vehicle = e.target.value;
   else if(id === "reg-id") regSync("id");
@@ -1324,6 +1568,20 @@ document.addEventListener("change", e => {
   else if(t.id === "inspect-by") F.insp.by = t.value;
   else if(t.id === "inspect-result"){ F.insp.result = t.value; F.insp.decision = ""; render(); }
   else if(t.id === "inspect-decision") F.insp.decision = t.value;
+  else if(t.id === "lot-by"){ F.lot.by = t.value; render(); }
+  else if(t.dataset.lotRes || t.dataset.lotDec){
+    const k = t.dataset.lotRes || t.dataset.lotDec, r = F.lot.rows[k] = F.lot.rows[k] || {}, tr = t.closest("tr");
+    if(t.dataset.lotRes){ r.result = t.value; r.decision = ""; const dec = tr.querySelector("[data-lot-dec]"); dec.value = ""; dec.hidden = t.value !== "Not working"; }
+    else r.decision = t.value;
+    if(!r.result && !r.fault) delete F.lot.rows[k];
+    tr.classList.toggle("row-select", !!r.result); tr.querySelector("[data-lot-save]").disabled = !lotReady(r); syncLot();
+  }
+  else if(t.dataset.pick){
+    const id = Number(t.dataset.pick); if(t.checked) F.lot.picked.add(id); else F.lot.picked.delete(id);
+    t.closest("tr").classList.toggle("row-select", t.checked); syncLot();
+    const g = lotGroup(), all = $('[data-select-all="picks"]'); if(all && g) all.checked = lotUnits(g).every(u => F.lot.picked.has(u.Id));
+  }
+  else if(t.dataset.selectAll === "picks"){ const g = lotGroup(); if(g) lotUnits(g).forEach(u => t.checked ? F.lot.picked.add(u.Id) : F.lot.picked.delete(u.Id)); redrawTable(); }
   else if(t.id === "reg-type") regSync("type");
   else if(t.id === "reg-oem"){ regTouched.oem = true; regSync("oem"); }
   else if(t.dataset.unit){
@@ -1340,7 +1598,7 @@ document.addEventListener("change", e => {
 });
 /* Lists go stale while the tab sits in the background; reload when it comes back. */
 document.addEventListener("visibilitychange", () => {
-  if(!document.hidden && D.loaded && !busy && !M.saving && !$("#modal").open && Date.now() - D.lastLoad > 120000 && !selected.size && !dcSelected.size) loadAll();
+  if(!document.hidden && D.loaded && !busy && !M.saving && !$("#modal").open && Date.now() - D.lastLoad > 120000 && !selected.size && !dcSelected.size && !lotDirty()) loadAll();
 });
 
 /* ============================================================
