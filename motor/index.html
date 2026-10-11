@@ -6,11 +6,12 @@
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
 <meta name="theme-color" content="#176254">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://login.microsoftonline.com https://halamobility.sharepoint.com; img-src data:; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'self' 'wasm-unsafe-eval'; worker-src 'self'; style-src 'unsafe-inline'; connect-src 'self' https://login.microsoftonline.com https://halamobility.sharepoint.com; img-src data: blob:; media-src 'self' blob: mediastream:; base-uri 'none'; form-action 'none'">
 <title>Motor Tracker · Hala</title>
 <style>
 :root{font-family:Inter,"Segoe UI",Arial,sans-serif;color:#203630;background:#f5f7f5;font-synthesis:none;--green:#176254;--deep:#143c32;--line:#dde5df;--muted:#77877f;--cream:#f5f7f5}*{box-sizing:border-box}body{margin:0}button,input,select,textarea{font:inherit}button,a,input,select,textarea{outline-offset:4px}button{cursor:pointer}button:disabled{cursor:default;opacity:.5}a{color:var(--green)}button{border:1px solid var(--line);border-radius:8px;background:#fff;padding:10px 15px;color:#28453a;font-size:13px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:8px}button:hover:not(:disabled){background:#f0f5f1}button.primary{background:var(--green);color:#fff;border-color:var(--green)}button.primary:hover:not(:disabled){background:#124c41}button.danger{color:#a14738}.icon{width:18px;height:18px;display:inline-block;flex-shrink:0}.sidebar{position:fixed;inset:0 auto 0 0;width:222px;background:#fff;border-right:1px solid var(--line);padding:28px 20px;display:flex;flex-direction:column;z-index:20}.brand{display:flex;align-items:center;gap:11px;margin:0 4px 44px}.brand-mark{background:#ddefcf;border-radius:50%;width:43px;height:43px;display:grid;place-items:center;font-size:13px;font-weight:800;color:var(--green);letter-spacing:-.8px}.brand strong{font-size:18px;letter-spacing:-.5px}.brand small{display:block;font-size:10px;font-weight:600;color:var(--muted);letter-spacing:1.5px;margin-top:4px}.nav-caption{font-size:10px;letter-spacing:1.7px;color:#8a9890;margin:0 13px 12px}.nav-item{width:100%;border:0;background:none;justify-content:flex-start;color:#74867b;font-weight:500;margin:3px 0;padding:13px 13px;font-size:13px}.nav-item.active{background:#eaf3ed;color:var(--green);font-weight:650}.nav-item .count{margin-left:auto;font-size:11px;background:#d9eadd;color:#316b50;border-radius:5px;padding:3px 6px}.sidebar-foot{margin-top:auto;border-top:1px solid var(--line);padding-top:18px}.workspace{display:flex;align-items:center;gap:10px;font-size:12px;line-height:1.6}.workspace .avatar{border-radius:9px;width:35px;height:35px;background:#edf1ea;display:grid;place-items:center;font-weight:700;color:var(--green)}.workspace small{display:block;color:var(--muted);font-size:11px}.sidebar-foot>button{border:0;margin-top:12px;padding:6px 0;font-size:11px;font-weight:500;color:var(--muted)}.main{margin-left:222px;min-height:100vh}.topbar{height:75px;border-bottom:1px solid var(--line);padding:0 38px;display:flex;align-items:center;justify-content:space-between;background:#fff;gap:16px}.breadcrumb{font-size:12px;color:#88988e}.breadcrumb strong{color:#395849;font-weight:500}.topbar-right{display:flex;align-items:center;gap:14px}.pill{background:#edf4ea;color:#54814e;padding:7px 10px;border-radius:30px;font-size:11px;display:inline-flex;align-items:center;gap:6px}.pill::before{content:"";width:5px;height:5px;background:currentColor;border-radius:50%}.user-avatar{background:#ece8df;color:#756b56;border-radius:50%;width:30px;height:30px;display:grid;place-items:center;font-size:11px;font-weight:600}.content{max-width:1530px;margin:0 auto;padding:32px 38px 38px}.eyebrow{font-size:10px;font-weight:650;letter-spacing:2px;color:var(--green);text-transform:uppercase;margin:0 0 9px}.page-head{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:26px}h1{font-size:29px;letter-spacing:-1px;margin:0;font-weight:650}h2{font-size:16px;letter-spacing:-.3px;font-weight:650;margin:0}h3{font-size:13px;margin:0;font-weight:650}p{line-height:1.6}.subtext{font-size:13px;color:var(--muted);margin:8px 0 0}.head-actions{display:flex;gap:8px;flex-wrap:wrap}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:15px;margin-bottom:25px}.metric{border:1px solid var(--line);background:#fff;border-radius:12px;padding:21px 21px 18px}.metric.featured{background:var(--deep);border-color:var(--deep);color:#fff}.metric-head{display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:12px}.metric.featured .metric-head{color:#b4c8be}.metric-head .icon{color:#6c8f74}.metric.featured .icon{color:#c8e8b9}.metric .number{font-size:35px;font-weight:600;letter-spacing:-1.7px;margin:18px 0 10px}.metric small{font-size:11px;color:#8a9990}.metric.featured small{color:#b4c8be}.panel{background:#fff;border:1px solid var(--line);border-radius:12px;margin-bottom:23px;overflow:hidden}.panel-head{padding:20px 23px;display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid #eef1ec}.panel-head .subtext{font-size:11px;margin-top:6px}.panel-head button{font-size:11px;padding:7px 10px}.workflow{display:grid;grid-template-columns:repeat(5,1fr);padding:23px 21px;gap:10px}.flow-card{background:#f7f9f6;border:0;border-radius:9px;padding:17px 12px;text-align:left;display:block;font-weight:500;position:relative}.flow-card:not(:last-child)::after{content:'›';position:absolute;right:-9px;top:34px;color:#99a79b;font-size:20px;z-index:1}.flow-index{font-size:10px;color:#98a397;letter-spacing:1px}.flow-card strong{display:block;font-size:25px;margin:11px 0 8px;color:#284d3b}.flow-card span:last-child{font-size:11px;display:block;color:#65786b}.table-wrap{overflow:auto}table{border-collapse:collapse;width:100%;white-space:nowrap}th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:1px;font-weight:600;color:#88968d;background:#fafbf9;padding:14px 23px;border-bottom:1px solid var(--line)}td{font-size:12px;padding:17px 23px;border-bottom:1px solid #edf1ea;color:#566b5d}tbody tr:last-child td{border-bottom:0}tbody tr:hover{background:#fcfdfb}.unit-id{font-weight:650;color:#2f483a;letter-spacing:.1px}.unit-sub{display:block;font-size:10px;color:#9aa79d;margin-top:5px}.unit-icon{display:inline-flex;align-items:center;gap:10px}.unit-icon>.icon{background:#f0f3ec;border-radius:6px;padding:7px;width:32px;height:32px;color:#688764}.badge{display:inline-flex;align-items:center;gap:5px;border-radius:5px;background:#edf2e8;color:#688050;padding:6px 8px;font-size:10px;font-weight:500}.badge.inspection{background:#f7efd9;color:#96752c}.badge.claimReady{background:#f9e9e0;color:#ac6844}.badge.claimRaised{background:#e8ecf8;color:#6370a8}.badge.dcReady{background:#e7f2ef;color:#398575}.badge.scrap{background:#f5e7e5;color:#a6655f}.badge.shipped{background:#eef0ed;color:#829181}.table-footer{border-top:1px solid var(--line);padding:14px 23px;display:flex;justify-content:space-between;color:#9aa79c;font-size:10px}.text-button{border:0;background:none;padding:5px;color:var(--green);font-size:11px;font-weight:500}.muted{color:var(--muted)}.filters{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:17px 23px;border-bottom:1px solid var(--line)}.search{position:relative;min-width:220px;flex:1}.search>.icon{position:absolute;left:12px;top:11px;color:#98a79b}.search input{padding-left:39px;width:100%}.filters input,.filters select{font-size:12px;height:40px}input,select,textarea{background:#fff;border:1px solid var(--line);border-radius:7px;padding:10px 12px;color:#355340;min-width:0}input::placeholder,textarea::placeholder{color:#9da99f}select{padding-right:25px}.chips{display:flex;gap:8px;flex-wrap:wrap;margin:22px 0}.chip{font-size:12px;background:transparent;border:1px solid #dfe6dc;padding:10px 15px;font-weight:500}.chip.active{background:var(--deep);color:#fff;border-color:var(--deep)}.chip span{opacity:.7;font-size:10px;margin-left:7px}.instruction{background:#edf4eb;border:1px solid #dce8d6;border-radius:10px;display:flex;gap:12px;padding:17px 20px;margin:20px 0;color:#55794d;font-size:12px;line-height:1.7}.instruction strong{color:#376c48}.inspection-form{display:grid;grid-template-columns:1fr 1fr 1fr;gap:15px;background:#fafcf8;padding:21px 23px;border-bottom:1px solid var(--line)}label.field{display:flex;flex-direction:column;gap:9px;font-size:11px;color:#758875;font-weight:600}label.field input,label.field select,label.field textarea{font-weight:400;font-size:13px;width:100%}.field.wide{grid-column:1/-1}.bulkbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 23px;background:#edf4ea;font-size:12px;color:var(--green);border-top:1px solid var(--line);flex-wrap:wrap}.bulkbar .head-actions{align-items:center}.bulkbar select{font-size:12px}.check{width:16px;height:16px;accent-color:var(--green);cursor:pointer}.empty{padding:46px 20px;text-align:center;white-space:normal;color:#8d9c8f}.empty .icon{width:30px;height:30px;color:#9fb09b;margin-bottom:12px}.empty h3{color:#55764f;font-size:15px}.empty p{font-size:12px;max-width:400px;margin:8px auto}.split{display:grid;grid-template-columns:1.7fr 1fr;gap:23px}.form-panel{padding:22px;display:flex;flex-direction:column;gap:16px}.form-panel .primary{align-self:flex-start}.small-note{font-size:11px;color:#8a978b;line-height:1.7;margin:0}.activity-item{display:flex;gap:14px;padding:18px 23px;border-bottom:1px solid #edf1ea}.activity-item:last-child{border:0}.activity-dot{width:8px;height:8px;flex-shrink:0;border-radius:50%;background:#a9c896;margin-top:6px}.activity-item strong{font-size:12px;font-weight:600}.activity-item p{font-size:11px;color:var(--muted);margin:5px 0}.activity-item time{margin-left:auto;font-size:10px;color:#8b9c8d;text-align:right}.banner{border:1px solid #e7d5a3;background:#fffbec;color:#83632f;font-size:12px;border-radius:9px;padding:15px;margin-bottom:20px;line-height:1.6}.demo-footer{display:flex;justify-content:space-between;gap:20px;color:#98a497;font-size:10px;margin-top:24px;padding-top:8px}.demo-footer a{color:#6a8267;text-decoration:none}.inline-info{font-size:11px;color:#71866c;padding:14px 23px;background:#f9fbf7}.dc-link{border:0;display:inline;padding:0;background:none;text-decoration:underline;font-size:12px}dialog{border:1px solid var(--line);border-radius:15px;padding:0;box-shadow:0 20px 80px #12332335;width:min(560px,calc(100vw - 32px));color:#294b3c}dialog::backdrop{background:#102c2466;backdrop-filter:blur(2px)}.modal-head{padding:24px 26px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}.modal-head h2{font-size:19px}.modal-body{padding:24px 26px;font-size:13px;line-height:1.7;max-height:70vh;overflow:auto}.modal-body form{display:grid;grid-template-columns:1fr 1fr;gap:18px}.modal-actions{display:flex;justify-content:flex-end;gap:9px;border-top:1px solid var(--line);padding:18px 26px}.close-btn{border:0;padding:5px;font-size:18px;background:none;color:#8d9a90}#toast{position:fixed;bottom:24px;right:25px;max-width:min(490px,calc(100vw - 30px));background:#163f31;color:#fff;padding:16px 22px;border-radius:10px;box-shadow:0 8px 35px #1c3d3326;font-size:13px;line-height:1.5;z-index:100;display:none}#toast.visible{display:block}#toast.error{background:#9b4c3f}.initial-loading{padding:60px;text-align:center;color:#718c78}.mobile-menu{display:none}.login{max-width:500px;margin:14vh auto;padding:40px;border:1px solid var(--line);background:#fff;border-radius:15px}.login h1{font-size:25px}.login p{color:var(--muted);font-size:13px}.login .primary{margin-top:12px}.login .eyebrow{margin-bottom:18px}.row-select td{background:#f1f7ed}.loading{opacity:.6;pointer-events:none}.progress-line{height:3px;background:#d8e9d0}.progress-line>i{display:block;width:35%;height:3px;background:var(--green);animation:loading 1s infinite alternate}@keyframes loading{to{transform:translateX(180%)}}@media(min-width:1450px){.content{padding-left:48px;padding-right:48px}.topbar{padding:0 48px}}@media(max-width:1100px){.sidebar{width:190px;padding:26px 15px}.main{margin-left:190px}.content{padding:28px 25px}.topbar{padding:0 25px}.cards{gap:10px}.metric{padding:18px 15px}.metric-head{font-size:11px}.split{grid-template-columns:1fr}.workflow{padding:17px 14px}.flow-card{padding:14px 9px}.flow-card span:last-child{font-size:10px}td,th{padding-left:17px;padding-right:17px}}@media(max-width:760px){.sidebar{transform:translateX(-100%);width:222px;transition:transform .2s}.sidebar.open{transform:translateX(0);box-shadow:10px 0 70px #163b3326}.main{margin:0}.mobile-menu{display:inline-flex;border:0;padding:5px}.topbar{height:61px;padding:0 18px}.breadcrumb{display:none}.topbar-right{gap:10px;margin-left:auto}.content{padding:24px 16px}.page-head{align-items:flex-start;flex-direction:column;gap:16px;margin-bottom:22px}h1{font-size:25px}.head-actions{width:100%}.cards{grid-template-columns:1fr 1fr;gap:11px;margin-bottom:20px}.metric{padding:17px 15px}.metric .number{font-size:30px;margin:13px 0 9px}.metric-head{font-size:11px}.metric small{font-size:10px}.workflow{grid-template-columns:1fr 1fr;padding:16px;gap:10px}.flow-card:not(:last-child)::after{display:none}.flow-card span:last-child{font-size:11px}.flow-card:last-child{grid-column:1/-1;display:flex;align-items:center;gap:18px}.flow-card:last-child strong{margin:0}.panel-head{padding:18px 16px}.panel-head h2{font-size:14px}.filters{padding:14px 16px}.filters select{flex:1;max-width:100%}.search{flex-basis:100%}.inspection-form{grid-template-columns:1fr 1fr;padding:18px 16px}.inspection-form .field:last-child{grid-column:1/-1}.bulkbar{padding:14px 16px;flex-direction:column;align-items:stretch}.bulkbar .head-actions{flex-wrap:wrap}.bulkbar select{flex:1}.bulkbar .primary{width:100%}.instruction{font-size:11px;padding:14px}.demo-footer{font-size:9px;line-height:1.6;flex-direction:column;gap:6px}.modal-body form{grid-template-columns:1fr}.modal-body{padding:20px}.modal-head{padding:20px}.table-footer{padding:12px 16px}.table-wrap{max-width:100%}.chips{gap:6px;margin:18px 0}.chip{padding:9px 11px;font-size:11px}.activity-item{padding:17px}.activity-item time{max-width:72px}.split{gap:0}}
 /* ---- additions for the live workspace ---- */
+[hidden]{display:none !important}
 .badge.available{background:#e4f1e6;color:#3c7a4c}.badge.away{background:#eef0ed;color:#6f7f71}.badge.other{background:#f0efe9;color:#7a745f}
 .nav-item .count.muted{background:#eef1ec;color:#8a978b}
 .banner.err{border-color:#e6b9b1;background:#fdf1ee;color:#96473a}
@@ -54,6 +55,23 @@
 .side-link:hover{color:var(--green)}
 td.wrap{white-space:normal;min-width:220px}
 .login .banner{margin-top:14px}
+.scan-btn{flex-shrink:0;gap:6px;padding:0 12px;height:40px;font-size:12px;background:#edf4ea;border-color:#dce8d6;color:var(--green)}
+.scan-btn .icon{width:16px;height:16px}
+.with-scan{display:flex;gap:8px;align-items:flex-start}.with-scan>input,.with-scan>.combo{flex:1;min-width:0}
+.search .scan-btn{position:absolute;right:4px;top:4px;height:32px;border:0}.search input{padding-right:84px}
+.scan-stage{position:relative;background:#0e1f19;border-radius:10px;overflow:hidden;aspect-ratio:4/3}
+.scan-stage video{width:100%;height:100%;object-fit:cover;display:block}.scan-stage img{width:100%;height:100%;object-fit:contain;display:block}
+.scan-guide{position:absolute;left:8%;top:28%;width:84%;height:44%;border:2px solid rgba(255,255,255,.92);border-radius:6px;box-shadow:0 0 0 9999px rgba(0,0,0,.38)}
+.scan-msg{margin-top:12px;border-radius:9px;padding:11px 13px;font-size:12px;line-height:1.6;background:#edf4eb;border:1px solid #dce8d6;color:#3f6a47}
+.scan-msg.err{background:#fdf1ee;border-color:#e6b9b1;color:#96473a}.scan-msg.ok{background:#e7f2ef;border-color:#cfe5df;color:#2c6f61}
+.scan-id{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:16px !important;letter-spacing:.5px}
+.scan-alts{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px}
+.scan-alts button{flex-direction:column;align-items:flex-start;gap:2px;padding:6px 10px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px}
+.scan-alts button small{font-family:Inter,"Segoe UI",Arial,sans-serif;font-size:9px;font-weight:400;color:var(--muted)}
+.scan-pick{position:relative;touch-action:none;user-select:none;-webkit-user-select:none;cursor:crosshair;border-radius:10px;overflow:hidden}
+.scan-pick img{width:100%;display:block;pointer-events:none}
+#pkBox{position:absolute;border:2px solid #2f8f79;background:rgba(47,143,121,.2)}
+#scanner .modal-actions{flex-wrap:wrap}
 @media(max-width:760px){.filters select{flex:1 1 40%}.mv-form{grid-template-columns:1fr;padding:18px 16px}.busybar{padding:10px 16px}input,select,textarea{font-size:16px}.filters input,.filters select{font-size:16px}label.field input,label.field select,label.field textarea{font-size:16px}}
 </style>
 </head>
@@ -61,6 +79,7 @@ td.wrap{white-space:normal;min-width:220px}
 <div id="app"><div class="initial-loading">Loading Hala Motor Tracker…</div></div>
 <div id="toast" role="status" aria-live="polite"></div>
 <dialog id="modal"></dialog>
+<dialog id="scanner"></dialog>
 <script>
 "use strict";
 /* ============================================================
@@ -470,7 +489,9 @@ const paths = {overview: "M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z"
   dc: "M3 6h11v12H3z M14 10h4l3 4v4h-7 M6 18v2 M18 18v2", move: "M4 8h13 M13 4l4 4-4 4 M20 16H7 M11 12l-4 4 4 4",
   activity: "M3 12h4l3-7 4 14 3-7h4", search: "M10 3a7 7 0 1 0 0 14 7 7 0 0 0 0-14 M15 15l6 6", plus: "M12 5v14 M5 12h14",
   arrow: "M5 12h14 M13 6l6 6-6 6", check: "M5 12l4 4L19 6", motor: "M5 7h14v10H5z M2 10v4 M22 10v4 M8 3v4 M16 3v4",
-  info: "M12 8v1 M12 12v5 M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20"};
+  info: "M12 8v1 M12 12v5 M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20",
+  scan: "M4 8V5h3 M17 5h3v3 M20 16v3h-3 M7 19H4v-3 M7 12h10 M8 9v6 M11 9v6 M14 9v6 M16.5 9v6"};
+const scanBtn = (target, label) => '<button type="button" class="scan-btn" data-scan="' + target + '" title="Scan the label with the camera">' + icon("scan") + (label || "Scan") + '</button>';
 const icon = name => '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + (paths[name] || paths.motor) + '"/></svg>';
 
 let view = "overview", oem = "All OEMs", type = "All types", stage = "All stages", search = "", page = 1;
@@ -584,7 +605,7 @@ function filtered(){
 }
 const options = (list, value, labels) => list.map(x => '<option value="' + esc(x) + '"' + (x === value ? " selected" : "") + '>' + esc((labels && labels[x]) || x) + '</option>').join("");
 function filters(withStage){
-  return '<div class="filters"><label class="search">' + icon("search") + '<input id="search" aria-label="Search units" placeholder="Search unit ID, serial, OEM or location…" value="' + esc(search) + '"></label>' +
+  return '<div class="filters"><label class="search">' + icon("search") + '<input id="search" aria-label="Search units" placeholder="Search unit ID, serial, OEM or location…" value="' + esc(search) + '">' + scanBtn("search") + '</label>' +
     '<select id="filter-oem" aria-label="Filter OEM">' + options(["All OEMs", ...families()], oem) + '</select>' +
     '<select id="filter-type" aria-label="Filter unit type">' + options(["All types", ...D.itemTypes], type) + '</select>' +
     (withStage ? '<select id="filter-stage" aria-label="Filter status">' + options(["All stages", ...Object.keys(STAGES)], stage, STAGES) + '</select>' : '') + '</div>';
@@ -627,7 +648,7 @@ function inspections(){
     field("Bench test result", '<select id="inspect-result" aria-label="Bench test result"><option value="">Choose result</option>' + options(["Working", "Not working"], f.result) + '</select>') +
     (f.result === "Not working" ? field("Warranty decision", '<select id="inspect-decision" aria-label="Warranty decision"><option value="">Choose decision</option>' + options(["Approved", "Rejected"], f.decision) + '</select>') : '') +
     field("Fault observed · optional", '<input id="inspect-fault" maxlength="500" placeholder="Observations from this batch" value="' + esc(f.fault) + '">') + '</div>' +
-    '<div class="filters"><label class="search">' + icon("search") + '<input id="search" aria-label="Search units" placeholder="Search unit ID, serial or OEM…" value="' + esc(search) + '"></label>' +
+    '<div class="filters"><label class="search">' + icon("search") + '<input id="search" aria-label="Search units" placeholder="Search unit ID, serial or OEM…" value="' + esc(search) + '">' + scanBtn("search") + '</label>' +
     '<select id="filter-oem" aria-label="Filter OEM">' + options(["All OEMs", ...families()], oem) + '</select>' +
     '<select id="filter-type" aria-label="Filter unit type">' + options(["All types", ...D.itemTypes], type) + '</select>' +
     '<select id="inspect-scope" aria-label="Which units to list">' + options(["queue", "all"], f.scope, {queue: "Awaiting inspection", all: "All units at Jeedimetla (re-test)"}) + '</select></div>' +
@@ -965,7 +986,7 @@ const odysseModel = (typ, oemName, id) => typ === "Motor" && /odysse/i.test(oemN
 function askRegister(){
   modal("Register a received unit", '<form id="register-form">' +
     field("Item type *", '<select name="type" id="reg-type">' + options(D.itemTypes, "Motor") + '</select>') +
-    field('<span id="reg-id-label">Motor ID *</span>', '<input name="unitId" id="reg-id" maxlength="100" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="Scan or type the unit ID">') +
+    field('<span id="reg-id-label">Motor ID *</span>', '<span class="with-scan"><input name="unitId" id="reg-id" maxlength="100" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="Scan or type the unit ID">' + scanBtn("reg") + '</span>') +
     field("OEM / Make", '<select name="oem" id="reg-oem"><option value="">Not known</option>' + options(D.oems.map(o => o.title), "") + '</select>') +
     field("Model", '<input name="model" id="reg-model" maxlength="100">') +
     field("Serial No", '<input name="serial" id="reg-serial" maxlength="100" autocomplete="off" spellcheck="false">') +
@@ -1051,8 +1072,8 @@ function moveView(){
     '<section class="panel"><div class="panel-head"><h2>Record a movement</h2><span class="small-note">Warranty dispatch uses Delivery challans</span></div><div class="mv-form">' +
     '<div class="field wide"><span id="lblDir">Direction</span><div class="seg" role="radiogroup" aria-labelledby="lblDir"><button type="button" role="radio" id="dirIn">Inward</button><button type="button" role="radio" id="dirOut">Outward</button></div></div>' +
     field('<span id="lblFrom">From</span>', '<select id="selFrom"></select>') + field('<span id="lblTo">To</span>', '<select id="selTo"></select>') +
-    '<div class="field wide"><label for="unitInput">Motor ID *</label><div class="combo"><input id="unitInput" type="text" role="combobox" aria-expanded="false" aria-controls="unitList" aria-autocomplete="list" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" style="width:100%">' +
-    '<button type="button" class="combo-x" id="unitClear" aria-label="Clear Motor ID" hidden>×</button><ul class="combo-list" id="unitList" role="listbox" hidden></ul></div><div class="field-note" id="where"></div></div>' +
+    '<div class="field wide"><label for="unitInput">Motor ID *</label><div class="with-scan"><div class="combo"><input id="unitInput" type="text" role="combobox" aria-expanded="false" aria-controls="unitList" aria-autocomplete="list" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" style="width:100%">' +
+    '<button type="button" class="combo-x" id="unitClear" aria-label="Clear Motor ID" hidden>×</button><ul class="combo-list" id="unitList" role="listbox" hidden></ul></div>' + scanBtn("move") + '</div><div class="field-note" id="where"></div></div>' +
     field("Movement date", '<input id="inpDate" type="date">') + field("Reason *", '<select id="selReason"></select>') +
     '<div class="rule-note wide" id="rule" hidden></div></div>' +
     '<div class="bulkbar"><span id="why"></span><button class="primary" id="btnSave" disabled>Save movement ' + icon("arrow") + '</button></div></section>' +
@@ -1233,6 +1254,9 @@ function syncSelection(){
 document.addEventListener("click", async e => {
   const t = e.target.closest("button"); if(!t) return;
   const d = t.dataset;
+  if(d.scan){ e.preventDefault(); openScan(d.scan); return; }
+  if(d.scanAct){ scanAct(d.scanAct); return; }
+  if(d.scanAlt !== undefined){ const box = document.getElementById("scId"); if(box){ box.value = d.scanAlt; scanKnownNote(); } return; }
   if(d.page){ page = Number(d.page); redrawTable(); return; }
   if(d.nav){ $("#modal").open && $("#modal").close(); nav(d.nav); return; }
   if(d.stage){ nav("inventory"); stage = d.stage; render(); return; }
@@ -1318,6 +1342,535 @@ document.addEventListener("change", e => {
 document.addEventListener("visibilitychange", () => {
   if(!document.hidden && D.loaded && !busy && !M.saving && !$("#modal").open && Date.now() - D.lastLoad > 120000 && !selected.size && !dcSelected.size) loadAll();
 });
+
+/* ============================================================
+   SCAN A UNIT LABEL
+   Three routes, tried in order:
+     1. A barcode or QR on the label — instant and exact, read live
+        while the camera is being aimed.
+     2. The printed text, read several ways with the readings voting.
+     3. Ringing just the ID on the photo — the tightest, most accurate read.
+   The register then helps choose between readings: a reading that
+   matches a unit already on it wins, and lookalike characters
+   (0/O, 1/I, 5/S, 8/B) are compared as equals when matching.
+   Whatever comes back is ALWAYS shown for confirmation before it is
+   used, and lookalikes are flagged rather than silently "corrected".
+   The reader runs entirely in this browser; no photo leaves the device.
+   ============================================================ */
+const OCR_DIR = new URL("ocr", location.origin + location.pathname).href;
+const SCAN = {target: "", stream: null, track: null, torchOn: false, worker: null, warming: null, detector: null, loop: 0,
+  frames: null, shot: "", vote: null, label: null, busy: false, box: null, session: 0};
+
+/* Fold every lookalike character to one representative, so a misread and the
+   real ID collide while genuine nonsense does not. */
+const CONFUSE = {O: "0", Q: "0", D: "0", I: "1", L: "1", J: "1", S: "5", B: "8", Z: "2", G: "6", U: "V"};
+const alnum = s => String(s || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+const canonId = s => alnum(s).split("").map(ch => CONFUSE[ch] || ch).join("");
+const LABEL_WORDS = /^(CONTROLLER|BRUSHLESS|WORKING|CONFINED|PRODUCT|VOLTAGE|CURRENT|BATTERY|MOTOR|MODEL|RATED|POWER|SPEED|INPUT|OUTPUT|PHASE|ANGLE|THROTTLE|UNDER|LIMIT)/;
+
+/* What the register teaches about unit IDs: which ones exist (by lookalike-
+   folded key) and which openings are common. Rebuilt whenever the lists reload. */
+let idKnow = null;
+function knowledge(){
+  if(idKnow && idKnow.at === D.lastLoad) return idKnow;
+  const canon = new Map(), pre = new Map(), lens = new Set();
+  for(const u of D.units){
+    const a = alnum(u.Title); if(a.length < 4) continue;
+    /* Two different units that fold onto the same key cannot be told apart by a fuzzy read: never snap to either. */
+    const c = canonId(a); canon.set(c, canon.has(c) && canon.get(c) && canon.get(c).Title !== u.Title ? null : u);
+    const p = c.slice(0, 3); pre.set(p, (pre.get(p) || 0) + 1);
+    lens.add(p + ":" + a.length);
+  }
+  const prefixes = new Set([...pre].filter(([, n]) => n >= 3).map(([p]) => p));
+  for(const o of D.oems) for(const code of String(o.code || "").split(",")){ const k = canonId(code); if(k.length >= 2) prefixes.add(k); }
+  idKnow = {at: D.lastLoad, canon, prefixes, lens};
+  return idKnow;
+}
+function prefixKnown(t){ const c = canonId(t); for(const p of knowledge().prefixes) if(c.startsWith(p)) return true; return false; }
+const knownUnit = t => D.byTitle.get(t) || knowledge().canon.get(canonId(t)) || null;
+function plausibleId(t){
+  const a = alnum(t);
+  return a.length >= 8 && a.length <= 30 && (a.match(/\d/g) || []).length >= 2 && (a.match(/[A-Z]/g) || []).length >= 2 && !LABEL_WORDS.test(t);
+}
+/* Every ID-shaped token a piece of text contains. IDs may carry hyphens
+   (ODY-0925-40W-CA05577), and a stray space in the middle of one is rejoined
+   when the result opens like IDs already on the register. */
+function serialCandidates(text){
+  const out = new Set();
+  for(const line of String(text || "").toUpperCase().split(/\n+/)){
+    for(const t of line.match(/[A-Z0-9]+(?:[-\/][A-Z0-9]+)*/g) || []) if(plausibleId(t)) out.add(t);
+    const parts = line.trim().split(/\s+/).map(p => p.replace(/[^A-Z0-9\-\/]/g, ""));
+    for(let i = 0; i < parts.length - 1; i++){
+      const j = parts[i] + parts[i + 1];
+      if(plausibleId(j) && prefixKnown(j) && (!plausibleId(parts[i]) || knowledge().lens.has(canonId(j).slice(0, 3) + ":" + alnum(j).length))) out.add(j);
+    }
+  }
+  return [...out];
+}
+function scoreId(t, votes){
+  const k = knowledge(), a = alnum(t), c = canonId(a);
+  let s = votes * 15 + Math.min(a.length, 20) / 4;
+  if(D.byTitle.has(t)) s += 100; else if(k.canon.get(c)) s += 80;
+  if(prefixKnown(t)){ s += 40; if(k.lens.has(c.slice(0, 3) + ":" + a.length)) s += 15; }
+  else if(/[-\/]/.test(t)) s -= 10;            // hyphenated and unlike any unit here: usually a model code
+  return s;
+}
+function near1(a, b){
+  if(a === b || Math.abs(a.length - b.length) > 1) return false;
+  let i = 0, j = 0, edits = 0;
+  while(i < a.length && j < b.length){
+    if(a[i] === b[j]){ i++; j++; continue; }
+    if(++edits > 1) return false;
+    if(a.length > b.length) i++; else if(a.length < b.length) j++; else { i++; j++; }
+  }
+  return edits + (a.length - i) + (b.length - j) <= 1;
+}
+/* Units on the register one character away from this reading. */
+function nearUnits(t){
+  const c = canonId(t); if(c.length < 8) return [];
+  const out = [];
+  for(const [k, u] of knowledge().canon) if(u && near1(c, k)) out.push(u.Title);
+  return out.slice(0, 3);
+}
+/* What similar units say about a reading that is NOT on the register:
+     - opening:  an OEM's ID prefix from the masters (JM, TW, ODY…) read with a
+                 lookalike ("IM", "0DY") is put back to the prefix;
+     - auto:     where at least five units with the same opening and length all
+                 have a digit (or all a letter) in a position, a lookalike of
+                 the other kind there is switched (O to 0, 1 to I…);
+     - suggest:  where they all share the very same character and the reading
+                 has its lookalike (I for J), that is OFFERED, never applied —
+                 a new batch letter must not be overwritten.
+   Every change is shown to the user with the raw reading one tap away. */
+const TO_DIGIT = {O: "0", Q: "0", D: "0", I: "1", L: "1", J: "1", S: "5", B: "8", Z: "2", G: "6"};
+const TO_LETTER = {"0": "O", "1": "I", "5": "S", "8": "B", "2": "Z", "6": "G"};
+function mapAlnum(t, fn){
+  let k = 0, out = "";
+  for(const ch of String(t).toUpperCase()){ if(/[A-Z0-9]/.test(ch)){ out += fn(ch, k) || ch; k++; } else out += ch; }
+  return out;
+}
+function patternFix(read){
+  let t = String(read).toUpperCase(); const notes = [];
+  for(const o of D.oems) for(const raw of String(o.code || "").split(",")){
+    const code = alnum(raw);
+    if(code.length >= 2 && canonId(t).startsWith(canonId(code)) && !alnum(t).startsWith(code)){
+      t = mapAlnum(t, (ch, k) => k < code.length ? code[k] : ""); notes.push("opening set to the " + o.title + " prefix " + code);
+    }
+  }
+  const a = alnum(t), c2 = canonId(a).slice(0, 2);
+  const peers = D.units.map(u => alnum(u.Title)).filter(p => p.length === a.length && canonId(p).slice(0, 2) === c2);
+  let auto = t, suggest = "";
+  if(peers.length >= 3){
+    const col = k => peers.map(p => p[k]);
+    if(peers.length >= 5){
+      auto = mapAlnum(t, (ch, k) => col(k).every(x => /\d/.test(x)) ? TO_DIGIT[ch] : col(k).every(x => /[A-Z]/.test(x)) ? TO_LETTER[ch] : "");
+      if(auto !== t) notes.push("lookalike characters set to match " + peers.length + " similar units");
+    }
+    suggest = mapAlnum(auto, (ch, k) => { const x = col(k); return x.every(y => y === x[0]) && x[0] !== ch && (CONFUSE[x[0]] || x[0]) === (CONFUSE[ch] || ch) ? x[0] : ""; });
+    if(suggest === auto) suggest = "";
+  }
+  return {id: auto, changed: auto !== String(read).toUpperCase(), notes, suggest};
+}
+const confusables = id => [...new Set(String(id || "").match(/[01568OISBG]/g) || [])].join(" ");
+
+/* Other details a label usually carries, used to prefill a registration. */
+function parseLabel(text){
+  const raw = String(text || ""), up = raw.toUpperCase(), out = {cat: "", oem: "", model: ""};
+  if(/\bMOTOR\b/.test(up)) out.cat = "Motor";
+  if(/CONTROLLER/.test(up)) out.cat = "Controller";       // "motor controller" is a controller
+  const hay = alnum(raw); let best = 0;
+  for(const o of D.oems) for(const part of o.title.split(/\s+-\s+/)){
+    const k = alnum(part);
+    if(k.length >= 3 && hay.includes(k) && k.length > best){ out.oem = o.title; best = k.length; }
+  }
+  const mm = /MODEL\s*(?:NO\.?)?\s*[:：]?\s*([A-Z0-9][A-Z0-9.\-\/]{3,})/i.exec(raw);
+  if(mm) out.model = mm[1].replace(/[.,]$/, "");
+  return out;
+}
+/* A barcode or QR may hold just the ID, or the ID inside a longer text. */
+function idFromCode(raw){
+  const text = String(raw || "").trim(); if(!text) return "";
+  if(D.byTitle.has(text)) return text;
+  const up = text.toUpperCase();
+  let best = "";
+  for(const u of D.units) if(u.Title.length >= 6 && u.Title.length > best.length && up.includes(u.Title.toUpperCase())) best = u.Title;
+  if(best) return best;
+  if(/^[\w.\-\/]{4,40}$/.test(text)) return text;
+  return serialCandidates(text).sort((a, b) => scoreId(b, 1) - scoreId(a, 1))[0] || "";
+}
+
+/* ---------- the reader ---------- */
+function loadOcrLib(){
+  if(window.Tesseract) return Promise.resolve();
+  if(!SCAN.lib) SCAN.lib = new Promise((res, rej) => {
+    const s = document.createElement("script");
+    s.src = OCR_DIR + "/tesseract.min.js";
+    s.onload = () => window.Tesseract ? res() : rej(new Error("the text reader did not start"));
+    s.onerror = () => { SCAN.lib = null; rej(new Error("the text reader could not be downloaded")); };
+    document.head.appendChild(s);
+  });
+  return SCAN.lib;
+}
+function ocrWorker(){
+  if(!SCAN.warming) SCAN.warming = (async () => {
+    await loadOcrLib();
+    SCAN.worker = await window.Tesseract.createWorker("eng", 1, {
+      workerPath: OCR_DIR + "/worker.min.js", corePath: OCR_DIR, langPath: OCR_DIR, workerBlobURL: false, gzip: true,
+      logger: m => { if(SCAN.busy && /loading|initializ/i.test(m.status || "")) scanSay("Preparing the text reader (first scan only)…", "inf"); },
+    });
+    return SCAN.worker;
+  })().catch(e => { SCAN.warming = null; throw e; });
+  return SCAN.warming;
+}
+async function runOcr(canvas, oneLine){
+  const w = await ocrWorker();
+  /* A strict character set stops the reader inventing punctuation in an ID. */
+  await w.setParameters(oneLine
+    ? {tessedit_pageseg_mode: "7", tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-/"}
+    : {tessedit_pageseg_mode: "6", tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789:.-/+ "});
+  const r = await w.recognize(canvas);
+  return (r && r.data && r.data.text) || "";
+}
+/* Grayscale with pushed contrast and a sharpen, never black-and-white:
+   thresholding destroys small print on a real label, this recovers it. */
+const OCR_SPECS = [{scale: 1.0, contrast: 2.2}, {scale: 1.0, contrast: 1.6}, {scale: 1.3, contrast: 2.6}, {scale: 1.0, contrast: 2.2, invert: true}];
+const OCR_MAX_W = 1100, OCR_MAX_PASSES = 6;
+function makeVariant(src, sp){
+  let scale = sp.scale; if(src.width * scale > OCR_MAX_W) scale = OCR_MAX_W / src.width;
+  const c = document.createElement("canvas");
+  c.width = Math.max(8, Math.round(src.width * scale)); c.height = Math.max(8, Math.round(src.height * scale));
+  const g = c.getContext("2d", {willReadFrequently: true});
+  g.imageSmoothingQuality = "high"; g.drawImage(src, 0, 0, c.width, c.height);
+  const w = c.width, h = c.height, d = g.getImageData(0, 0, w, h), px = d.data;
+  const gray = new Float32Array(w * h);
+  for(let i = 0, p = 0; i < px.length; i += 4, p++){
+    let v = (px[i] * 0.299 + px[i + 1] * 0.587 + px[i + 2] * 0.114 - 128) * sp.contrast + 128;
+    v = v < 0 ? 0 : v > 255 ? 255 : v;
+    gray[p] = sp.invert ? 255 - v : v;
+  }
+  for(let y = 0; y < h; y++) for(let x = 0; x < w; x++){
+    const p = y * w + x;
+    let v = gray[p];
+    if(x > 0 && y > 0 && x < w - 1 && y < h - 1) v = 5 * v - gray[p - 1] - gray[p + 1] - gray[p - w] - gray[p + w];
+    v = v < 0 ? 0 : v > 255 ? 255 : v;
+    px[p * 4] = px[p * 4 + 1] = px[p * 4 + 2] = v; px[p * 4 + 3] = 255;
+  }
+  g.putImageData(d, 0, 0);
+  return c;
+}
+/* One winner out of several readings of the same ID that differ only in
+   lookalikes: position by position, the character most readings saw. */
+function consensus(list){
+  const first = list[0]; if(list.some(x => x.length !== first.length)) return first;
+  let out = "";
+  for(let i = 0; i < first.length; i++){
+    const n = {}; let best = first[i];
+    for(const x of list){ n[x[i]] = (n[x[i]] || 0) + 1; if(n[x[i]] > n[best]) best = x[i]; }
+    out += best;
+  }
+  return out;
+}
+/* Read the picture several ways and let the readings vote — but stop the moment
+   the answer is settled. Readings that differ only by lookalike characters count
+   as the same ID. The strongest treatment of every frame runs before the weaker
+   treatments of any, so a scan that stops early still saw each photo. */
+const labelPlan = frames => { const plan = []; OCR_SPECS.forEach(sp => frames.forEach(src => plan.push({src, sp, oneLine: false}))); return plan.slice(0, OCR_MAX_PASSES); };
+async function ocrVote(plan, onStep){
+  const groups = new Map(), texts = [];
+  const rep = k => consensus(groups.get(k)), score = k => scoreId(rep(k), groups.get(k).length);
+  const rank = () => [...groups.keys()].sort((a, b) => score(b) - score(a) || b.length - a.length);
+  let done = 0;
+  for(const step of plan){
+    const t = await runOcr(makeVariant(step.src, step.sp), step.oneLine);
+    texts.push(t);
+    const found = new Set(serialCandidates(t));
+    if(step.oneLine){ const whole = t.toUpperCase().replace(/[^A-Z0-9\-\/]/g, ""); if(alnum(whole).length >= 6) found.add(whole); }
+    for(const c of found){ const k = canonId(c); if(!groups.has(k)) groups.set(k, []); groups.get(k).push(c); }
+    done++; if(onStep) onStep(done, plan.length);
+    const r = rank();
+    if(r.length){
+      if(knownUnit(rep(r[0]))) break;                                              // already on the register: settled
+      const n0 = groups.get(r[0]).length, n1 = r[1] ? groups.get(r[1]).length : 0;
+      /* two readings agree and nothing else is close: either fewer votes, or clearly less like a unit ID */
+      if(n0 >= 2 && (!r[1] || n0 > n1 || score(r[0]) - score(r[1]) >= 25)) break;
+    }
+  }
+  const ranked = rank().map(rep);
+  return {id: ranked[0] || "", votes: ranked.length ? groups.get(canonId(ranked[0])).length : 0, ranked, passes: done, text: texts.join("\n")};
+}
+async function tryBarcode(source){
+  try{
+    if(!("BarcodeDetector" in window)) return "";
+    if(!SCAN.detector) SCAN.detector = new window.BarcodeDetector({formats: await window.BarcodeDetector.getSupportedFormats()});
+    const found = await SCAN.detector.detect(source);
+    for(const f of found || []){ const id = idFromCode(f.rawValue); if(id) return id; }
+  }catch(e){}
+  return "";
+}
+
+/* ---------- the camera sheet ---------- */
+const scanEl = () => document.getElementById("scanner");
+function scanSay(html, kind){ const m = document.getElementById("scMsg"); if(m){ m.innerHTML = html; m.className = "scan-msg " + (kind || "inf"); } }
+function scanButtons(html){ const b = document.getElementById("scBtns"); if(b) b.innerHTML = html; }
+const SCAN_TITLES = {reg: "Scan the unit to register", move: "Scan the unit to move", search: "Scan a unit to find it"};
+async function openScan(target){
+  SCAN.target = target || SCAN.target || "search"; SCAN.session++;
+  SCAN.frames = null; SCAN.shot = ""; SCAN.vote = null; SCAN.label = null; SCAN.busy = false;
+  const dlg = scanEl();
+  dlg.innerHTML = '<div class="modal-head"><h2>' + esc(SCAN_TITLES[SCAN.target] || "Scan a unit label") + '</h2><button class="close-btn" data-scan-act="close" aria-label="Close scanner">×</button></div>' +
+    '<div class="modal-body"><p class="small-note" style="margin-bottom:10px">Fill the box with the label and hold steady. A barcode or QR is read at once; otherwise press Capture to read the printed ID.</p>' +
+    '<div class="scan-stage" id="scStage"><video id="scVid" playsinline muted autoplay></video><div class="scan-guide" id="scGuide"></div><img id="scShot" alt="Captured label" hidden></div>' +
+    '<div class="scan-msg inf" id="scMsg">Starting the camera…</div><div id="scFields"></div></div>' +
+    '<div class="modal-actions" id="scBtns"></div><input type="file" id="scFile" accept="image/*" hidden>';
+  scanButtons('<button class="primary" data-scan-act="capture" id="scCap" disabled>Capture</button><button data-scan-act="torch" id="scTorch" hidden>Light</button>' +
+    '<button data-scan-act="file">Choose photo</button><button data-scan-act="close">Cancel</button>');
+  if(!dlg.open) dlg.showModal();
+  /* Fetch the reader while the user is still aiming, so the wait happens then, not after the photo. */
+  ocrWorker().catch(() => {});
+  const mine = SCAN.session;
+  try{
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error("this browser gives pages no camera");
+    const stream = await navigator.mediaDevices.getUserMedia({video: {facingMode: {ideal: "environment"}, width: {ideal: 1920}, height: {ideal: 1080}}, audio: false});
+    if(mine !== SCAN.session || !dlg.open){ stream.getTracks().forEach(t => t.stop()); return; }
+    SCAN.stream = stream;
+    const v = document.getElementById("scVid"); v.srcObject = stream; await v.play().catch(() => {});
+    SCAN.track = stream.getVideoTracks()[0];
+    const caps = SCAN.track.getCapabilities ? SCAN.track.getCapabilities() : {};
+    if(caps && caps.torch) document.getElementById("scTorch").hidden = false;
+    document.getElementById("scCap").disabled = false;
+    scanSay("Line the label up inside the box, then Capture.", "inf");
+    if("BarcodeDetector" in window){
+      /* Watch for a barcode or QR while aiming: when one is there, no photo is needed. */
+      clearInterval(SCAN.loop);
+      SCAN.loop = setInterval(async () => {
+        if(SCAN.busy || !SCAN.stream || v.readyState < 2) return;
+        const id = await tryBarcode(v);
+        if(id && SCAN.stream && !SCAN.busy && mine === SCAN.session){ freezeFrame(v); stopCamera(); showScanResult({id}, "barcode"); }
+      }, 450);
+    }
+  }catch(e){
+    if(mine !== SCAN.session) return;
+    scanSay("<b>Camera unavailable.</b> " + esc(e.message) + '<div class="small-note">Allow the camera for this page, or use Choose photo with a picture of the label.</div>', "err");
+  }
+}
+function stopCamera(){
+  clearInterval(SCAN.loop); SCAN.loop = 0;
+  if(SCAN.stream){ SCAN.stream.getTracks().forEach(t => t.stop()); SCAN.stream = null; }
+  SCAN.track = null; SCAN.torchOn = false;
+}
+function closeScan(){ SCAN.session++; SCAN.busy = false; stopCamera(); const d = scanEl(); if(d.open) d.close(); }
+function scanTorch(){
+  if(!SCAN.track) return;
+  const on = !SCAN.torchOn;
+  SCAN.track.applyConstraints({advanced: [{torch: on}]}).then(() => { SCAN.torchOn = on; }).catch(() => toast("This camera has no controllable light.", true));
+}
+/* The part of the camera frame that is actually inside the on-screen box.
+   The preview fills its stage by cropping, so the box is measured against
+   what is visible, not against the whole frame. */
+function guideRect(v){
+  const st = document.getElementById("scStage").getBoundingClientRect(), vw = v.videoWidth, vh = v.videoHeight;
+  const k = Math.max(st.width / vw, st.height / vh), visW = st.width / k, visH = st.height / k;
+  /* Read a little beyond the drawn box (84% x 44%), so an ID that touches its
+     edge is not cut short by a slightly loose aim. */
+  const w = visW * 0.94, h = visH * 0.56;
+  return {x: (vw - w) / 2, y: (vh - h) / 2, w, h};
+}
+function cropToGuide(v){
+  const r = guideRect(v), scale = Math.min(3, 2200 / r.w);         // upscale: small print needs it
+  const c = document.createElement("canvas");
+  c.width = Math.round(r.w * scale); c.height = Math.round(r.h * scale);
+  const g = c.getContext("2d"); g.imageSmoothingQuality = "high";
+  g.drawImage(v, r.x, r.y, r.w, r.h, 0, 0, c.width, c.height);
+  return c;
+}
+function showShot(canvas){
+  SCAN.shot = canvas.toDataURL("image/jpeg", 0.92);
+  const img = document.getElementById("scShot"), v = document.getElementById("scVid"), gd = document.getElementById("scGuide");
+  if(!img) return;
+  img.src = SCAN.shot; img.hidden = false; v.hidden = true; gd.hidden = true;
+}
+function freezeFrame(v){ if(v.videoWidth){ SCAN.frames = [cropToGuide(v)]; showShot(SCAN.frames[0]); } }
+async function scanCapture(){
+  const v = document.getElementById("scVid");
+  if(!v || !v.videoWidth) return scanSay("The camera has not started yet.", "err");
+  if(SCAN.busy) return;
+  SCAN.busy = true; clearInterval(SCAN.loop);
+  const full = document.createElement("canvas"); full.width = v.videoWidth; full.height = v.videoHeight;
+  full.getContext("2d").drawImage(v, 0, 0);
+  /* Several frames a moment apart: shake and glare differ between them, so a
+     character lost in one is often clean in another. */
+  const frames = [cropToGuide(v)];
+  for(let i = 0; i < 2; i++){ await sleep(90); frames.push(cropToGuide(v)); }
+  showShot(frames[0]); stopCamera();
+  await readFrames(full, frames);
+}
+async function scanFile(file){
+  if(!file || SCAN.busy) return;
+  SCAN.busy = true; stopCamera();
+  try{
+    const bmp = await createImageBitmap(file), k = Math.min(1, 2200 / Math.max(bmp.width, bmp.height));
+    const c = document.createElement("canvas"); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+    c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+    showShot(c);
+    await readFrames(c, [c]);
+  }catch(e){ SCAN.busy = false; scanSay("<b>That photo could not be opened.</b> " + esc(e.message), "err"); }
+}
+const SCAN_RETRY = '<button data-scan-act="again">Scan again</button><button data-scan-act="file">Choose photo</button><button data-scan-act="close">Cancel</button>';
+async function readFrames(full, frames){
+  const mine = SCAN.session;
+  SCAN.frames = frames; SCAN.vote = null; SCAN.label = null;
+  scanButtons('<button data-scan-act="close">Cancel</button>');
+  scanSay("Looking for a barcode…", "inf");
+  const code = await tryBarcode(full);
+  if(mine !== SCAN.session) return;
+  if(code){ SCAN.busy = false; return showScanResult({id: code}, "barcode"); }
+  scanSay("No barcode on this label — reading the text…", "inf");
+  try{
+    const res = await ocrVote(labelPlan(frames), d => { if(mine === SCAN.session) scanSay(d === 1 ? "Reading the label…" : "Checking the reading — pass " + (d + 1) + "…", "inf"); });
+    if(mine !== SCAN.session) return;
+    SCAN.busy = false; SCAN.vote = res; SCAN.label = parseLabel(res.text);
+    if(!res.id){
+      scanSay("<b>Could not find an ID on the label.</b> Try again with more light and the label filling the box, or ring just the ID on this photo.", "err");
+      return scanButtons('<button class="primary" data-scan-act="ring">Ring just the ID</button>' + SCAN_RETRY);
+    }
+    showScanResult({id: res.id, votes: res.votes}, "text");
+  }catch(e){
+    if(mine !== SCAN.session) return;
+    SCAN.busy = false;
+    scanSay("<b>The text reader could not run.</b> " + esc(e.message) + '<div class="small-note">It needs a connection the first time it is used on a device. Type the ID instead, or try again.</div>', "err");
+    scanButtons(SCAN_RETRY);
+  }
+}
+
+/* ---------- confirm before anything is used ---------- */
+function showScanResult(got, how){
+  SCAN.busy = false;
+  const read = got.id, exact = D.byTitle.get(read), unit = exact || knownUnit(read);
+  const fix = unit || how === "barcode" ? {id: read, changed: false, notes: [], suggest: ""} : patternFix(read);
+  const id = unit ? unit.Title : fix.id, snapped = unit && !exact;
+  const alts = [];
+  const add = (v, why) => { if(v && v !== id && !alts.some(a => a.v === v)) alts.push({v, why}); };
+  if(how !== "barcode"){
+    if(snapped || fix.changed) add(read, "exactly as read");
+    if(!unit){ add(fix.suggest, "fits similar units"); nearUnits(id).forEach(t => add(t, "on the register, one character different")); }
+    ((SCAN.vote && SCAN.vote.ranked) || []).slice(0, 4).forEach(t => add(t, "another reading"));
+  }
+  const weak = how === "text" && !unit && (got.votes || 0) <= 1, warn = how !== "barcode" && !unit ? confusables(id) : "";
+  scanSay(how === "barcode" ? "<b>Barcode read.</b> Check it matches the unit before continuing."
+    : snapped ? "<b>Matched to a unit on the register.</b> Read as " + esc(read) + ", which matches <b>" + esc(id) + "</b>."
+    : unit ? "<b>Read, and found on the register.</b>"
+    : (weak ? "<b>Read, but only one pass produced this.</b> Check every character against the label, or scan again."
+            : "<b>Read from the label</b>" + (got.votes ? " (" + got.votes + " readings agreed)" : "") + ". Check it against the label.") +
+      (fix.changed ? " Adjusted: " + esc(fix.notes.join("; ")) + ". It was read as " + esc(read) + "." : ""), weak ? "err" : "ok");
+  const lab = SCAN.label || {}, extra = [lab.cat, lab.oem, lab.model && ("model " + lab.model)].filter(Boolean);
+  document.getElementById("scFields").innerHTML =
+    '<label class="field" style="margin-top:12px">Unit ID<input id="scId" class="scan-id" maxlength="100" autocapitalize="characters" autocomplete="off" spellcheck="false" value="' + esc(id) + '"></label>' +
+    '<p class="small-note" id="scKnown" style="margin-top:6px"></p>' +
+    (warn ? '<p class="small-note" style="color:#96752c">Contains ' + esc(warn) + ' — the characters a reader most often confuses. Check them against the label.</p>' : '') +
+    (alts.length ? '<div class="scan-alts"><span class="small-note">Other readings:</span>' + alts.slice(0, 5).map(a => '<button data-scan-alt="' + esc(a.v) + '" title="' + esc(a.why) + '">' + esc(a.v) + '<small>' + esc(a.why) + '</small></button>').join("") + '</div>' : '') +
+    (SCAN.target === "reg" && extra.length ? '<p class="small-note" style="margin-top:8px">Also read from the label: ' + esc(extra.join(" · ")) + '.</p>' : '');
+  scanKnownNote();
+  scanButtons('<button class="primary" data-scan-act="use">Use this ID</button>' + (SCAN.shot && how !== "barcode" ? '<button data-scan-act="ring">Ring just the ID</button>' : '') + '<button data-scan-act="again">Scan again</button><button data-scan-act="close">Cancel</button>');
+}
+function scanKnownNote(){
+  const box = document.getElementById("scKnown"), inp = document.getElementById("scId"); if(!box || !inp) return;
+  const u = D.byTitle.get(inp.value.trim());
+  box.textContent = u ? "On the register: " + (u.stage === "other" ? (u.Availability || "no status") : STAGES[u.stage]) + " · " + (u.CurrentLocation || "no location") + "."
+    : inp.value.trim() ? "Not on the register yet." : "";
+}
+/* When the whole-label read fails, ring just the ID: a tight crop read as a
+   single line with a strict character set is the most accurate pass there is. */
+function scanPickId(){
+  if(!SCAN.shot) return toast("Capture a photo first.", true);
+  SCAN.box = null;
+  document.getElementById("scStage").hidden = true;
+  document.getElementById("scFields").innerHTML = '<div class="scan-pick" id="pkWrap"><img id="pkImg" alt="Captured label" src="' + SCAN.shot + '"><div id="pkBox" hidden></div></div>';
+  scanSay("Drag a box around the unit ID only — nothing else.", "inf");
+  scanButtons('<button class="primary" data-scan-act="readbox" id="pkGo" disabled>Read this</button><button data-scan-act="again">Scan again</button><button data-scan-act="close">Cancel</button>');
+  const wrap = document.getElementById("pkWrap"), box = document.getElementById("pkBox");
+  let sx = 0, sy = 0, drag = false;
+  const pt = e => { const r = wrap.getBoundingClientRect(); return {x: Math.max(0, Math.min(r.width, e.clientX - r.left)), y: Math.max(0, Math.min(r.height, e.clientY - r.top))}; };
+  wrap.addEventListener("pointerdown", e => { const p = pt(e); sx = p.x; sy = p.y; drag = true; wrap.setPointerCapture(e.pointerId);
+    box.hidden = false; box.style.left = sx + "px"; box.style.top = sy + "px"; box.style.width = "0px"; box.style.height = "0px"; e.preventDefault(); });
+  wrap.addEventListener("pointermove", e => { if(!drag) return; const p = pt(e);
+    box.style.left = Math.min(sx, p.x) + "px"; box.style.top = Math.min(sy, p.y) + "px"; box.style.width = Math.abs(p.x - sx) + "px"; box.style.height = Math.abs(p.y - sy) + "px"; });
+  const up = () => { if(!drag) return; drag = false;
+    SCAN.box = {l: parseFloat(box.style.left), t: parseFloat(box.style.top), w: parseFloat(box.style.width), h: parseFloat(box.style.height), cw: wrap.clientWidth, ch: wrap.clientHeight};
+    document.getElementById("pkGo").disabled = !(SCAN.box.w > 12 && SCAN.box.h > 8); };
+  wrap.addEventListener("pointerup", up); wrap.addEventListener("pointercancel", up);
+}
+async function scanReadBox(){
+  const b = SCAN.box; if(!b || SCAN.busy) return;
+  SCAN.busy = true; const mine = SCAN.session;
+  scanSay("Reading…", "inf");
+  try{
+    const img = document.getElementById("pkImg"), kx = img.naturalWidth / b.cw, ky = img.naturalHeight / b.ch;
+    const pad = Math.round(b.h * ky * 0.15), sw = b.w * kx + pad * 2, sh = b.h * ky + pad * 2;
+    /* The reader is most accurate with characters around 40-60 pixels tall;
+       blowing a tight crop up further makes it worse, not better. */
+    const crop = tall => {
+      const scale = Math.min(tall / sh, 1700 / sw), c = document.createElement("canvas");
+      c.width = Math.max(8, Math.round(sw * scale)); c.height = Math.max(8, Math.round(sh * scale));
+      const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.imageSmoothingQuality = "high";
+      g.drawImage(img, b.l * kx - pad, b.t * ky - pad, sw, sh, 0, 0, c.width, c.height);
+      return c;
+    };
+    const small = crop(80), large = crop(120), sp = OCR_SPECS[0];
+    const res = await ocrVote([{src: large, sp, oneLine: true}, {src: small, sp, oneLine: false}, {src: small, sp, oneLine: true},
+      {src: large, sp, oneLine: false}, {src: large, sp: OCR_SPECS[3], oneLine: true}]);
+    if(mine !== SCAN.session) return;
+    SCAN.busy = false; SCAN.vote = res;
+    document.getElementById("scStage").hidden = false;
+    if(!res.id){ scanPickId(); return scanSay("<b>Nothing readable in that box.</b> Ring it again a little wider, or type the ID.", "err"); }
+    showScanResult({id: res.id, votes: res.votes}, "text");
+  }catch(e){ SCAN.busy = false; scanSay("Could not read that area — " + esc(e.message), "err"); }
+}
+function scanUse(){
+  const inp = document.getElementById("scId"), id = inp ? inp.value.trim() : "";
+  if(!id) return toast("A unit ID is needed.", true);
+  const target = SCAN.target, lab = SCAN.label || {};
+  closeScan();
+  if(target === "reg"){
+    const f = document.getElementById("reg-id"); if(!f) return;
+    f.value = id;
+    if(D.byTitle.has(id)){ regSync("id"); return toast(id + " is already on the register. Registration details are edited in the Power App.", true); }
+    if(lab.cat && D.itemTypes.includes(lab.cat)) document.getElementById("reg-type").value = lab.cat;
+    regSync("id");
+    const o = document.getElementById("reg-oem"), m = document.getElementById("reg-model");
+    if(!o.value && lab.oem){ o.value = lab.oem; regSync("oem"); }
+    if(lab.model && !m.readOnly && !m.value) m.value = lab.model;
+    toast("Scanned " + id + " — check the rest and register it.");
+  }else if(target === "move"){
+    const list = moveCandidates(), u = list.find(x => x.Title === id) || list.find(x => canonId(x.Title) === canonId(id));
+    if(u){ pickUnit(u); return toast("Scanned " + u.Title + "."); }
+    const known = knownUnit(id), box = document.getElementById("unitInput");
+    M.unit = null; if(box){ box.value = id; moveRender(); }
+    toast(known ? known.Title + " is on the register (" + (known.Availability || "no status") + " · " + (known.CurrentLocation || "no location") + ") but cannot be moved this way."
+      : id + " is not on the register. Register it first.", true);
+  }else{
+    const known = knownUnit(id);
+    search = known ? known.Title : id; page = 1;
+    const box = document.getElementById("search"); if(box) box.value = search;
+    redrawTable();
+    toast(known ? "Showing " + known.Title + "." : id + " is not on the register.", !known);
+  }
+}
+function scanAct(act){
+  switch(act){
+    case "close": closeScan(); break;
+    case "capture": scanCapture(); break;
+    case "torch": scanTorch(); break;
+    case "file": document.getElementById("scFile").click(); break;
+    case "again": openScan(SCAN.target); break;
+    case "ring": scanPickId(); break;
+    case "readbox": scanReadBox(); break;
+    case "use": scanUse(); break;
+  }
+}
+document.addEventListener("change", e => { if(e.target.id === "scFile"){ const f = e.target.files && e.target.files[0]; e.target.value = ""; scanFile(f); } });
+document.addEventListener("input", e => { if(e.target.id === "scId") scanKnownNote(); });
+/* Closing the sheet any way at all (button, Esc) must switch the camera off. */
+scanEl().addEventListener("close", () => { SCAN.session++; SCAN.busy = false; stopCamera(); });
 
 (async function boot(){
   loadAuth();
