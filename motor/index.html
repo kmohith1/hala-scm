@@ -1,221 +1,76 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#176254">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://login.microsoftonline.com https://halamobility.sharepoint.com; img-src data:; base-uri 'none'; form-action 'none'">
-<title>Motor Tracker — Log inward / outward</title>
+<title>Motor Tracker · Hala</title>
 <style>
-:root{
-  --navy:#16273e; --ink-2:#475569; --mute:#64748b;
-  --teal:#00756f; --teal-d:#00605b; --teal-soft:#e0f2ef; --teal-tint:#edf7f6;
-  --bg:#f2f5fa; --card:#ffffff; --line:#d1dbe5; --line-soft:#e2e8f0; --field-dis:#f1f5f9;
-  --warn-bg:#fff7e6; --warn-line:#f0c36d; --warn-ink:#7a4b00;
-  --err-bg:#fdecec; --err-line:#e9a3a3; --err-ink:#9b1c1c;
-  --sans:"Segoe UI",system-ui,-apple-system,Roboto,Helvetica,Arial,sans-serif;
-}
-*{box-sizing:border-box;margin:0;padding:0}
-html{-webkit-text-size-adjust:100%}
-body{background:var(--bg);color:var(--navy);font-family:var(--sans);font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased}
-button,input,select{font:inherit;color:inherit}
-[hidden]{display:none !important}
-.wrap{max-width:1120px;margin:0 auto;padding:16px}
-.card{background:var(--card);border-radius:12px;padding:20px 24px 24px;box-shadow:0 1px 2px rgba(22,39,62,.05)}
-.eyebrow{font-size:11px;font-weight:600;letter-spacing:.06em;color:var(--mute);text-transform:uppercase}
-h1{font-size:22px;font-weight:700;line-height:1.25;margin-top:2px}
-h2{font-size:15px;font-weight:700}
-
-/* ---------- header ---------- */
-.head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;padding-bottom:14px;border-bottom:1px solid var(--line-soft);margin-bottom:18px}
-.who{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--ink-2);min-width:0}
-.who span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.link{background:none;border:0;color:var(--teal);font-weight:600;cursor:pointer;padding:6px 2px;text-decoration:none;font-size:13px;white-space:nowrap}
-.link:hover{text-decoration:underline}
-
-/* ---------- form ---------- */
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px 20px}
-.full{grid-column:1 / -1}
-.field{min-width:0}
-.field label,.lbl{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
-.req{color:#b42318}
-.inp,select.inp{width:100%;height:44px;border:1px solid var(--line);border-radius:6px;background:#fff;padding:0 12px;font-size:15px;outline:none;appearance:none;-webkit-appearance:none}
-select.inp{padding-right:34px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5l5-5' fill='none' stroke='%2300756f' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
-.inp:focus{border-color:var(--teal);box-shadow:0 0 0 1px var(--teal)}
-.inp:disabled{background-color:var(--field-dis);color:var(--ink-2);opacity:1;-webkit-text-fill-color:var(--ink-2)}
-select.inp:disabled{background-image:none}
-.inp::placeholder{color:#94a3b8}
-
-.seg{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--line);border-radius:6px;overflow:hidden;height:44px;background:#fff}
-.seg button{border:0;background:#fff;font-weight:600;font-size:15px;cursor:pointer;color:var(--ink-2)}
-.seg button + button{border-left:1px solid var(--line)}
-.seg button[aria-checked="true"]{background:var(--teal);color:#fff}
-.seg button:focus-visible{outline:2px solid var(--navy);outline-offset:-3px}
-
+:root{font-family:Inter,"Segoe UI",Arial,sans-serif;color:#203630;background:#f5f7f5;font-synthesis:none;--green:#176254;--deep:#143c32;--line:#dde5df;--muted:#77877f;--cream:#f5f7f5}*{box-sizing:border-box}body{margin:0}button,input,select,textarea{font:inherit}button,a,input,select,textarea{outline-offset:4px}button{cursor:pointer}button:disabled{cursor:default;opacity:.5}a{color:var(--green)}button{border:1px solid var(--line);border-radius:8px;background:#fff;padding:10px 15px;color:#28453a;font-size:13px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:8px}button:hover:not(:disabled){background:#f0f5f1}button.primary{background:var(--green);color:#fff;border-color:var(--green)}button.primary:hover:not(:disabled){background:#124c41}button.danger{color:#a14738}.icon{width:18px;height:18px;display:inline-block;flex-shrink:0}.sidebar{position:fixed;inset:0 auto 0 0;width:222px;background:#fff;border-right:1px solid var(--line);padding:28px 20px;display:flex;flex-direction:column;z-index:20}.brand{display:flex;align-items:center;gap:11px;margin:0 4px 44px}.brand-mark{background:#ddefcf;border-radius:50%;width:43px;height:43px;display:grid;place-items:center;font-size:13px;font-weight:800;color:var(--green);letter-spacing:-.8px}.brand strong{font-size:18px;letter-spacing:-.5px}.brand small{display:block;font-size:10px;font-weight:600;color:var(--muted);letter-spacing:1.5px;margin-top:4px}.nav-caption{font-size:10px;letter-spacing:1.7px;color:#8a9890;margin:0 13px 12px}.nav-item{width:100%;border:0;background:none;justify-content:flex-start;color:#74867b;font-weight:500;margin:3px 0;padding:13px 13px;font-size:13px}.nav-item.active{background:#eaf3ed;color:var(--green);font-weight:650}.nav-item .count{margin-left:auto;font-size:11px;background:#d9eadd;color:#316b50;border-radius:5px;padding:3px 6px}.sidebar-foot{margin-top:auto;border-top:1px solid var(--line);padding-top:18px}.workspace{display:flex;align-items:center;gap:10px;font-size:12px;line-height:1.6}.workspace .avatar{border-radius:9px;width:35px;height:35px;background:#edf1ea;display:grid;place-items:center;font-weight:700;color:var(--green)}.workspace small{display:block;color:var(--muted);font-size:11px}.sidebar-foot>button{border:0;margin-top:12px;padding:6px 0;font-size:11px;font-weight:500;color:var(--muted)}.main{margin-left:222px;min-height:100vh}.topbar{height:75px;border-bottom:1px solid var(--line);padding:0 38px;display:flex;align-items:center;justify-content:space-between;background:#fff;gap:16px}.breadcrumb{font-size:12px;color:#88988e}.breadcrumb strong{color:#395849;font-weight:500}.topbar-right{display:flex;align-items:center;gap:14px}.pill{background:#edf4ea;color:#54814e;padding:7px 10px;border-radius:30px;font-size:11px;display:inline-flex;align-items:center;gap:6px}.pill::before{content:"";width:5px;height:5px;background:currentColor;border-radius:50%}.user-avatar{background:#ece8df;color:#756b56;border-radius:50%;width:30px;height:30px;display:grid;place-items:center;font-size:11px;font-weight:600}.content{max-width:1530px;margin:0 auto;padding:32px 38px 38px}.eyebrow{font-size:10px;font-weight:650;letter-spacing:2px;color:var(--green);text-transform:uppercase;margin:0 0 9px}.page-head{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:26px}h1{font-size:29px;letter-spacing:-1px;margin:0;font-weight:650}h2{font-size:16px;letter-spacing:-.3px;font-weight:650;margin:0}h3{font-size:13px;margin:0;font-weight:650}p{line-height:1.6}.subtext{font-size:13px;color:var(--muted);margin:8px 0 0}.head-actions{display:flex;gap:8px;flex-wrap:wrap}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:15px;margin-bottom:25px}.metric{border:1px solid var(--line);background:#fff;border-radius:12px;padding:21px 21px 18px}.metric.featured{background:var(--deep);border-color:var(--deep);color:#fff}.metric-head{display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:12px}.metric.featured .metric-head{color:#b4c8be}.metric-head .icon{color:#6c8f74}.metric.featured .icon{color:#c8e8b9}.metric .number{font-size:35px;font-weight:600;letter-spacing:-1.7px;margin:18px 0 10px}.metric small{font-size:11px;color:#8a9990}.metric.featured small{color:#b4c8be}.panel{background:#fff;border:1px solid var(--line);border-radius:12px;margin-bottom:23px;overflow:hidden}.panel-head{padding:20px 23px;display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid #eef1ec}.panel-head .subtext{font-size:11px;margin-top:6px}.panel-head button{font-size:11px;padding:7px 10px}.workflow{display:grid;grid-template-columns:repeat(5,1fr);padding:23px 21px;gap:10px}.flow-card{background:#f7f9f6;border:0;border-radius:9px;padding:17px 12px;text-align:left;display:block;font-weight:500;position:relative}.flow-card:not(:last-child)::after{content:'›';position:absolute;right:-9px;top:34px;color:#99a79b;font-size:20px;z-index:1}.flow-index{font-size:10px;color:#98a397;letter-spacing:1px}.flow-card strong{display:block;font-size:25px;margin:11px 0 8px;color:#284d3b}.flow-card span:last-child{font-size:11px;display:block;color:#65786b}.table-wrap{overflow:auto}table{border-collapse:collapse;width:100%;white-space:nowrap}th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:1px;font-weight:600;color:#88968d;background:#fafbf9;padding:14px 23px;border-bottom:1px solid var(--line)}td{font-size:12px;padding:17px 23px;border-bottom:1px solid #edf1ea;color:#566b5d}tbody tr:last-child td{border-bottom:0}tbody tr:hover{background:#fcfdfb}.unit-id{font-weight:650;color:#2f483a;letter-spacing:.1px}.unit-sub{display:block;font-size:10px;color:#9aa79d;margin-top:5px}.unit-icon{display:inline-flex;align-items:center;gap:10px}.unit-icon>.icon{background:#f0f3ec;border-radius:6px;padding:7px;width:32px;height:32px;color:#688764}.badge{display:inline-flex;align-items:center;gap:5px;border-radius:5px;background:#edf2e8;color:#688050;padding:6px 8px;font-size:10px;font-weight:500}.badge.inspection{background:#f7efd9;color:#96752c}.badge.claimReady{background:#f9e9e0;color:#ac6844}.badge.claimRaised{background:#e8ecf8;color:#6370a8}.badge.dcReady{background:#e7f2ef;color:#398575}.badge.scrap{background:#f5e7e5;color:#a6655f}.badge.shipped{background:#eef0ed;color:#829181}.table-footer{border-top:1px solid var(--line);padding:14px 23px;display:flex;justify-content:space-between;color:#9aa79c;font-size:10px}.text-button{border:0;background:none;padding:5px;color:var(--green);font-size:11px;font-weight:500}.muted{color:var(--muted)}.filters{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:17px 23px;border-bottom:1px solid var(--line)}.search{position:relative;min-width:220px;flex:1}.search>.icon{position:absolute;left:12px;top:11px;color:#98a79b}.search input{padding-left:39px;width:100%}.filters input,.filters select{font-size:12px;height:40px}input,select,textarea{background:#fff;border:1px solid var(--line);border-radius:7px;padding:10px 12px;color:#355340;min-width:0}input::placeholder,textarea::placeholder{color:#9da99f}select{padding-right:25px}.chips{display:flex;gap:8px;flex-wrap:wrap;margin:22px 0}.chip{font-size:12px;background:transparent;border:1px solid #dfe6dc;padding:10px 15px;font-weight:500}.chip.active{background:var(--deep);color:#fff;border-color:var(--deep)}.chip span{opacity:.7;font-size:10px;margin-left:7px}.instruction{background:#edf4eb;border:1px solid #dce8d6;border-radius:10px;display:flex;gap:12px;padding:17px 20px;margin:20px 0;color:#55794d;font-size:12px;line-height:1.7}.instruction strong{color:#376c48}.inspection-form{display:grid;grid-template-columns:1fr 1fr 1fr;gap:15px;background:#fafcf8;padding:21px 23px;border-bottom:1px solid var(--line)}label.field{display:flex;flex-direction:column;gap:9px;font-size:11px;color:#758875;font-weight:600}label.field input,label.field select,label.field textarea{font-weight:400;font-size:13px;width:100%}.field.wide{grid-column:1/-1}.bulkbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 23px;background:#edf4ea;font-size:12px;color:var(--green);border-top:1px solid var(--line);flex-wrap:wrap}.bulkbar .head-actions{align-items:center}.bulkbar select{font-size:12px}.check{width:16px;height:16px;accent-color:var(--green);cursor:pointer}.empty{padding:46px 20px;text-align:center;white-space:normal;color:#8d9c8f}.empty .icon{width:30px;height:30px;color:#9fb09b;margin-bottom:12px}.empty h3{color:#55764f;font-size:15px}.empty p{font-size:12px;max-width:400px;margin:8px auto}.split{display:grid;grid-template-columns:1.7fr 1fr;gap:23px}.form-panel{padding:22px;display:flex;flex-direction:column;gap:16px}.form-panel .primary{align-self:flex-start}.small-note{font-size:11px;color:#8a978b;line-height:1.7;margin:0}.activity-item{display:flex;gap:14px;padding:18px 23px;border-bottom:1px solid #edf1ea}.activity-item:last-child{border:0}.activity-dot{width:8px;height:8px;flex-shrink:0;border-radius:50%;background:#a9c896;margin-top:6px}.activity-item strong{font-size:12px;font-weight:600}.activity-item p{font-size:11px;color:var(--muted);margin:5px 0}.activity-item time{margin-left:auto;font-size:10px;color:#8b9c8d;text-align:right}.banner{border:1px solid #e7d5a3;background:#fffbec;color:#83632f;font-size:12px;border-radius:9px;padding:15px;margin-bottom:20px;line-height:1.6}.demo-footer{display:flex;justify-content:space-between;gap:20px;color:#98a497;font-size:10px;margin-top:24px;padding-top:8px}.demo-footer a{color:#6a8267;text-decoration:none}.inline-info{font-size:11px;color:#71866c;padding:14px 23px;background:#f9fbf7}.dc-link{border:0;display:inline;padding:0;background:none;text-decoration:underline;font-size:12px}dialog{border:1px solid var(--line);border-radius:15px;padding:0;box-shadow:0 20px 80px #12332335;width:min(560px,calc(100vw - 32px));color:#294b3c}dialog::backdrop{background:#102c2466;backdrop-filter:blur(2px)}.modal-head{padding:24px 26px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}.modal-head h2{font-size:19px}.modal-body{padding:24px 26px;font-size:13px;line-height:1.7;max-height:70vh;overflow:auto}.modal-body form{display:grid;grid-template-columns:1fr 1fr;gap:18px}.modal-actions{display:flex;justify-content:flex-end;gap:9px;border-top:1px solid var(--line);padding:18px 26px}.close-btn{border:0;padding:5px;font-size:18px;background:none;color:#8d9a90}#toast{position:fixed;bottom:24px;right:25px;max-width:min(490px,calc(100vw - 30px));background:#163f31;color:#fff;padding:16px 22px;border-radius:10px;box-shadow:0 8px 35px #1c3d3326;font-size:13px;line-height:1.5;z-index:100;display:none}#toast.visible{display:block}#toast.error{background:#9b4c3f}.initial-loading{padding:60px;text-align:center;color:#718c78}.mobile-menu{display:none}.login{max-width:500px;margin:14vh auto;padding:40px;border:1px solid var(--line);background:#fff;border-radius:15px}.login h1{font-size:25px}.login p{color:var(--muted);font-size:13px}.login .primary{margin-top:12px}.login .eyebrow{margin-bottom:18px}.row-select td{background:#f1f7ed}.loading{opacity:.6;pointer-events:none}.progress-line{height:3px;background:#d8e9d0}.progress-line>i{display:block;width:35%;height:3px;background:var(--green);animation:loading 1s infinite alternate}@keyframes loading{to{transform:translateX(180%)}}@media(min-width:1450px){.content{padding-left:48px;padding-right:48px}.topbar{padding:0 48px}}@media(max-width:1100px){.sidebar{width:190px;padding:26px 15px}.main{margin-left:190px}.content{padding:28px 25px}.topbar{padding:0 25px}.cards{gap:10px}.metric{padding:18px 15px}.metric-head{font-size:11px}.split{grid-template-columns:1fr}.workflow{padding:17px 14px}.flow-card{padding:14px 9px}.flow-card span:last-child{font-size:10px}td,th{padding-left:17px;padding-right:17px}}@media(max-width:760px){.sidebar{transform:translateX(-100%);width:222px;transition:transform .2s}.sidebar.open{transform:translateX(0);box-shadow:10px 0 70px #163b3326}.main{margin:0}.mobile-menu{display:inline-flex;border:0;padding:5px}.topbar{height:61px;padding:0 18px}.breadcrumb{display:none}.topbar-right{gap:10px;margin-left:auto}.content{padding:24px 16px}.page-head{align-items:flex-start;flex-direction:column;gap:16px;margin-bottom:22px}h1{font-size:25px}.head-actions{width:100%}.cards{grid-template-columns:1fr 1fr;gap:11px;margin-bottom:20px}.metric{padding:17px 15px}.metric .number{font-size:30px;margin:13px 0 9px}.metric-head{font-size:11px}.metric small{font-size:10px}.workflow{grid-template-columns:1fr 1fr;padding:16px;gap:10px}.flow-card:not(:last-child)::after{display:none}.flow-card span:last-child{font-size:11px}.flow-card:last-child{grid-column:1/-1;display:flex;align-items:center;gap:18px}.flow-card:last-child strong{margin:0}.panel-head{padding:18px 16px}.panel-head h2{font-size:14px}.filters{padding:14px 16px}.filters select{flex:1;max-width:100%}.search{flex-basis:100%}.inspection-form{grid-template-columns:1fr 1fr;padding:18px 16px}.inspection-form .field:last-child{grid-column:1/-1}.bulkbar{padding:14px 16px;flex-direction:column;align-items:stretch}.bulkbar .head-actions{flex-wrap:wrap}.bulkbar select{flex:1}.bulkbar .primary{width:100%}.instruction{font-size:11px;padding:14px}.demo-footer{font-size:9px;line-height:1.6;flex-direction:column;gap:6px}.modal-body form{grid-template-columns:1fr}.modal-body{padding:20px}.modal-head{padding:20px}.table-footer{padding:12px 16px}.table-wrap{max-width:100%}.chips{gap:6px;margin:18px 0}.chip{padding:9px 11px;font-size:11px}.activity-item{padding:17px}.activity-item time{max-width:72px}.split{gap:0}}
+/* ---- additions for the live workspace ---- */
+.badge.available{background:#e4f1e6;color:#3c7a4c}.badge.away{background:#eef0ed;color:#6f7f71}.badge.other{background:#f0efe9;color:#7a745f}
+.nav-item .count.muted{background:#eef1ec;color:#8a978b}
+.banner.err{border-color:#e6b9b1;background:#fdf1ee;color:#96473a}
+.banner .row{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.banner .row+.row{margin-top:8px}
+.banner button{font-size:11px;padding:6px 10px}
+.banner ul{margin:6px 0 0 18px;padding:0}
+.busybar{position:sticky;top:0;z-index:15;background:#163f31;color:#fff;font-size:12px;padding:10px 38px;display:flex;gap:12px;align-items:center}
+.busybar .progress-line{flex:1;max-width:240px;overflow:hidden;border-radius:3px;background:#2f5a4b}
+.result-ok{color:#3c7a4c}.result-bad{color:#a6655f}
+.seg{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff}
+.seg button{border:0;border-radius:0;background:#fff;color:#74867b;font-weight:600;padding:11px 12px}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-checked="true"]{background:var(--green);color:#fff}
+.seg button[aria-checked="true"]:hover{background:var(--green)}
+.mv-form{display:grid;grid-template-columns:1fr 1fr;gap:15px;padding:21px 23px;background:#fafcf8;border-bottom:1px solid var(--line)}
+.mv-form .wide{grid-column:1/-1}
+.mv-form .field{display:flex;flex-direction:column;gap:9px;font-size:11px;color:#758875;font-weight:600}
+.mv-form input,.mv-form select{font-weight:400;font-size:13px;width:100%}
 .combo{position:relative}
-.combo .inp{padding-right:40px;font-variant-numeric:tabular-nums}
-.combo-x{position:absolute;right:4px;top:4px;width:36px;height:36px;border:0;background:none;font-size:20px;line-height:1;color:var(--mute);cursor:pointer;border-radius:6px}
-.combo-x:hover{background:var(--field-dis);color:var(--navy)}
-.list{position:absolute;z-index:20;left:0;right:0;top:48px;max-height:300px;overflow:auto;background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 10px 28px rgba(22,39,62,.16);list-style:none;padding:4px}
-.list li{padding:8px 10px;border-radius:6px;cursor:pointer}
-.list li[aria-selected="true"],.list li:hover{background:var(--teal-soft)}
-.list .id{font-weight:600;font-variant-numeric:tabular-nums;word-break:break-all}
-.list .sub{font-size:12px;color:var(--mute)}
-.list .none{color:var(--mute);cursor:default;font-size:13px}
-.list .none:hover{background:none}
-
-.note{font-size:13px;color:var(--ink-2);min-height:20px}
-.note b{color:var(--navy);font-weight:600}
-.rule{font-size:13px;color:var(--teal-d);background:var(--teal-tint);border-radius:6px;padding:8px 12px}
-
-.actions{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:20px;padding-top:16px;border-top:1px solid var(--line-soft)}
-.why{font-size:13px;color:var(--mute);min-width:0}
-.btn{height:44px;min-width:170px;padding:0 20px;border:1px solid var(--teal);border-radius:6px;background:var(--teal);color:#fff;font-weight:600;font-size:15px;cursor:pointer;white-space:nowrap}
-.btn:hover{background:var(--teal-d)}
-.btn:disabled{background:#e8eef4;border-color:#e8eef4;color:#7a899b;cursor:not-allowed}
-.btn:focus-visible,.link:focus-visible,.combo-x:focus-visible{outline:2px solid var(--navy);outline-offset:2px}
-.btn.ghost{background:#fff;color:var(--navy);border-color:var(--line);min-width:0}
-.btn.ghost:hover{background:var(--teal-tint);color:var(--teal)}
-
-/* ---------- banners / toast ---------- */
-.banner{border:1px solid var(--warn-line);background:var(--warn-bg);color:var(--warn-ink);border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:13px;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
-.banner.err{border-color:var(--err-line);background:var(--err-bg);color:var(--err-ink)}
-.banner .btn{height:34px;min-width:0;font-size:13px}
-#toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:50;max-width:min(560px,calc(100vw - 32px));padding:12px 16px;border-radius:8px;font-size:14px;font-weight:600;box-shadow:0 10px 28px rgba(22,39,62,.22);background:var(--navy);color:#fff}
-#toast.ok{background:var(--teal)}
-#toast.warn{background:#8a5300}
-#toast.err{background:#9b1c1c}
-
-/* ---------- recent ---------- */
-.recent{margin-top:16px}
-.recent-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
-.rows{list-style:none}
-.rows li{display:grid;grid-template-columns:minmax(0,1.5fr) 84px minmax(0,2fr) 70px;gap:12px;align-items:center;padding:9px 0;border-top:1px solid var(--line-soft);font-size:13px}
-.rows .id{font-weight:600;font-variant-numeric:tabular-nums;word-break:break-all}
-.rows .route{color:var(--ink-2);min-width:0}
-.rows .route small{display:block;color:var(--mute);font-size:12px}
-.rows .when{color:var(--mute);text-align:right;white-space:nowrap}
-.chip{display:inline-block;font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--teal-soft);color:var(--teal-d);text-align:center}
-.chip.out{background:#e8eef7;color:#27457a}
-.empty{color:var(--mute);font-size:13px;padding:10px 0;border-top:1px solid var(--line-soft)}
-.foot{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;justify-content:space-between;margin:12px 4px 0;font-size:12px;color:var(--mute)}
-
-/* ---------- sign-in ---------- */
-.signin{max-width:420px;margin:12vh auto 0;text-align:left}
-.signin p{color:var(--ink-2);margin:10px 0 18px}
-.signin .btn{width:100%}
-
-@media (max-width:720px){
-  .wrap{padding:10px}
-  .card{padding:16px}
-  .grid{grid-template-columns:1fr;gap:14px}
-  .head{align-items:flex-start;flex-direction:column;gap:6px}
-  .who{width:100%;justify-content:space-between}
-  .actions{flex-direction:column-reverse;align-items:stretch;gap:10px}
-  .btn{width:100%}
-  .banner .btn{width:auto}
-  .rows li{grid-template-columns:minmax(0,1fr) auto;gap:4px 10px}
-  .rows .route{grid-column:1 / -1;order:3}
-  .rows .when{order:2}
-  .rows .chipcell{display:none}
-  .inp,select.inp{font-size:16px}
-}
+.combo input{padding-right:38px}
+.combo-x{position:absolute;right:4px;top:3px;border:0;background:none;padding:6px 9px;font-size:18px;color:#8d9a90}
+.combo-list{position:absolute;z-index:30;left:0;right:0;top:44px;max-height:290px;overflow:auto;background:#fff;border:1px solid var(--line);border-radius:9px;box-shadow:0 14px 40px #12332322;list-style:none;margin:0;padding:4px}
+.combo-list li{padding:8px 10px;border-radius:6px;cursor:pointer;font-weight:400}
+.combo-list li[aria-selected="true"],.combo-list li:hover{background:#eaf3ed}
+.combo-list .id{font-weight:650;color:#2f483a;font-size:12px;word-break:break-all}
+.combo-list .sub{font-size:10px;color:#9aa79d;margin-top:3px}
+.combo-list .none{color:#8d9c8f;cursor:default;font-size:11px}.combo-list .none:hover{background:none}
+.field-note{font-size:11px;color:#71866c;font-weight:400;min-height:16px}
+.field-note b{color:#2f483a;font-weight:650}
+.rule-note{font-size:12px;color:#376c48;background:#edf4eb;border-radius:8px;padding:10px 13px;font-weight:400}
+.chipline{display:inline-block;font-size:10px;font-weight:600;padding:3px 8px;border-radius:999px;background:#e7f2ef;color:#398575}
+.chipline.out{background:#e8ecf8;color:#6370a8}
+.warnlist{background:#fffbec;border:1px solid #e7d5a3;color:#83632f;border-radius:9px;padding:12px 14px;font-size:12px;margin:12px 0}
+.warnlist p{margin:0 0 6px}.warnlist p:last-child{margin:0}
+.modal-body .field{margin-bottom:14px}
+.modal-body form .field{margin-bottom:0}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:12px;margin:10px 0 16px}
+.kv dt{color:var(--muted)}.kv dd{margin:0;color:#2f483a}
+.side-link{display:block;font-size:11px;color:var(--muted);text-decoration:none;margin-top:8px}
+.side-link:hover{color:var(--green)}
+td.wrap{white-space:normal;min-width:220px}
+.login .banner{margin-top:14px}
+@media(max-width:760px){.filters select{flex:1 1 40%}.mv-form{grid-template-columns:1fr;padding:18px 16px}.busybar{padding:10px 16px}input,select,textarea{font-size:16px}.filters input,.filters select{font-size:16px}label.field input,label.field select,label.field textarea{font-size:16px}}
 </style>
 </head>
 <body>
-
-<div class="wrap" id="viewSignin" hidden>
-  <div class="card signin">
-    <div class="eyebrow">Hala Mobility / Fleet Operations</div>
-    <h1>Motor tracker</h1>
-    <p>Sign in with your Hala Microsoft account to log inward and outward movements.</p>
-    <div class="banner err" id="signinErr" hidden></div>
-    <button class="btn" id="btnSignin" type="button">Sign in with Microsoft</button>
-  </div>
-</div>
-
-<div class="wrap" id="viewApp" hidden>
-  <div class="card">
-    <div class="head">
-      <div>
-        <div class="eyebrow">Motor tracker / Movements</div>
-        <h1>Log inward / outward</h1>
-      </div>
-      <div class="who"><span id="whoName"></span><button class="link" id="btnSignout" type="button">Sign out</button></div>
-    </div>
-
-    <div class="banner err" id="loadErr" hidden></div>
-    <div id="pendingBox"></div>
-
-    <div class="grid">
-      <div class="field full">
-        <span class="lbl" id="lblDir">Direction <span class="req">*</span></span>
-        <div class="seg" role="radiogroup" aria-labelledby="lblDir">
-          <button type="button" role="radio" id="dirIn" aria-checked="true">Inward</button>
-          <button type="button" role="radio" id="dirOut" aria-checked="false">Outward</button>
-        </div>
-      </div>
-
-      <div class="field">
-        <label for="selFrom" id="lblFrom">From</label>
-        <select class="inp" id="selFrom"></select>
-      </div>
-      <div class="field">
-        <label for="selTo" id="lblTo">To</label>
-        <select class="inp" id="selTo"></select>
-      </div>
-
-      <div class="field full">
-        <label for="unitInput">Motor ID <span class="req">*</span></label>
-        <div class="combo">
-          <input class="inp" id="unitInput" type="text" role="combobox" aria-expanded="false" aria-controls="unitList" aria-autocomplete="list" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="Loading units…" disabled>
-          <button type="button" class="combo-x" id="unitClear" aria-label="Clear Motor ID" hidden>&times;</button>
-          <ul class="list" id="unitList" role="listbox" hidden></ul>
-        </div>
-        <div class="note" id="where" style="margin-top:6px"></div>
-      </div>
-
-      <div class="field">
-        <label for="inpDate">Movement Date</label>
-        <input class="inp" id="inpDate" type="date">
-      </div>
-      <div class="field">
-        <label for="selReason">Reason <span class="req">*</span></label>
-        <select class="inp" id="selReason"></select>
-      </div>
-
-      <div class="rule full" id="rule" hidden></div>
-    </div>
-
-    <div class="actions">
-      <div class="why" id="why"></div>
-      <button class="btn" id="btnSave" type="button" disabled>Save movement</button>
-    </div>
-  </div>
-
-  <div class="card recent">
-    <div class="recent-head"><h2>Latest movements</h2><button class="link" id="btnRefresh" type="button">Refresh</button></div>
-    <ul class="rows" id="recentRows"></ul>
-  </div>
-
-  <div class="foot">
-    <span id="status">&nbsp;</span>
-    <a class="link" href="https://apps.powerapps.com/play/e/Default-cc8957c3-8255-47ab-b223-0fa2bb99e2a3/a/7942897f-4f0a-474b-89e4-8af8924059aa" rel="noopener">Other screens: open Motor Tracker in Power Apps</a>
-  </div>
-</div>
-
-<div id="toast" role="status" aria-live="polite" hidden></div>
-
+<div id="app"><div class="initial-loading">Loading Hala Motor Tracker…</div></div>
+<div id="toast" role="status" aria-live="polite"></div>
+<dialog id="modal"></dialog>
 <script>
 "use strict";
 /* ============================================================
-   Motor Tracker — Log inward / outward.
+   Hala Motor Tracker — warehouse workspace.
    One self-contained page. It signs the user in with their Hala
    Microsoft account and reads/writes the Fleet Ops SharePoint lists
-   directly, so nothing is stored anywhere except those lists.
-   The rules below follow the Power Apps screen (scrMovement) so
-   both write identical rows.
+   directly as that user; nothing is stored anywhere else.
+   Every rule that changes a record follows the Power Apps screens
+   (inspection, claim, DC, ship, register, movement), so both write
+   the same columns and can be used side by side.
    ============================================================ */
 const CFG = {
   /* Neither value is a secret: a browser app publishes its client ID to every
@@ -225,58 +80,72 @@ const CFG = {
   authority: "https://login.microsoftonline.com",
   spHost: "https://halamobility.sharepoint.com",
   site: "/sites/fleetops",
+  dcFolder: "/sites/fleetops/Shared Documents/Inspection Reports",
+  powerApp: "https://apps.powerapps.com/play/e/Default-cc8957c3-8255-47ab-b223-0fa2bb99e2a3/a/7942897f-4f0a-474b-89e4-8af8924059aa",
 };
 CFG.scopes = "openid profile offline_access " + CFG.spHost + "/AllSites.Write";
-CFG.api = CFG.spHost + CFG.site + "/_api/web/lists/";
+CFG.web = CFG.spHost + CFG.site + "/_api/web/";
 
 const HOME = "Jeedimetla - Main Warehouse";
-/* Outward to an OEM, to scrap or to the refurb bay offers the faulty stock;
-   every other destination offers only bench-tested / ex-OEM stock. */
-const FAULTY_STATES = ["AWAITING OEM INSPECTION", "Failed bench test - raise claim",
-                       "Claim approved - ship to plant", "Claim rejected - scrap or refurb"];
-/* Warranty dispatch has its own screens (claim, DC, ship to plant). */
-const WARRANTY_REASONS = ["Sent to OEM - warranty claim", "Shipped to plant (warranty approved)"];
-const WARRANTY_STATES  = ["Failed bench test - raise claim", "Warranty claim raised - generate DC",
-                          "Ready to ship - DC generated"];
+const PLANT = "OEM - Plant";
+/* Items.Availability values, exactly as the lists store them. */
+const AV = {
+  bench: "AWAITING BENCH TEST", oemInsp: "AWAITING OEM INSPECTION",
+  availBench: "AVAILABLE - bench tested", availOem: "AVAILABLE - ex-OEM",
+  claimReady: "Failed bench test - raise claim", claimRaised: "Warranty claim raised - generate DC",
+  dcReady: "Ready to ship - DC generated", away: "Away from Jeedimetla", scrap: "Scrap",
+};
+/* Claims.ClaimStatus values used by the warranty journey. */
+const CS = {raised: "Claim raised - awaiting DC", dc: "DC generated - ready to ship", sent: "Sent to OEM"};
+const SHIP_REASON = "Shipped to plant (warranty approved)";
+const STAGES = {inspection: "Inspection / bench test", available: "Available to use", claimReady: "Ready for warranty claim",
+  claimRaised: "Claim raised · DC pending", dcReady: "DC ready · Awaiting shipping", shipped: "At OEM / plant",
+  scrap: "Scrap", away: "At another location", other: "Other status"};
+
+/* Movement rules (Log inward / outward). */
+const FAULTY_STATES = [AV.oemInsp, AV.claimReady, "Claim approved - ship to plant", "Claim rejected - scrap or refurb"];
+const WARRANTY_REASONS = ["Sent to OEM - warranty claim", SHIP_REASON];
+const WARRANTY_STATES = [AV.claimReady, AV.claimRaised, AV.dcReady];
 const WARRANTY_MSG = "Use Raise warranty claim, Generate DC, then Mark shipped to plant for warranty dispatch.";
-/* Units back from the OEM skip the bench test. */
 const EX_OEM_REASONS = ["Received from OEM - replacement", "Received from OEM - repaired"];
 
-const $ = id => document.getElementById(id);
-function el(tag, cls, text){
-  const e = document.createElement(tag);
-  if(cls) e.className = cls;
-  if(text != null) e.textContent = text;
-  return e;
-}
+const $ = s => document.querySelector(s);
+const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
 const startsCI = (s, p) => String(s || "").toLowerCase().startsWith(p.toLowerCase());
+const norm = s => String(s || "").toLowerCase().replace(/\s+/g, "");
 const lsGet = k => { try{ return localStorage.getItem(k); }catch(e){ return null; } };
 const lsSet = (k, v) => { try{ localStorage.setItem(k, v); }catch(e){} };
 const lsDel = k => { try{ localStorage.removeItem(k); }catch(e){} };
+const lsJson = (k, d) => { try{ const v = JSON.parse(lsGet(k) || "null"); return v == null ? d : v; }catch(e){ return d; } };
+const todayIST = () => new Intl.DateTimeFormat("en-CA", {timeZone: "Asia/Kolkata"}).format(new Date());
+/* Dates are stored as midnight India time, as the Power Apps date pickers store them. */
+const istMidnight = d => new Date(d + "T00:00:00+05:30").toISOString();
+const validDay = d => /^\d{4}-\d{2}-\d{2}$/.test(d || "") && !isNaN(new Date(d + "T00:00:00+05:30"));
+const fmt = d => { if(!d) return "—"; const x = new Date(d); return isNaN(x) ? "—" : x.toLocaleDateString("en-IN", {day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Kolkata"}); };
+const fmtTime = d => { const x = new Date(d); return isNaN(x) ? "" : x.toLocaleTimeString("en-IN", {hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata"}); };
+const odq = v => "'" + String(v).replace(/'/g, "''") + "'";
+/* A text value inside a REST function call, e.g. GetFileByServerRelativeUrl('…'). */
+const lit = v => "'" + encodeURIComponent(String(v).replace(/'/g, "''")) + "'";
+const L = name => "lists/getbytitle('" + name + "')";
+const byTitle = (a, b) => String(a.Title).localeCompare(String(b.Title), undefined, {sensitivity: "base", numeric: true});
+const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 /* ============================================================
    AUTH — authorization code + PKCE against Microsoft Entra,
    written directly so the page needs no external library.
    ============================================================ */
-const LS_AUTH = "hala_motor_auth", SS_PKCE = "hala_motor_pkce", SS_STATE = "hala_motor_state",
-      SS_SILENT = "hala_motor_silent";
-let AUTH = {token:"", refresh:"", exp:0, name:"", upn:"", known:false};
-
-function loadAuth(){
-  try{ const a = JSON.parse(lsGet(LS_AUTH) || "null"); if(a) AUTH = Object.assign(AUTH, a); }catch(e){}
-}
+const LS_AUTH = "hala_motor_auth", SS_PKCE = "hala_motor_pkce", SS_STATE = "hala_motor_state", SS_SILENT = "hala_motor_silent";
+let AUTH = {token: "", refresh: "", exp: 0, name: "", upn: "", known: false};
+function loadAuth(){ const a = lsJson(LS_AUTH, null); if(a) AUTH = Object.assign(AUTH, a); }
 const saveAuth = () => lsSet(LS_AUTH, JSON.stringify(AUTH));
 /* Expiry keeps who you are, so the next sign-in is one tap; Sign out forgets it. */
 function clearAuth(forget){
-  AUTH = {token:"", refresh:"", exp:0, name: forget ? "" : AUTH.name, upn: forget ? "" : AUTH.upn,
-          known: forget ? false : AUTH.known};
+  AUTH = {token: "", refresh: "", exp: 0, name: forget ? "" : AUTH.name, upn: forget ? "" : AUTH.upn, known: forget ? false : AUTH.known};
   if(forget) lsDel(LS_AUTH); else saveAuth();
 }
 const tokenFresh = () => !!(AUTH.token && AUTH.exp > Date.now() + 60000);
-
 function b64url(bytes){
-  return btoa(String.fromCharCode.apply(null, new Uint8Array(bytes)))
-    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return btoa(String.fromCharCode.apply(null, new Uint8Array(bytes))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 function randStr(n){ const a = new Uint8Array(n); crypto.getRandomValues(a); return b64url(a).slice(0, n); }
 const redirectUri = () => location.origin + location.pathname;
@@ -288,15 +157,13 @@ async function signIn(silent){
   sessionStorage.setItem(SS_PKCE, verifier);
   sessionStorage.setItem(SS_STATE, state);
   const q = new URLSearchParams({
-    client_id: CFG.clientId, response_type: "code", redirect_uri: redirectUri(),
-    response_mode: "query", scope: CFG.scopes,
-    code_challenge: b64url(digest), code_challenge_method: "S256", state,
+    client_id: CFG.clientId, response_type: "code", redirect_uri: redirectUri(), response_mode: "query",
+    scope: CFG.scopes, code_challenge: b64url(digest), code_challenge_method: "S256", state,
   });
   if(silent) q.set("prompt", "none");
   if(AUTH.upn) q.set("login_hint", AUTH.upn);
   location.href = CFG.authority + "/" + CFG.tenantId + "/oauth2/v2.0/authorize?" + q;
 }
-
 /* Returns "" when there was nothing to handle or sign-in succeeded,
    "silent" when a background attempt simply did not work, or an error text. */
 async function handleRedirect(){
@@ -314,7 +181,7 @@ async function handleRedirect(){
   }
   if(!stateOk) return "Sign-in could not be verified. Please try again.";
   try{
-    await tokenRequest({grant_type:"authorization_code", code, redirect_uri: redirectUri(), code_verifier: verifier});
+    await tokenRequest({grant_type: "authorization_code", code, redirect_uri: redirectUri(), code_verifier: verifier});
     AUTH.known = true; saveAuth();
     sessionStorage.removeItem(SS_SILENT);
     return "";
@@ -325,7 +192,6 @@ function friendlyAuthError(code, desc){
     return "Microsoft did not grant access. If the screen said “Need admin approval”, a Hala administrator has to approve this app once before anyone can use it.";
   return "Sign-in did not complete: " + String(desc || code).split("\r\n")[0].slice(0, 220);
 }
-
 async function tokenRequest(extra){
   const body = new URLSearchParams(Object.assign({client_id: CFG.clientId, scope: CFG.scopes}, extra));
   const r = await fetch(CFG.authority + "/" + CFG.tenantId + "/oauth2/v2.0/token", {
@@ -353,7 +219,7 @@ async function ensureToken(){
   /* Several lists load at once; they must share one refresh, not race four. */
   if(!refreshing) refreshing = (async () => {
     try{
-      await tokenRequest({grant_type:"refresh_token", refresh_token: AUTH.refresh});
+      await tokenRequest({grant_type: "refresh_token", refresh_token: AUTH.refresh});
     }catch(e){
       /* A browser app's refresh token lives 24 hours and cannot be extended. */
       if(/AADSTS7000|AADSTS50173|AADSTS50076|invalid_grant|expired|revoked|interaction_required/i.test(e.message)){
@@ -374,20 +240,20 @@ async function sp(pathOrUrl, opts){
   opts = opts || {};
   const token = await ensureToken();
   const headers = {"Accept": "application/json;odata=nometadata", "Authorization": "Bearer " + token};
-  if(opts.body) headers["Content-Type"] = "application/json;odata=nometadata";
+  let body;
+  if(opts.bytes){ headers["Content-Type"] = "application/pdf"; body = opts.bytes; }
+  else if(opts.body){ headers["Content-Type"] = "application/json;odata=nometadata"; body = JSON.stringify(opts.body); }
   if(opts.merge){ headers["X-HTTP-Method"] = "MERGE"; headers["IF-MATCH"] = "*"; }
-  const url = /^https:/.test(pathOrUrl) ? pathOrUrl : CFG.api + pathOrUrl;
+  const url = /^https:/.test(pathOrUrl) ? pathOrUrl : CFG.web + pathOrUrl;
   if(url.indexOf(CFG.spHost + "/") !== 0) throw new Error("Unexpected address");
-  const r = await fetch(url, {
-    method: opts.method || (opts.body ? "POST" : "GET"), headers,
-    body: opts.body ? JSON.stringify(opts.body) : undefined,
-  });
-  if(r.status === 401 && !opts.retried){ AUTH.exp = 0; return sp(pathOrUrl, Object.assign({}, opts, {retried:true})); }
+  const r = await fetch(url, {method: opts.method || (body ? "POST" : "GET"), headers, body});
+  if(r.status === 401 && !opts.retried){ AUTH.exp = 0; return sp(pathOrUrl, Object.assign({}, opts, {retried: true})); }
   if(!r.ok){
     let msg = "HTTP " + r.status;
     try{ const j = await r.json(); msg = (j["odata.error"] && j["odata.error"].message.value) || (j.error && j.error.message) || msg; }catch(e){}
     const e = new Error(msg); e.status = r.status; throw e;
   }
+  if(opts.blob) return r.blob();
   if(r.status === 204) return null;
   return r.json().catch(() => null);
 }
@@ -400,273 +266,12 @@ async function listAll(path){
   }
   return out;
 }
-
-/* ============================================================
-   STATE
-   ============================================================ */
-const S = {
-  units: [], locations: [], reasons: [], claims: [], claimsOk: false, recent: [],
-  dir: "Inward", from: "", to: "", unit: null, reason: "", date: "",
-  loaded: false, saving: false, lastLoad: 0,
-};
-const todayIST = () => new Intl.DateTimeFormat("en-CA", {timeZone:"Asia/Kolkata"}).format(new Date());
-const byTitle = (a, b) => String(a.Title).localeCompare(String(b.Title), undefined, {sensitivity:"base", numeric:true});
-
-const loadUnits = () => listAll("getbytitle('Items')/items?$select=Id,Title,ItemType,OEMMake,CurrentLocation,Availability,AtJeedimetla&$top=5000");
-async function loadRef(){
-  const rows = await listAll("getbytitle('RefData')/items?$select=Title,Category,SortOrder,IsActive&$top=5000");
-  const pick = cat => rows.filter(r => r.Category === cat && r.IsActive && r.Title)
-    .sort((a, b) => (a.SortOrder || 0) - (b.SortOrder || 0)).map(r => r.Title);
-  return {locations: pick("Location"), reasons: pick("MovementReason")};
-}
-/* Claims are only needed for one rule (an approved claim lets a unit go to
-   the OEM's works), so their column names are looked up by display name. */
-async function loadClaims(){
-  let cols = null;
-  try{ cols = JSON.parse(lsGet("hala_motor_claimcols") || "null"); }catch(e){}
-  if(!cols){
-    const f = await sp("getbytitle('Claims')/fields?$select=InternalName,Title&$filter=Hidden eq false");
-    const find = t => { const x = (f.value || []).find(c => c.Title === t); return x ? x.InternalName : ""; };
-    cols = {motor: find("Motor ID"), status: find("Claim Status")};
-    if(!cols.motor || !cols.status) throw new Error("Claims columns not found");
-    lsSet("hala_motor_claimcols", JSON.stringify(cols));
-  }
-  try{
-    const rows = await listAll("getbytitle('Claims')/items?$select=Id," + cols.motor + "," + cols.status + "&$top=5000");
-    return rows.map(r => ({Id: r.Id, motor: r[cols.motor], status: r[cols.status]}));
-  }catch(e){ lsDel("hala_motor_claimcols"); throw e; }
-}
-const loadRecent = () => sp("getbytitle('Movements')/items?$select=Id,ItemID,MovementDate,Direction,FromLocation,ToLocation,Reason&$orderby=Id desc&$top=8")
-  .then(j => j.value || []);
-
-async function loadAll(){
-  const t0 = performance.now();
-  $("status").textContent = "Loading…";
-  $("loadErr").hidden = true;
-  try{
-    const claimsP = loadClaims().then(c => { S.claims = c; S.claimsOk = true; }, () => { S.claimsOk = false; });
-    const recentP = loadRecent().then(r => { S.recent = r; }, () => {});
-    const [units, ref] = await Promise.all([loadUnits(), loadRef()]);
-    await Promise.all([claimsP, recentP]);
-    S.units = units; S.locations = ref.locations; S.reasons = ref.reasons;
-    /* keep the picked unit pointing at the fresh row */
-    if(S.unit) S.unit = S.units.find(u => u.Id === S.unit.Id) || null;
-    S.loaded = true; S.lastLoad = Date.now();
-    const secs = ((performance.now() - t0) / 1000).toFixed(1);
-    $("status").textContent = units.length + " units · loaded in " + secs + " s";
-    render();
-  }catch(e){ failed(e, "Could not load the lists"); $("status").textContent = "Not loaded"; }
-}
-function failed(e, what){
-  if(e instanceof SignedOut){ showSignin("Your session expired. Sign in to carry on."); return; }
-  const msg = e.status === 403 ? "Your account does not have access to the Fleet Ops site."
-            : e.message === "Failed to fetch" ? "No connection to SharePoint. Check the network and try again."
-            : e.message;
-  const box = $("loadErr"); box.textContent = what + ": " + msg; box.hidden = false;
-}
-
-/* ============================================================
-   RULES — the same tests the Power Apps screen applies
-   ============================================================ */
-const faultyRoute = d => startsCI(d, "OEM") || startsCI(d, "Scrap") || d === "Jeedimetla - Refurb Bay";
-function candidates(){
-  if(S.dir === "Inward") return S.units.filter(u => !u.AtJeedimetla);
-  if(!S.to) return [];
-  if(faultyRoute(S.to)) return S.units.filter(u => u.AtJeedimetla && FAULTY_STATES.includes(u.Availability));
-  return S.units.filter(u => u.AtJeedimetla && startsCI(u.Availability, "AVAILABLE"));
-}
-function latestClaim(id){
-  let best = null;
-  for(const c of S.claims) if(c.motor === id && (!best || c.Id > best.Id)) best = c;
-  return best;
-}
-/* "" when the movement may be saved, otherwise what is still missing. */
-function blockReason(){
-  if(!S.loaded) return "";
-  if(S.dir === "Outward" && !S.to) return "Pick where it is going.";
-  if(!S.unit) return "Pick a Motor ID from the list.";
-  if(S.dir === "Inward" && !S.from) return "Pick where it is coming from.";
-  if(!S.reason) return "Pick a reason.";
-  if(!S.date) return "Pick the movement date.";
-  if(S.dir === "Outward" && !startsCI(S.unit.Availability, "AVAILABLE")){
-    const c = latestClaim(S.unit.Title);
-    if(!(S.to === "OEM - Supplier Works" && c && c.status === "Approved"))
-      return "Not cleared to go out: only AVAILABLE units, or units with an approved claim going to OEM - Supplier Works.";
-  }
-  return "";
-}
-
-/* ============================================================
-   RENDER
-   ============================================================ */
-function fillSelect(sel, values, current, fixed){
-  /* Only rebuild the options when they actually change: replacing them while
-     the dropdown is opening would close it under the user's finger. */
-  const extra = current && !values.includes(current) ? current : "";
-  const sig = JSON.stringify([fixed, S.loaded, values, extra]);
-  if(sel.dataset.sig !== sig){
-    sel.dataset.sig = sig;
-    sel.textContent = "";
-    if(fixed) sel.appendChild(new Option(fixed, fixed));
-    else{
-      sel.appendChild(new Option(S.loaded ? "Select…" : "Loading…", ""));
-      for(const v of values) sel.appendChild(new Option(v, v));
-      /* keep a value that is no longer an active option visible rather than silently dropping it */
-      if(extra) sel.appendChild(new Option(extra, extra));
-    }
-  }
-  sel.disabled = !!fixed || !S.loaded;
-  const want = fixed || current || "";
-  if(sel.value !== want) sel.value = want;
-}
-function render(){
-  const inward = S.dir === "Inward";
-  $("dirIn").setAttribute("aria-checked", String(inward));
-  $("dirOut").setAttribute("aria-checked", String(!inward));
-  $("dirIn").tabIndex = inward ? 0 : -1; $("dirOut").tabIndex = inward ? -1 : 0;
-
-  $("lblFrom").textContent = "From"; $("lblTo").textContent = "To";
-  const star = el("span", "req", " *");
-  (inward ? $("lblFrom") : $("lblTo")).appendChild(star);
-  fillSelect($("selFrom"), S.locations, S.from, inward ? "" : HOME);
-  fillSelect($("selTo"), S.locations, S.to, inward ? HOME : "");
-  fillSelect($("selReason"), S.reasons, S.reason, "");
-  if($("inpDate").value !== S.date) $("inpDate").value = S.date;
-
-  renderUnit();
-
-  const rule = $("rule");
-  if(inward && S.reason){
-    rule.textContent = EX_OEM_REASONS.includes(S.reason)
-      ? "Ex-OEM: goes straight to AVAILABLE, no bench test needed."
-      : "From a hub: this unit will need a bench test before use.";
-    rule.hidden = false;
-  }else rule.hidden = true;
-
-  const why = blockReason();
-  $("why").textContent = S.saving ? "" : why;
-  $("btnSave").disabled = !S.loaded || S.saving || !!why;
-  $("btnSave").textContent = S.saving ? "Saving…" : "Save movement";
-  renderRecent();
-}
-function renderUnit(){
-  const inp = $("unitInput"), n = candidates().length;
-  let ph = "Find items", off = false;
-  if(!S.loaded){ ph = "Loading units…"; off = true; }
-  else if(S.dir === "Outward" && !S.to){ ph = "Pick ‘To’ first"; off = true; }
-  else if(!n){
-    off = true;
-    ph = S.dir === "Inward" ? "No units away from Jeedimetla"
-       : faultyRoute(S.to) ? "No faulty units at Jeedimetla" : "No bench-tested units in stock";
-  }
-  inp.placeholder = ph; inp.disabled = off;
-  if(S.unit){ if(document.activeElement !== inp) inp.value = S.unit.Title; }
-  else if(off) inp.value = "";
-  $("unitClear").hidden = !inp.value || off;
-
-  const w = $("where"); w.textContent = "";
-  if(S.unit){
-    w.append("Currently at: ", el("b", "", S.unit.CurrentLocation || "—"), " | ", el("b", "", S.unit.Availability || "—"));
-  }else if(S.loaded && !off){
-    w.textContent = n + (n === 1 ? " unit" : " units") + " to choose from";
-  }
-}
-function fmtDay(iso){
-  const d = new Date(iso);
-  return isNaN(d) ? "" : d.toLocaleDateString("en-GB", {day:"2-digit", month:"short", timeZone:"Asia/Kolkata"});
-}
-function renderRecent(){
-  const ul = $("recentRows"); ul.textContent = "";
-  if(!S.recent.length){ ul.appendChild(el("li", "empty", S.loaded ? "No movements yet." : "Loading…")); return; }
-  for(const m of S.recent){
-    const li = el("li");
-    li.appendChild(el("span", "id", m.ItemID || ""));
-    const cc = el("span", "chipcell");
-    cc.appendChild(el("span", "chip" + (m.Direction === "Outward" ? " out" : ""), m.Direction || ""));
-    li.appendChild(cc);
-    const route = el("span", "route", (m.FromLocation || "—") + " → " + (m.ToLocation || "—"));
-    route.appendChild(el("small", "", m.Reason || ""));
-    li.appendChild(route);
-    li.appendChild(el("span", "when", fmtDay(m.MovementDate)));
-    ul.appendChild(li);
-  }
-}
-
-/* ---------- Motor ID picker ---------- */
-const combo = {open:false, idx:-1, items:[]};
-function comboMatches(){
-  const inp = $("unitInput"), q = inp.value.trim().toLowerCase();
-  const all = candidates().slice().sort(byTitle);
-  if(!q || (S.unit && inp.value === S.unit.Title)) return all;
-  return all.filter(u => String(u.Title).toLowerCase().includes(q));
-}
-function comboOpen(){
-  const ul = $("unitList"), inp = $("unitInput");
-  if(inp.disabled) return;
-  combo.items = comboMatches(); combo.open = true;
-  if(combo.idx >= combo.items.length) combo.idx = combo.items.length - 1;
-  ul.textContent = "";
-  const shown = combo.items.slice(0, 80);
-  shown.forEach((u, i) => {
-    const li = el("li"); li.setAttribute("role", "option"); li.id = "opt" + i;
-    li.setAttribute("aria-selected", String(i === combo.idx));
-    li.appendChild(el("div", "id", u.Title));
-    li.appendChild(el("div", "sub", [u.ItemType, u.OEMMake, u.CurrentLocation].filter(Boolean).join(" · ")));
-    li.addEventListener("mousedown", ev => { ev.preventDefault(); pickUnit(u); });
-    ul.appendChild(li);
-  });
-  if(!shown.length) ul.appendChild(el("li", "none", "No match in this list."));
-  else if(combo.items.length > shown.length)
-    ul.appendChild(el("li", "none", (combo.items.length - shown.length) + " more — keep typing to narrow down."));
-  ul.hidden = false; inp.setAttribute("aria-expanded", "true");
-  if(combo.idx >= 0) inp.setAttribute("aria-activedescendant", "opt" + combo.idx); else inp.removeAttribute("aria-activedescendant");
-  const act = ul.querySelector('[aria-selected="true"]'); if(act) act.scrollIntoView({block:"nearest"});
-}
-function comboClose(){
-  combo.open = false; combo.idx = -1;
-  $("unitList").hidden = true; $("unitInput").setAttribute("aria-expanded", "false");
-  $("unitInput").removeAttribute("aria-activedescendant");
-}
-function pickUnit(u){
-  S.unit = u; $("unitInput").value = u.Title; comboClose();
-  /* An inward unit usually comes from where it was last recorded. */
-  if(S.dir === "Inward" && !S.from && S.locations.includes(u.CurrentLocation) && !startsCI(u.CurrentLocation, "Jeedimetla"))
-    S.from = u.CurrentLocation;
-  render();
-}
-function clearUnit(){ S.unit = null; $("unitInput").value = ""; comboClose(); }
-
-/* ============================================================
-   SAVE
-   ============================================================ */
-const LS_PENDING = "hala_motor_pending";
-function pendingList(){ try{ return JSON.parse(lsGet(LS_PENDING) || "[]") || []; }catch(e){ return []; } }
-function pendingSet(list){ if(list.length) lsSet(LS_PENDING, JSON.stringify(list)); else lsDel(LS_PENDING); renderPending(); }
-function renderPending(){
-  const box = $("pendingBox"); box.textContent = "";
-  for(const p of pendingList()){
-    const b = el("div", "banner");
-    b.appendChild(el("span", "", "The movement for " + p.title + " was saved, but its status was not updated to “" + p.patch.Availability + "”."));
-    const btn = el("button", "btn", "Finish update"); btn.type = "button";
-    btn.addEventListener("click", async () => {
-      btn.disabled = true; btn.textContent = "Updating…";
-      try{
-        await patchItem(p.id, p.patch);
-        pendingSet(pendingList().filter(x => x.id !== p.id));
-        const u = S.units.find(x => x.Id === p.id); if(u) Object.assign(u, p.patch);
-        toast(p.title + " updated.", "ok"); render();
-      }catch(e){
-        btn.disabled = false; btn.textContent = "Finish update";
-        if(e instanceof SignedOut) showSignin("Your session expired. Sign in to carry on."); else toast("Still could not update: " + e.message, "err");
-      }
-    });
-    b.appendChild(btn); box.appendChild(b);
-  }
-}
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-async function patchItem(id, patch){
+/* A create is never retried blindly: if the answer is lost the row may exist. */
+const spCreate = (list, row) => sp(L(list) + "/items", {body: row});
+/* An update is safe to repeat, so brief outages are ridden out. */
+async function spMerge(list, id, patch){
   for(let attempt = 0; ; attempt++){
-    try{ return await sp("getbytitle('Items')/items(" + Number(id) + ")", {body: patch, merge: true}); }
+    try{ return await sp(L(list) + "/items(" + Number(id) + ")", {body: patch, merge: true}); }
     catch(e){
       const transient = !(e instanceof SignedOut) && (!e.status || e.status === 429 || e.status >= 500);
       if(!transient || attempt >= 2) throw e;
@@ -674,148 +279,1056 @@ async function patchItem(id, patch){
     }
   }
 }
+const spQuery = (list, query) => sp(L(list) + "/items?" + query).then(j => (j && j.value) || []);
+const filterEq = (col, v) => "$filter=" + encodeURIComponent(col + " eq " + odq(v));
 
-async function save(){
-  if(S.saving || blockReason()) return;
-  const u = S.unit, dir = S.dir, reason = S.reason, date = S.date;
-  const to = dir === "Inward" ? HOME : S.to, from = dir === "Outward" ? HOME : S.from;
-  S.saving = true; render();
+/* ============================================================
+   DATA
+   ============================================================ */
+const ITEM_COLS = "Id,Title,ItemType,OEMMake,Model,SerialNo,DateFirstReceived,WarrantyStart,WarrantyMonths,CurrentLocation,Availability,LastMovementDate,LastTestDate,LatestTestResult,TimesInspected,TimesClaimed,AtJeedimetla,Condition";
+const CLAIM_COLS = "Id,Title,ItemID,ItemType,OEMSupplier,FaultReported,DateSentToOEM,DocketNo,WarrantyAtDespatch,ClaimStatus,Resolution,ReplacementSerial,DC_x0020_Number,DC_x0020_URL,DC_x0020_Generated_x0020_Date,Created";
+const D = {units: [], claims: [], byTitle: new Map(), latestClaim: new Map(), loaded: false, lastLoad: 0, loadSecs: "",
+  locations: [], reasons: [], oems: [], itemTypes: [], recentMoves: null, activity: null, error: ""};
+
+function stageOf(u){
+  const a = u.Availability || "";
+  if(a === AV.scrap) return "scrap";
+  if(!u.AtJeedimetla) return startsCI(u.CurrentLocation, "OEM") ? "shipped" : "away";
+  if(a === AV.bench || a === AV.oemInsp) return "inspection";
+  if(startsCI(a, "AVAILABLE")) return "available";
+  if(a === AV.claimReady) return "claimReady";
+  if(a === AV.claimRaised) return "claimRaised";
+  if(a === AV.dcReady) return "dcReady";
+  return "other";
+}
+function reindex(){
+  D.byTitle = new Map(); D.latestClaim = new Map();
+  for(const u of D.units){ u.stage = stageOf(u); D.byTitle.set(u.Title, u); }
+  for(const c of D.claims){ const p = D.latestClaim.get(c.ItemID); if(!p || c.Id > p.Id) D.latestClaim.set(c.ItemID, c); }
+}
+async function loadCore(){
+  const [items, claims] = await Promise.all([
+    listAll(L("Items") + "/items?$select=" + ITEM_COLS + "&$top=5000"),
+    listAll(L("Claims") + "/items?$select=" + CLAIM_COLS + "&$top=5000"),
+  ]);
+  D.units = items; D.claims = claims; reindex(); D.lastLoad = Date.now();
+}
+async function loadRef(){
+  const rows = await listAll(L("RefData") + "/items?$select=Title,Category,SortOrder,IsActive,Code&$top=5000");
+  const pick = cat => rows.filter(r => r.Category === cat && r.IsActive && r.Title).sort((a, b) => (a.SortOrder || 0) - (b.SortOrder || 0));
+  D.locations = pick("Location").map(r => r.Title);
+  D.reasons = pick("MovementReason").map(r => r.Title);
+  D.itemTypes = pick("ItemType").map(r => r.Title);
+  D.oems = pick("OEMSupplier").map(r => ({title: r.Title, code: r.Code || ""}));
+  if(!D.itemTypes.length) D.itemTypes = ["Motor", "Controller"];
+}
+async function loadAll(){
+  const t0 = performance.now();
+  try{
+    await Promise.all([loadCore(), loadRef()]);
+    D.loaded = true; D.error = ""; D.recentMoves = null; D.activity = null;
+    D.loadSecs = ((performance.now() - t0) / 1000).toFixed(1);
+  }catch(e){ D.error = explain(e, "Could not load the lists"); if(e instanceof SignedOut) return showSignin("Your session expired. Sign in to carry on."); }
+  render();
+  if(view === "move") loadRecentMoves();
+  if(view === "activity") loadActivity();
+}
+function explain(e, what){
+  const msg = e.status === 403 ? "your account does not have access to the Fleet Ops site."
+            : e.message === "Failed to fetch" ? "no connection to SharePoint. Check the network and try again."
+            : e.message;
+  return what + ": " + msg;
+}
+const unitOf = c => D.byTitle.get(c.ItemID);
+const dcUrlOf = c => (String(c.DC_x0020_URL || "").match(/https:\/\/[^\s"'<>]+/) || [""])[0].replace(/&amp;/g, "&");
+const count = s => D.units.filter(u => u.stage === s).length;
+
+/* ---------- warranty rules ---------- */
+const oemMatch = (u, oem) => startsCI(oem, "odysse") ? startsCI(u.OEMMake, "odysse") : norm(u.OEMMake) === norm(oem);
+const eligibleClaims = oem => D.units.filter(u => u.AtJeedimetla && u.Availability === AV.claimReady && oemMatch(u, oem)).sort(byTitle);
+function warrantyAt(u, day){
+  if(!u.WarrantyStart) return "Unknown";
+  const end = new Date(u.WarrantyStart); end.setMonth(end.getMonth() + (Number(u.WarrantyMonths) || 0));
+  return end >= new Date(istMidnight(day)) ? "In warranty" : "Expired";
+}
+/* E-Sprinto motors: approved repair cycles since the last recorded replacement. */
+function sprintoCycles(title){
+  const cs = D.claims.filter(c => c.ItemID === title && /sprinto/i.test(c.OEMSupplier || ""));
+  let cutoff = 0;
+  for(const c of cs) if(/replace/i.test(c.Resolution || "") && c.ReplacementSerial) cutoff = Math.max(cutoff, c.Id);
+  return cs.filter(c => c.Id > cutoff && c.ClaimStatus === "Approved" && /repair/i.test(c.Resolution || "")).length;
+}
+const daysBetween = (a, b) => Math.floor((new Date(b) - new Date(a)) / 86400000);
+function latestRepair(repairs, title){
+  const now = Date.now();
+  return repairs.filter(r => r.MotorID === title && r.ReturnDate && new Date(r.ReturnDate) <= now)
+    .sort((a, b) => new Date(b.ReturnDate) - new Date(a.ReturnDate))[0] || null;
+}
+/* A claim waits for a DC when it is the unit's current claim, has no challan yet, and the unit is still here. */
+function isDcPending(c){
+  const u = unitOf(c);
+  return !!u && c.ClaimStatus === CS.raised && !c.DC_x0020_Number && D.latestClaim.get(c.ItemID) === c
+    && u.AtJeedimetla && u.Availability === AV.claimRaised;
+}
+/* A unit may be shipped only with a generated challan on its current claim. */
+function isShippable(c){
+  const u = unitOf(c);
+  return !!u && u.AtJeedimetla && u.Availability === AV.dcReady && D.latestClaim.get(c.ItemID) === c
+    && [CS.dc, CS.sent].includes(c.ClaimStatus) && !!c.DC_x0020_Number && !!dcUrlOf(c) && !!c.DC_x0020_Generated_x0020_Date;
+}
+function dcList(){
+  const m = new Map();
+  for(const c of D.claims){
+    const n = c.DC_x0020_Number; if(!n) continue;
+    if(!m.has(n)) m.set(n, {number: n, claims: [], url: "", date: c.DC_x0020_Generated_x0020_Date, oem: c.OEMSupplier});
+    const d = m.get(n); d.claims.push(c); if(!d.url) d.url = dcUrlOf(c);
+  }
+  const list = [...m.values()];
+  for(const d of list){
+    d.ready = d.claims.filter(isShippable);
+    d.sent = d.claims.filter(c => c.ClaimStatus === CS.sent && !isShippable(c)).length;
+    d.status = d.ready.length ? (d.sent ? "Partly shipped" : "Ready to ship") : (d.sent === d.claims.length ? "Shipped" : "Needs review");
+  }
+  return list.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+}
+
+/* ============================================================
+   DELIVERY CHALLAN PDF — dependency-free A4. Text is reduced to
+   plain ASCII and escaped before entering the PDF content stream.
+   ============================================================ */
+const ascii = s => String(s ?? "").normalize("NFKD").replace(/[^\x20-\x7e]/g, "?");
+const pdfLit = s => ascii(s).replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
+function wrapText(s, width){
+  const words = ascii(s).split(/\s+/).flatMap(w => w.length > width ? w.match(new RegExp(".{1," + width + "}", "g")) : [w]), lines = [];
+  let line = "";
+  for(const word of words){ if(line.length + word.length + 1 > width && line){ lines.push(line); line = ""; } line += (line ? " " : "") + word; }
+  if(line) lines.push(line);
+  return lines.length ? lines : [""];
+}
+function challanPdf(dc){
+  const batches = [[]]; let height = 0;
+  dc.units.forEach((u, index) => {
+    const row = {u, index, idLines: wrapText(u.unitId, 37), serialLines: wrapText(u.serial, 32)};
+    row.height = Math.max(row.idLines.length, row.serialLines.length) * 11 + 5;
+    if(height + row.height > 320){ batches.push([]); height = 0; }
+    batches[batches.length - 1].push(row); height += row.height;
+  });
+  const pages = batches.length, objects = [""], pageRefs = [];
+  const add = s => (objects.push(s), objects.length - 1);
+  const catalog = add(""), tree = add(""), font = add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"),
+        bold = add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>");
+  for(let p = 0; p < pages; p++){
+    let stream = "";
+    const text = (x, y, size, s, b) => { stream += "BT /" + (b ? "F2" : "F1") + " " + size + " Tf 1 0 0 1 " + x + " " + y + " Tm (" + pdfLit(s) + ") Tj ET\n"; };
+    const line = y => { stream += "0.85 0.89 0.85 RG 42 " + y + " m 553 " + y + " l S\n"; };
+    stream += "0.08 0.25 0.19 rg\n";
+    text(42, 790, 24, "HALA", true); text(42, 766, 10, "Hala Mobility Pvt Ltd - Motor & controller operations");
+    text(359, 789, 14, "DELIVERY CHALLAN", true); text(359, 766, 10, dc.number); line(746);
+    text(42, 702, 10, "From: " + dc.from, true); text(359, 702, 10, "Date: " + dc.day);
+    text(42, 680, 10, "To: " + dc.oem, true);
+    wrapText(dc.destination, 88).slice(0, 5).forEach((s, i) => text(42, 661 - i * 13, 10, s));
+    text(42, 573, 9, "Vehicle / transport: " + (dc.vehicle || "To be entered at dispatch"));
+    text(42, 554, 9, "Purpose: Warranty inspection / repair / replacement. No sale.");
+    line(535); text(46, 517, 9, "#", true); text(76, 517, 9, "UNIT ID", true); text(280, 517, 9, "TYPE", true); text(375, 517, 9, "SERIAL NUMBER", true); line(505);
+    let rowY = 487;
+    for(const row of batches[p]){
+      text(46, rowY, 8, row.index + 1);
+      row.idLines.forEach((s, i) => text(76, rowY - i * 11, 8, s));
+      text(280, rowY, 8, row.u.type);
+      row.serialLines.forEach((s, i) => text(375, rowY - i * 11, 8, s));
+      rowY -= row.height;
+    }
+    line(146); text(42, 125, 10, "Total units: " + dc.units.length, true); text(359, 125, 9, "Prepared by: " + ascii(dc.createdBy).slice(0, 32));
+    text(42, 84, 9, "Dispatch signature: __________________"); text(330, 84, 9, "Receiver signature: __________________");
+    text(42, 43, 8, "Hala Motor Tracker | Internal delivery record"); text(472, 43, 8, "Page " + (p + 1) + " of " + pages);
+    const content = add("<< /Length " + stream.length + " >>\nstream\n" + stream + "endstream");
+    pageRefs.push(add("<< /Type /Page /Parent " + tree + " 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 " + font + " 0 R /F2 " + bold + " 0 R >> >> /Contents " + content + " 0 R >>"));
+  }
+  objects[catalog] = "<< /Type /Catalog /Pages " + tree + " 0 R >>";
+  objects[tree] = "<< /Type /Pages /Count " + pages + " /Kids [" + pageRefs.map(n => n + " 0 R").join(" ") + "] >>";
+  let out = "%PDF-1.4\n"; const offsets = [0];
+  for(let i = 1; i < objects.length; i++){ offsets[i] = out.length; out += i + " 0 obj\n" + objects[i] + "\nendobj\n"; }
+  const start = out.length;
+  out += "xref\n0 " + objects.length + "\n0000000000 65535 f \n";
+  for(let i = 1; i < objects.length; i++) out += String(offsets[i]).padStart(10, "0") + " 00000 n \n";
+  out += "trailer\n<< /Size " + objects.length + " /Root " + catalog + " 0 R >>\nstartxref\n" + start + "\n%%EOF\n";
+  return new TextEncoder().encode(out);
+}
+function saveBlob(blob, name){
+  const url = URL.createObjectURL(blob), a = document.createElement("a");
+  a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+/* ============================================================
+   STATE + SHELL
+   ============================================================ */
+const names = {overview: "Overview", inventory: "All units", inspections: "Inspections", claims: "Warranty claims",
+  dc: "Delivery challans", move: "Inward / outward", activity: "Activity log"};
+const paths = {overview: "M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z", inventory: "M3 7l9-4 9 4v10l-9 4-9-4z M3 7l9 4 9-4 M12 11v10",
+  inspections: "M9 3h6v4H9z M9 5H5v16h14V5h-4 M8 13l3 3 5-6", claims: "M5 3h14v18H5z M8 8h8 M8 12h8 M8 16h5",
+  dc: "M3 6h11v12H3z M14 10h4l3 4v4h-7 M6 18v2 M18 18v2", move: "M4 8h13 M13 4l4 4-4 4 M20 16H7 M11 12l-4 4 4 4",
+  activity: "M3 12h4l3-7 4 14 3-7h4", search: "M10 3a7 7 0 1 0 0 14 7 7 0 0 0 0-14 M15 15l6 6", plus: "M12 5v14 M5 12h14",
+  arrow: "M5 12h14 M13 6l6 6-6 6", check: "M5 12l4 4L19 6", motor: "M5 7h14v10H5z M2 10v4 M22 10v4 M8 3v4 M16 3v4",
+  info: "M12 8v1 M12 12v5 M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20"};
+const icon = name => '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + (paths[name] || paths.motor) + '"/></svg>';
+
+let view = "overview", oem = "All OEMs", type = "All types", stage = "All stages", search = "", page = 1;
+let claimOem = "", dcOem = "", busy = null, notice = null;
+const selected = new Set(), dcSelected = new Set();
+const prefs = lsJson("hala_motor_prefs", {});
+const F = {
+  insp: {date: todayIST(), by: prefs.by || "", technician: prefs.technician || "", result: "", decision: "", fault: "", scope: "queue"},
+  dc: {address: "", vehicle: ""},
+};
+/* Log inward / outward keeps its own small state so typing never redraws the page. */
+const M = {dir: "Inward", from: "", to: "", unit: null, reason: "", date: todayIST(), saving: false};
+
+function toast(message, error){
+  const e = $("#toast"); e.textContent = message; e.className = "visible" + (error ? " error" : "");
+  clearTimeout(toast.timer); toast.timer = setTimeout(() => { e.className = ""; }, error ? 9000 : 5500);
+}
+function showSignin(msg){
+  $("#app").innerHTML = '<div class="login"><p class="eyebrow">Hala · Motor Tracker</p><h1>Sign in to your workspace</h1>' +
+    '<p>Use your Hala Microsoft account. Records are read from and saved to the Fleet Ops SharePoint site.</p>' +
+    (msg ? '<div class="banner err">' + esc(msg) + '</div>' : '') +
+    '<button class="primary" data-action="signin">' + esc(AUTH.name ? "Sign in as " + AUTH.name : "Sign in with Microsoft") + ' →</button></div>';
+}
+const badge = u => '<span class="badge ' + esc(u.stage) + '">' + esc(u.stage === "other" ? (u.Availability || "No status") : STAGES[u.stage]) + '</span>';
+function nav(next){
+  view = next; page = 1; selected.clear(); dcSelected.clear(); search = ""; oem = "All OEMs"; type = "All types"; stage = "All stages";
+  render(); window.scrollTo(0, 0);
+  if(next === "move" && !D.recentMoves) loadRecentMoves();
+  if(next === "activity" && !D.activity) loadActivity();
+}
+function title(eyebrow, heading, sub, actions){
+  return '<div class="page-head"><div><p class="eyebrow">' + eyebrow + '</p><h1>' + heading + '</h1><p class="subtext">' + sub + '</p></div><div class="head-actions">' + (actions || "") + '</div></div>';
+}
+const regButton = () => '<button class="primary" data-action="register">' + icon("plus") + 'Register unit</button>';
+const families = () => [...new Set(D.units.map(u => u.OEMMake || "No OEM"))].sort();
+const claimOems = () => { const base = D.oems.map(o => o.title); return base.length ? base : families(); };
+
+function pendingList(){ return lsJson("hala_motor_pending", []); }
+function pendingSet(list){ if(list.length) lsSet("hala_motor_pending", JSON.stringify(list)); else lsDel("hala_motor_pending"); }
+function pendingHtml(){
+  const list = pendingList(); if(!list.length) return "";
+  return '<div class="banner">' + list.map((p, i) => '<div class="row"><span>The record for <strong>' + esc(p.title) + '</strong> was saved, but its status was not updated to “' +
+    esc(p.patch.Availability || "the new value") + '”.</span><button data-finish="' + i + '">Finish update</button></div>').join("") + '</div>';
+}
+function noticeHtml(){
+  if(!notice) return "";
+  return '<div class="banner ' + (notice.error ? "err" : "") + '"><div class="row"><span>' + esc(notice.text) + '</span><button data-action="dismiss">Dismiss</button></div>' +
+    (notice.items && notice.items.length ? '<ul>' + notice.items.map(x => '<li>' + esc(x) + '</li>').join("") + '</ul>' : '') + '</div>';
+}
+
+function render(){
+  if(!D.loaded){
+    $("#app").innerHTML = D.error
+      ? '<div class="login"><p class="eyebrow">Hala · Motor Tracker</p><h1>Could not open the workspace</h1><div class="banner err">' + esc(D.error) + '</div><button class="primary" data-action="refresh">Try again</button> <button data-action="signout">Sign out</button></div>'
+      : '<div class="initial-loading">Loading Hala Motor Tracker…</div>';
+    return;
+  }
+  const insp = count("inspection");
+  const initials = (AUTH.name || "H").split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase();
+  $("#app").innerHTML =
+    '<aside class="sidebar"><div class="brand"><span class="brand-mark">hala</span><div><strong>Motor Tracker</strong><small>FLEET OPERATIONS</small></div></div>' +
+    '<p class="nav-caption">WORKSPACE</p><nav aria-label="Main navigation">' +
+    Object.entries(names).map(([id, label]) => '<button class="nav-item ' + (view === id ? "active" : "") + '" data-nav="' + id + '"' + (view === id ? ' aria-current="page"' : '') + '>' +
+      icon(id) + label + (id === "inspections" && insp ? '<span class="count">' + insp + '</span>' : '') + '</button>').join("") +
+    '</nav><div class="sidebar-foot"><div class="workspace"><div class="avatar">H</div><div>Hala Mobility<small>Jeedimetla warehouse</small></div></div>' +
+    '<button data-action="connection">' + icon("info") + 'Workspace &amp; connection</button></div></aside>' +
+    '<main class="main"><header class="topbar"><button class="mobile-menu" data-action="menu" aria-label="Open navigation">☰</button>' +
+    '<div class="breadcrumb">Workspace <span aria-hidden="true"> / </span> <strong>' + names[view] + '</strong></div>' +
+    '<div class="topbar-right"><span class="pill">Live · Fleet Ops lists</span><span class="user-avatar" title="' + esc(AUTH.name) + '">' + esc(initials) + '</span></div></header>' +
+    (busy ? '<div class="busybar"><span id="busy-msg">' + esc(busy.msg) + '</span><span class="progress-line"><i></i></span></div>' : '') +
+    '<div class="content ' + (busy ? "loading" : "") + '">' + (D.error ? '<div class="banner err">' + esc(D.error) + '</div>' : '') + noticeHtml() + pendingHtml() +
+    ({overview, inventory, inspections, claims, dc, move: moveView, activity})[view]() +
+    '<div class="demo-footer"><span>Hala internal workspace · ' + esc(AUTH.name || AUTH.upn) + ' · ' + D.units.length + ' units · loaded in ' + esc(D.loadSecs) + ' s</span>' +
+    '<button class="text-button" data-action="refresh">Refresh records</button></div></div></main>';
+  if(view === "move") moveMount();
+}
+
+/* ============================================================
+   VIEWS
+   ============================================================ */
+function overview(){
+  const motors = D.units.filter(u => u.ItemType === "Motor").length;
+  const metrics = [
+    ["Total units", D.units.length, motors + " motors · " + (D.units.length - motors) + " controllers", "inventory"],
+    ["Available to use", count("available"), "Bench tested or ex-OEM, at Jeedimetla", "check"],
+    ["Awaiting inspection", count("inspection"), "Units in the warehouse queue", "inspections"],
+    ["Warranty pipeline", count("claimReady") + count("claimRaised") + count("dcReady"), "Approved failures awaiting next action", "claims"]];
+  const flow = [["inspection", "Inspection", "inspections"], ["claimReady", "Raise warranty claim", "claims"], ["claimRaised", "Generate DC challan", "dc"],
+    ["dcReady", "Ready to ship", "dc"], ["shipped", "At OEM / plant", "shipped"]];
+  const order = {dcReady: 0, claimRaised: 1, claimReady: 2, inspection: 3};
+  const attention = D.units.filter(u => u.stage in order).sort((a, b) => order[a.stage] - order[b.stage] || new Date(a.LastMovementDate || 0) - new Date(b.LastMovementDate || 0)).slice(0, 7);
+  return title("Warehouse overview", "Every unit. Every movement.", "Your motor and controller operations, in one place.", regButton()) +
+    '<section class="cards" aria-label="Stock totals">' + metrics.map(([label, n, sub, i], index) => '<div class="metric ' + (index === 0 ? "featured" : "") + '"><div class="metric-head">' + label + icon(i) +
+      '</div><div class="number">' + n + '</div><small>' + sub + '</small></div>').join("") + '</section>' +
+    '<section class="panel"><div class="panel-head"><div><h2>The warranty journey</h2><p class="subtext">Working units become available. Rejected failures become scrap.</p></div>' +
+    '<button data-stage="scrap">Scrap <strong>' + count("scrap") + '</strong></button></div><div class="workflow">' +
+    flow.map(([s, label, n], i) => '<button class="flow-card" ' + (n === "shipped" ? 'data-stage="shipped"' : 'data-nav="' + n + '"') + '><span class="flow-index">0' + (i + 1) + '</span><strong>' + count(s) + '</strong><span>' + label + '</span></button>').join("") +
+    '</div></section><section class="panel"><div class="panel-head"><div><h2>Units needing attention</h2><p class="subtext">The next actions in your warehouse queue</p></div>' +
+    '<button data-nav="inventory">View all units ' + icon("arrow") + '</button></div>' + unitTable(attention) +
+    '<div class="table-footer"><span>Jeedimetla · Main warehouse</span><span>' + fmt(new Date()) + '</span></div></section>';
+}
+function filtered(){
+  const q = search.trim().toLowerCase();
+  return D.units.filter(u => {
+    if(view === "inspections"){ if(!u.AtJeedimetla) return false; if(F.insp.scope === "queue" && u.stage !== "inspection") return false; }
+    if(oem !== "All OEMs" && (u.OEMMake || "No OEM") !== oem) return false;
+    if(type !== "All types" && u.ItemType !== type) return false;
+    if(view === "inventory" && stage !== "All stages" && u.stage !== stage) return false;
+    return !q || [u.Title, u.SerialNo, u.OEMMake, u.ItemType, u.CurrentLocation].join(" ").toLowerCase().includes(q);
+  }).sort(byTitle);
+}
+const options = (list, value, labels) => list.map(x => '<option value="' + esc(x) + '"' + (x === value ? " selected" : "") + '>' + esc((labels && labels[x]) || x) + '</option>').join("");
+function filters(withStage){
+  return '<div class="filters"><label class="search">' + icon("search") + '<input id="search" aria-label="Search units" placeholder="Search unit ID, serial, OEM or location…" value="' + esc(search) + '"></label>' +
+    '<select id="filter-oem" aria-label="Filter OEM">' + options(["All OEMs", ...families()], oem) + '</select>' +
+    '<select id="filter-type" aria-label="Filter unit type">' + options(["All types", ...D.itemTypes], type) + '</select>' +
+    (withStage ? '<select id="filter-stage" aria-label="Filter status">' + options(["All stages", ...Object.keys(STAGES)], stage, STAGES) + '</select>' : '') + '</div>';
+}
+function unitTable(units, check, withLocation){
+  const cols = 6 + (check ? 1 : 0) + (withLocation ? 1 : 0);
+  return '<div class="table-wrap"><table><thead><tr>' +
+    (check ? '<th><input class="check" type="checkbox" data-select-all="units" aria-label="Select this page"' + (units.length && units.every(u => selected.has(u.Id)) ? " checked" : "") + '></th>' : '') +
+    '<th>Unit / serial</th><th>Type</th><th>OEM</th><th>Status</th>' + (withLocation ? '<th>Location</th>' : '') + '<th>Last test</th><th></th></tr></thead><tbody>' +
+    (units.length ? units.map(u => '<tr class="' + (selected.has(u.Id) ? "row-select" : "") + '">' +
+      (check ? '<td><input class="check" type="checkbox" data-unit="' + u.Id + '" aria-label="Select ' + esc(u.Title) + '"' + (selected.has(u.Id) ? " checked" : "") + '></td>' : '') +
+      '<td><span class="unit-icon">' + icon("motor") + '<span class="unit-id">' + esc(u.Title) + '<span class="unit-sub">' + esc(u.SerialNo && u.SerialNo !== u.Title ? u.SerialNo : (u.Model || "")) + '</span></span></span></td>' +
+      '<td>' + esc(u.ItemType) + '</td><td>' + esc(u.OEMMake || "—") + '</td><td>' + badge(u) + '</td>' + (withLocation ? '<td>' + esc(u.CurrentLocation || "—") + '</td>' : '') +
+      '<td>' + fmt(u.LastTestDate) + (u.LatestTestResult ? '<span class="unit-sub">' + esc(u.LatestTestResult) + '</span>' : '') + '</td>' +
+      '<td><button class="text-button" data-history="' + u.Id + '">View →</button></td></tr>').join("")
+    : '<tr><td colspan="' + cols + '"><div class="empty">' + icon("inventory") + '<h3>No units in this view</h3><p>Try another filter, or register a newly received unit.</p></div></td></tr>') +
+    '</tbody></table></div>';
+}
+const pageUnits = () => filtered().slice((page - 1) * 50, page * 50);
+function pagedTable(check, withLocation){
+  const total = filtered().length, pages = Math.max(1, Math.ceil(total / 50)); page = Math.min(page, pages);
+  return unitTable(pageUnits(), check, withLocation) + '<div class="table-footer"><span>Page ' + page + ' of ' + pages + ' · ' + total + ' matching units</span><div class="head-actions">' +
+    '<button data-page="' + (page - 1) + '"' + (page === 1 ? " disabled" : "") + '>Previous</button><button data-page="' + (page + 1) + '"' + (page === pages ? " disabled" : "") + '>Next</button></div></div>';
+}
+function inventory(){
+  return title("Stock &amp; traceability", "All units", "Find a motor or controller and follow its full history.", regButton()) +
+    '<section class="panel"><div class="panel-head"><h2>Unit register</h2><span class="small-note">' + D.units.length + ' total units · Scrap ' + count("scrap") + '</span></div>' +
+    filters(true) + '<div id="unit-table">' + pagedTable(false, true) + '</div><div class="table-footer"><span id="result-count">' + filtered().length + ' matching units</span>' +
+    '<button class="text-button" data-action="export">Export this view</button></div></section>';
+}
+const field = (label, html, wide) => '<label class="field ' + (wide ? "wide" : "") + '">' + label + html + '</label>';
+function inspections(){
+  const f = F.insp;
+  return title("Bench testing", "Inspection queue", "Select a batch, record the test result, and move every unit to its next stage.") +
+    '<div class="instruction">' + icon("info") + '<div><strong>Working → Available to use.</strong> For Not working units, Approved → warranty claim; Rejected → scrap. The warranty decision is only asked after a failed test.</div></div>' +
+    '<section class="panel"><div class="panel-head"><h2>Record an inspection</h2><span class="small-note">' + count("inspection") + ' awaiting inspection</span></div><div class="inspection-form">' +
+    field("Inspection date", '<input id="inspect-date" type="date" max="' + todayIST() + '" value="' + esc(f.date) + '" required>') +
+    field("Tested by", '<select id="inspect-by" aria-label="Tested by"><option value="">Choose who tested</option>' + options(["Our Technician", "OEM Technician"], f.by) + '</select>') +
+    field("Technician name", '<input id="inspect-technician" maxlength="120" placeholder="Who completed the bench test?" value="' + esc(f.technician) + '" required>') +
+    field("Bench test result", '<select id="inspect-result" aria-label="Bench test result"><option value="">Choose result</option>' + options(["Working", "Not working"], f.result) + '</select>') +
+    (f.result === "Not working" ? field("Warranty decision", '<select id="inspect-decision" aria-label="Warranty decision"><option value="">Choose decision</option>' + options(["Approved", "Rejected"], f.decision) + '</select>') : '') +
+    field("Fault observed · optional", '<input id="inspect-fault" maxlength="500" placeholder="Observations from this batch" value="' + esc(f.fault) + '">') + '</div>' +
+    '<div class="filters"><label class="search">' + icon("search") + '<input id="search" aria-label="Search units" placeholder="Search unit ID, serial or OEM…" value="' + esc(search) + '"></label>' +
+    '<select id="filter-oem" aria-label="Filter OEM">' + options(["All OEMs", ...families()], oem) + '</select>' +
+    '<select id="filter-type" aria-label="Filter unit type">' + options(["All types", ...D.itemTypes], type) + '</select>' +
+    '<select id="inspect-scope" aria-label="Which units to list">' + options(["queue", "all"], f.scope, {queue: "Awaiting inspection", all: "All units at Jeedimetla (re-test)"}) + '</select></div>' +
+    '<div id="unit-table">' + pagedTable(true) + '</div><div class="bulkbar"><span id="selected-count">' + selected.size + ' units selected</span><div class="head-actions">' +
+    '<button data-action="select-matching">Select all ' + filtered().length + ' matching</button><button data-action="clear-selection"' + (selected.size ? "" : " disabled") + '>Clear</button>' +
+    '<button class="primary" data-action="inspect"' + (selected.size ? "" : " disabled") + '>Save inspection ' + icon("arrow") + '</button></div></div></section>';
+}
+function chips(current, action, counter, list){
+  return '<div class="chips">' + list.map(f => '<button class="chip ' + (current === f ? "active" : "") + '" data-' + action + '="' + esc(f) + '">' + esc(f) + ' <span>' + counter(f) + '</span></button>').join("") + '</div>';
+}
+function claimTable(list, check){
+  return '<div class="table-wrap"><table><thead><tr>' + (check ? '<th><input class="check" type="checkbox" data-select-all="claims" aria-label="Select all pending claims"' +
+    (list.length && list.every(c => dcSelected.has(c.Id)) ? " checked" : "") + '></th>' : '') + '<th>Unit</th><th>Type</th><th>Raised</th><th>Status</th><th>DC</th></tr></thead><tbody>' +
+    (list.length ? list.map(c => '<tr>' + (check ? '<td><input class="check" type="checkbox" data-claim="' + c.Id + '" aria-label="Select claim for ' + esc(c.ItemID) + '"' + (dcSelected.has(c.Id) ? " checked" : "") + '></td>' : '') +
+      '<td class="unit-id">' + esc(c.ItemID) + '</td><td>' + esc(c.ItemType || "—") + '</td><td>' + fmt(c.Created) + '</td>' +
+      '<td><span class="badge ' + (c.ClaimStatus === CS.raised ? "claimRaised" : c.ClaimStatus === CS.dc ? "dcReady" : "shipped") + '">' + esc(c.ClaimStatus || "—") + '</span></td><td>' + esc(c.DC_x0020_Number || "—") + '</td></tr>').join("")
+    : '<tr><td colspan="6"><div class="empty"><h3>No claims here</h3><p>Approved failed units appear after you raise their warranty claims.</p></div></td></tr>') + '</tbody></table></div>';
+}
+function claims(){
+  const list = claimOems(); if(!list.includes(claimOem)) claimOem = list.find(o => eligibleClaims(o).length) || list[0] || "";
+  const eligible = eligibleClaims(claimOem);
+  const raised = D.claims.filter(c => [CS.raised, CS.dc, CS.sent].includes(c.ClaimStatus) && norm(c.OEMSupplier) === norm(claimOem)).sort((a, b) => b.Id - a.Id).slice(0, 50);
+  return title("OEM warranty", "Raise warranty claims", "Choose an OEM. All eligible units are included automatically.") +
+    chips(claimOem, "claim-oem", f => eligibleClaims(f).length, list) +
+    '<div class="instruction">' + icon("claims") + '<div><strong>' + eligible.length + ' ' + esc(claimOem) + ' units ready.</strong> This batch includes every Not working + Approved unit at the warehouse. No individual selection or fault category is needed.</div></div>' +
+    '<section class="panel"><div class="panel-head"><h2>' + esc(claimOem) + ' · Eligible batch</h2><span class="small-note">' + eligible.length + ' units</span></div>' + unitTable(eligible) +
+    '<div class="bulkbar"><span>All ' + eligible.length + ' eligible units will be included</span><button class="primary" data-action="claim"' + (eligible.length ? "" : " disabled") + '>Raise ' + eligible.length + ' claims ' + icon("arrow") + '</button></div></section>' +
+    '<section class="panel"><div class="panel-head"><h2>Claims already raised</h2><button data-nav="dc">Generate delivery challan ' + icon("arrow") + '</button></div>' + claimTable(raised) + '</section>';
+}
+const dcPending = o => D.claims.filter(c => isDcPending(c) && norm(c.OEMSupplier) === norm(o)).sort((a, b) => a.Id - b.Id);
+function dcOems(){ return [...new Set([...claimOems(), ...D.claims.filter(isDcPending).map(c => c.OEMSupplier)])]; }
+function dc(){
+  const oemsList = dcOems(); if(!oemsList.includes(dcOem)) dcOem = oemsList.find(o => dcPending(o).length) || oemsList[0] || "";
+  const list = dcPending(dcOem), docs = dcList();
+  if(!F.dc.address) F.dc.address = lsJson("hala_motor_addr", {})[dcOem] || "";
+  return title("Dispatch documents", "Delivery challans", "Generate the DC, then mark the batch shipped to the OEM plant.") +
+    chips(dcOem, "dc-oem", f => dcPending(f).length, oemsList) +
+    '<div class="split"><section class="panel"><div class="panel-head"><h2>' + esc(dcOem) + ' · DC pending</h2><span class="small-note">' + list.length + ' claims</span></div>' + claimTable(list, true) +
+    '<div class="inline-info">Select all claims for one batch, or choose a smaller dispatch.</div></section><section class="panel"><div class="panel-head"><h2>Prepare a challan</h2></div><div class="form-panel">' +
+    field("Plant delivery address", '<textarea id="dc-address" rows="4" maxlength="450" placeholder="Enter the OEM plant’s complete delivery address">' + esc(F.dc.address) + '</textarea>') +
+    field("Vehicle / transport · optional", '<input id="dc-vehicle" maxlength="100" placeholder="Vehicle number or transport details" value="' + esc(F.dc.vehicle) + '">') +
+    '<p class="small-note">The DC lists unit IDs, types and serial numbers with signature spaces, and is filed in the Fleet Ops document library. Shipping stays blocked until it is generated.</p>' +
+    '<button class="primary" data-action="dc"' + (list.length ? "" : " disabled") + '>Generate DC PDF ' + icon("arrow") + '</button></div></section></div>' +
+    '<section class="panel"><div class="panel-head"><h2>Generated challans</h2><span class="small-note">' + docs.length + ' documents</span></div><div class="table-wrap"><table><thead><tr><th>DC number</th><th>OEM / date</th><th>Units</th><th>Status</th><th>Actions</th></tr></thead><tbody>' +
+    (docs.length ? docs.map(d => '<tr><td class="unit-id">' + esc(d.number) + '</td><td>' + esc(d.oem) + '<span class="unit-sub">' + fmt(d.date) + '</span></td><td>' + d.claims.length +
+      (d.sent && d.ready.length ? '<span class="unit-sub">' + d.sent + ' shipped</span>' : '') + '</td><td><span class="badge ' + (d.status === "Shipped" ? "shipped" : d.status === "Needs review" ? "claimReady" : "dcReady") + '">' + esc(d.status) + '</span></td>' +
+      '<td><div class="head-actions">' + (d.url ? '<button data-download="' + esc(d.number) + '">Download PDF</button>' : '') +
+      (d.ready.length ? '<button class="primary" data-ship="' + esc(d.number) + '">Mark shipped →</button>' : '') + '</div></td></tr>').join("")
+    : '<tr><td colspan="5"><div class="empty">' + icon("dc") + '<h3>Your DC documents will appear here</h3><p>Raise a warranty claim, then generate its delivery challan.</p></div></td></tr>') + '</tbody></table></div></section>';
+}
+function activityList(list){
+  return list.length ? list.map(a => '<div class="activity-item"><span class="activity-dot"></span><div><strong>' + esc(a.unit || "Workspace") + ' · ' + esc(a.action) + '</strong><p>' + esc(a.details) +
+    '</p><span class="small-note">' + esc(a.actor || "") + '</span></div><time>' + fmt(a.at) + '<br>' + (a.dateOnly ? "" : fmtTime(a.at)) + '</time></div>').join("")
+    : '<div class="empty"><h3>No history recorded yet</h3></div>';
+}
+function activity(){
+  return title("Traceability", "Activity log", "Inspection results, claims, movements and dispatches in one timeline.") +
+    '<section class="panel"><div class="panel-head"><h2>Recent activity</h2><span class="small-note">Latest records across the lists · open a unit for its full history</span></div>' +
+    (D.activity ? activityList(D.activity) : '<div class="empty"><h3>' + (D.activityError ? esc(D.activityError) : "Loading recent activity…") + '</h3></div>') + '</section>';
+}
+const actorOf = r => (r.Author && r.Author.Title) || "";
+const inspEvent = r => ({unit: r.ItemID, action: "Inspection", details: [r.TestResult, r.OEMDecision && ("Warranty " + r.OEMDecision), r.FaultObserved, r.NextAction && ("Next: " + r.NextAction)].filter(Boolean).join(" · "),
+  actor: [r.TechnicianName && (r.TechnicianName + " (" + (r.TestedBy || "technician") + ")"), actorOf(r) && ("recorded by " + actorOf(r))].filter(Boolean).join(" · "), at: r.Created || r.InspectionDate});
+const moveEvent = r => ({unit: r.ItemID, action: (r.Direction || "") + " movement", details: [(r.FromLocation || "—") + " → " + (r.ToLocation || "—"), r.Reason, r.DocketNo, r.Remarks].filter(Boolean).join(" · "),
+  actor: actorOf(r) ? "recorded by " + actorOf(r) : "", at: r.Created || r.MovementDate});
+const claimEvent = r => ({unit: r.ItemID, action: "Warranty claim", details: [r.ClaimStatus, r.OEMSupplier, r.DC_x0020_Number, r.FaultReported && String(r.FaultReported).slice(0, 140)].filter(Boolean).join(" · "),
+  actor: actorOf(r) ? "recorded by " + actorOf(r) : "", at: r.Created});
+const INSP_Q = "$select=Id,ItemID,InspectionDate,TestedBy,TechnicianName,TestResult,OEMDecision,FaultObserved,NextAction,Created,Author/Title&$expand=Author";
+const MOVE_Q = "$select=Id,ItemID,MovementDate,Direction,FromLocation,ToLocation,Reason,DocketNo,Remarks,Created,Author/Title&$expand=Author";
+const CLAIM_Q = "$select=Id,ItemID,OEMSupplier,ClaimStatus,FaultReported,DC_x0020_Number,Created,Author/Title&$expand=Author";
+async function loadActivity(){
+  D.activityError = "";
+  try{
+    const tail = "&$orderby=Id desc&$top=40";
+    const [i, m, c] = await Promise.all([spQuery("Inspections", INSP_Q + tail), spQuery("Movements", MOVE_Q + tail), spQuery("Claims", CLAIM_Q + tail)]);
+    D.activity = [...i.map(inspEvent), ...m.map(moveEvent), ...c.map(claimEvent)].sort((a, b) => new Date(b.at) - new Date(a.at)).slice(0, 90);
+  }catch(e){ if(e instanceof SignedOut) return showSignin("Your session expired. Sign in to carry on."); D.activityError = explain(e, "Could not load activity"); }
+  if(view === "activity") render();
+}
+async function openHistory(id){
+  const u = D.units.find(x => x.Id === id); if(!u) return;
+  modal(u.Title, '<p>' + esc(u.ItemType) + ' · ' + esc(u.OEMMake || "No OEM") + (u.Model ? ' · ' + esc(u.Model) : '') + '</p><p>' + badge(u) + '</p>' +
+    '<dl class="kv"><dt>Location</dt><dd>' + esc(u.CurrentLocation || "—") + '</dd><dt>Stored status</dt><dd>' + esc(u.Availability || "—") + '</dd><dt>Serial</dt><dd>' + esc(u.SerialNo || "—") +
+    '</dd><dt>First received</dt><dd>' + fmt(u.DateFirstReceived) + '</dd><dt>Inspected / claimed</dt><dd>' + (u.TimesInspected || 0) + ' / ' + (u.TimesClaimed || 0) + '</dd></dl><div id="history-body"><p class="small-note">Loading history…</p></div>');
+  try{
+    const f = "&" + filterEq("ItemID", u.Title) + "&$top=500";
+    const [i, m, c] = await Promise.all([spQuery("Inspections", INSP_Q + f), spQuery("Movements", MOVE_Q + f), spQuery("Claims", CLAIM_Q + f)]);
+    const list = [...i.map(inspEvent), ...m.map(moveEvent), ...c.map(claimEvent)].sort((a, b) => new Date(b.at) - new Date(a.at));
+    const box = $("#history-body"); if(box) box.innerHTML = activityList(list);
+  }catch(e){ const box = $("#history-body"); if(box) box.innerHTML = '<div class="banner err">' + esc(explain(e, "Could not load history")) + '</div>'; }
+}
+function modal(heading, body, actions){
+  const m = $("#modal");
+  m.innerHTML = '<div class="modal-head"><h2>' + esc(heading) + '</h2><button class="close-btn" data-action="close" aria-label="Close dialog">×</button></div><div class="modal-body">' + body + '</div>' +
+    (actions ? '<div class="modal-actions"><button data-action="close">Cancel</button>' + actions + '</div>' : '');
+  if(!m.open) m.showModal();
+}
+function exportView(){
+  const rows = [["Unit ID", "Serial", "Type", "OEM", "Model", "Status", "Stored status", "Location", "Last test", "Last result"],
+    ...filtered().map(u => [u.Title, u.SerialNo, u.ItemType, u.OEMMake, u.Model, u.stage === "other" ? u.Availability : STAGES[u.stage], u.Availability, u.CurrentLocation, u.LastTestDate ? fmt(u.LastTestDate) : "", u.LatestTestResult])];
+  /* A leading = + - @ would be run as a formula by Excel; neutralise it. */
+  const safe = v => { const t = String(v ?? ""); return '"' + (/^[=+@\-\t\r]/.test(t) ? "'" + t : t).replace(/"/g, '""') + '"'; };
+  saveBlob(new Blob(["﻿" + rows.map(r => r.map(safe).join(",")).join("\r\n")], {type: "text/csv;charset=utf-8"}), "Hala-units-" + todayIST() + ".csv");
+}
+
+/* ============================================================
+   SAVING — every batch re-reads the lists first, checks each unit
+   against the same rules the Power App applies, then writes unit by
+   unit and reports exactly which ones did not go through.
+   ============================================================ */
+class Skip extends Error{}
+async function withBusy(msg, fn){
+  if(busy) return;
+  busy = {msg}; render();
+  const prog = (done, total) => { const e = $("#busy-msg"); if(e) e.textContent = msg + " " + done + " of " + total; };
+  try{ await fn(prog); }
+  catch(e){
+    if(e instanceof SignedOut){ busy = null; return showSignin("Your session expired. Sign in to carry on. Nothing further was saved."); }
+    notice = {error: true, text: explain(e, "Not completed")}; toast(notice.text, true);
+  }
+  busy = null;
+  try{ await loadCore(); }catch(e){ if(e instanceof SignedOut) return showSignin("Your session expired. Sign in to carry on."); }
+  render();
+}
+async function runBatch(items, label, worker, prog){
+  const out = []; let next = 0, done = 0;
+  const lane = async () => {
+    while(next < items.length){
+      const it = items[next++];
+      try{ await worker(it); out.push({label: label(it), ok: true}); }
+      catch(e){
+        if(e instanceof SignedOut) throw e;
+        out.push({label: label(it), ok: false, skipped: e instanceof Skip, error: e.message === "Failed to fetch" ? "no connection" : e.message});
+      }
+      prog(++done, items.length);
+    }
+  };
+  await Promise.all([lane(), lane(), lane()]);
+  return out;
+}
+function report(out, okText){
+  const bad = out.filter(o => !o.ok), good = out.length - bad.length;
+  if(!bad.length){ notice = null; toast(okText(good)); return; }
+  notice = {error: true, text: good + " saved. " + bad.length + " not saved — check these before retrying:", items: bad.map(b => b.label + ": " + b.error)};
+  toast(good + " saved, " + bad.length + " need review. See the message at the top.", true);
+}
+/* The unit's own row is updated last. If that step fails after its record was
+   written, the change is kept on this device so it can be finished, never lost. */
+async function patchUnit(u, patch){
+  try{ await spMerge("Items", u.Id, patch); Object.assign(u, patch); u.stage = stageOf(u); }
+  catch(e){
+    pendingSet(pendingList().filter(p => p.id !== u.Id).concat([{id: u.Id, title: u.Title, patch}]));
+    if(e instanceof SignedOut) throw e;
+    throw new Error("record saved, but the unit status did not update (" + (e.message === "Failed to fetch" ? "no connection" : e.message) + "). Use Finish update.");
+  }
+}
+
+function inspectProblem(){
+  const f = F.insp;
+  if(!selected.size) return "Select at least one unit.";
+  if(!validDay(f.date)) return "Choose the inspection date.";
+  if(f.date > todayIST()) return "Inspection date cannot be in the future.";
+  if(!f.by) return "Choose who tested: our technician or the OEM technician.";
+  if(!f.technician.trim()) return "Enter the technician name.";
+  if(!["Working", "Not working"].includes(f.result)) return "Choose Working or Not working.";
+  if(f.result === "Not working" && !["Approved", "Rejected"].includes(f.decision)) return "Choose Approved or Rejected for a Not working unit.";
+  return "";
+}
+async function actInspect(){
+  const why = inspectProblem(); if(why) return toast(why, true);
+  const f = Object.assign({}, F.insp), ids = [...selected];
+  const next = f.result === "Working" ? AV.availBench : f.decision === "Approved" ? AV.claimReady : AV.scrap;
+  const seen = new Map(ids.map(id => { const u = D.units.find(x => x.Id === id); return [id, u ? u.Availability : ""]; }));
+  prefs.by = f.by; prefs.technician = f.technician.trim(); lsSet("hala_motor_prefs", JSON.stringify(prefs));
+  await withBusy("Saving inspections…", async prog => {
+    await loadCore();
+    const iso = istMidnight(f.date);
+    const out = await runBatch(ids, id => (D.units.find(x => x.Id === id) || {}).Title || ("unit " + id), async id => {
+      const u = D.units.find(x => x.Id === id);
+      if(!u) throw new Skip("no longer in the register");
+      if(!u.AtJeedimetla) throw new Skip("no longer at Jeedimetla");
+      if(u.Availability !== seen.get(id)) throw new Skip("changed by someone else (now " + (u.Availability || "no status") + ")");
+      const row = {Title: u.Title, ItemID: u.Title, InspectionDate: iso, TestedBy: f.by, TechnicianName: f.technician.trim(),
+        TestedAt: u.CurrentLocation || HOME, TestResult: f.result, NextAction: next, InHouseResult: f.result};
+      if(u.ItemType) row.ItemType = u.ItemType;
+      if(f.fault.trim()) row.FaultObserved = f.fault.trim();
+      if(f.result === "Not working") row.OEMDecision = f.decision;
+      await spCreate("Inspections", row);
+      await patchUnit(u, {LastTestDate: iso, LatestTestResult: f.result, TimesInspected: (Number(u.TimesInspected) || 0) + 1, Availability: next});
+    }, prog);
+    selected.clear(); F.insp.result = ""; F.insp.decision = ""; F.insp.fault = ""; D.activity = null;
+    report(out, n => n + (n === 1 ? " inspection" : " inspections") + " saved. Units moved to: " + (next === AV.availBench ? "Available to use" : next === AV.claimReady ? "Ready for warranty claim" : "Scrap") + ".");
+  });
+}
+
+async function askClaim(){
+  const units = eligibleClaims(claimOem); if(!units.length) return toast("No " + claimOem + " units are ready for a warranty claim. Complete a Not working + Approved inspection first.", true);
+  let repairs = [];
+  try{ repairs = await listAll(L("RepairCycles") + "/items?$select=Id,MotorID,ReturnDate,FaultDate,Supplier,RepairCity&$top=5000"); }catch(e){ if(e instanceof SignedOut) return showSignin("Your session expired. Sign in to carry on."); }
+  const warns = [];
+  for(const u of units){
+    const r = latestRepair(repairs, u.Title);
+    if(r){ const days = daysBetween(r.ReturnDate, r.FaultDate || new Date()); if(days >= 0 && days <= 15) warns.push(u.Title + ": returned after repair on " + fmt(r.ReturnDate) + (r.FaultDate ? " and failed again on " + fmt(r.FaultDate) : "; this claim is " + days + " days after repair, and raising it records the repeat failure") + "."); }
+    if(u.ItemType === "Motor" && (/sprinto/i.test(u.OEMMake || "") || /sprinto/i.test(claimOem))){
+      const n = sprintoCycles(u.Title);
+      if(n >= 2) warns.push(u.Title + ": " + n + " warranty-approved repair cycles since its last replacement. " + (n >= 3 ? "If this claim is approved, request a replacement instead of another repair." : "If approved for repair, this becomes cycle 3; replacement is required on the 4th."));
+    }
+  }
+  modal("Raise " + units.length + " " + claimOem + " claims", '<p>Every Not working + Approved ' + esc(claimOem) + ' unit at Jeedimetla is included. Each moves to <strong>Claim raised · DC pending</strong>.</p>' +
+    (warns.length ? '<div class="warnlist">' + warns.map(w => '<p>' + esc(w) + '</p>').join("") + '</div>' : '') +
+    field("Fault reported · optional", '<input id="claim-fault" maxlength="500" placeholder="Applies to every unit in this batch">'),
+    '<button class="primary" data-action="claim-confirm">' + (warns.length ? "Understood — raise " : "Raise ") + units.length + ' claims</button>');
+}
+async function actClaim(fault){
+  const oemName = claimOem, day = todayIST();
+  await withBusy("Raising claims…", async prog => {
+    await loadCore();
+    let repairs = []; try{ repairs = await listAll(L("RepairCycles") + "/items?$select=Id,MotorID,ReturnDate,FaultDate&$top=5000"); }catch(e){ if(e instanceof SignedOut) throw e; }
+    const units = eligibleClaims(oemName);
+    if(!units.length){ notice = {text: "No " + oemName + " units are ready for a warranty claim."}; return; }
+    const out = await runBatch(units, u => u.Title, async u => {
+      /* A claim already raised for this unit is reused, so a retry never duplicates it. */
+      const open = D.claims.filter(c => c.ItemID === u.Title && [CS.raised, CS.dc].includes(c.ClaimStatus)).sort((a, b) => b.Id - a.Id)[0];
+      if(!open){
+        const row = {Title: u.Title, ItemID: u.Title, OEMSupplier: oemName, ClaimStatus: CS.raised, WarrantyAtDespatch: warrantyAt(u, day)};
+        if(u.ItemType) row.ItemType = u.ItemType;
+        if(fault) row.FaultReported = fault;
+        await spCreate("Claims", row);
+      }
+      await patchUnit(u, {TimesClaimed: (Number(u.TimesClaimed) || 0) + 1, Availability: AV.claimRaised});
+      const r = latestRepair(repairs, u.Title);
+      if(r && !r.FaultDate){
+        const days = daysBetween(r.ReturnDate, new Date());
+        if(days >= 0 && days <= 15){
+          try{ await spMerge("RepairCycles", r.Id, {FaultDate: istMidnight(day), FaultNotes: "Fault reported when warranty claim was raised: " + (fault || ""), ClaimRef: u.Title, AlertStatus: "Pending"}); }
+          catch(e){ if(e instanceof SignedOut) throw e; throw new Error("claim saved, but the repeat-failure alert was not recorded; record it in Repair checks"); }
+        }
+      }
+    }, prog);
+    D.activity = null; dcOem = oemName; F.dc.address = "";
+    report(out, n => n + " " + oemName + (n === 1 ? " claim" : " claims") + " raised. Next: generate the delivery challan.");
+    if(out.every(o => o.ok)) view = "dc";
+  });
+}
+
+function dcProblem(){
+  if(!dcSelected.size) return "Choose claims for the delivery challan.";
+  if(!F.dc.address.trim()) return "Enter the plant delivery address.";
+  return "";
+}
+async function actDC(){
+  const why = dcProblem(); if(why) return toast(why, true);
+  const ids = [...dcSelected], address = F.dc.address.trim(), vehicle = F.dc.vehicle.trim(), oemName = dcOem;
+  let doc = null;
+  await withBusy("Generating delivery challan…", async prog => {
+    await loadCore();
+    const chosen = ids.map(id => D.claims.find(c => c.Id === id)).filter(Boolean).sort((a, b) => a.Id - b.Id);
+    const stale = chosen.filter(c => !isDcPending(c));
+    if(chosen.length !== ids.length || stale.length){ dcSelected.clear(); notice = {error: true, text: "Some selected claims already have a DC or are no longer awaiting one. The list has been refreshed; select again."}; return; }
+    if(new Set(chosen.map(c => norm(c.OEMSupplier))).size !== 1){ notice = {error: true, text: "A delivery challan must contain one OEM."}; return; }
+    /* Numbered like the Power App's challans, from the first claim in the batch, so a retry reuses the same number. */
+    const first = chosen[0], now = new Date().toISOString();
+    const number = "DC-HM-" + new Date(first.Created || now).getFullYear() + "-" + String(first.Id).padStart(6, "0");
+    doc = {number, day: todayIST(), from: HOME, oem: first.OEMSupplier, destination: address, vehicle, createdBy: AUTH.name || AUTH.upn || "Hala",
+      units: chosen.map(c => { const u = unitOf(c); return {unitId: u.Title, type: u.ItemType || "", serial: u.SerialNo || u.Title}; })};
+    doc.bytes = challanPdf(doc);
+    /* The PDF is filed first: no claim is marked "DC generated" unless its document exists. */
+    const up = await sp("GetFolderByServerRelativeUrl(" + lit(CFG.dcFolder) + ")/Files/add(url=" + lit(number + ".pdf") + ",overwrite=true)", {bytes: doc.bytes, method: "POST"});
+    const rel = (up && up.ServerRelativeUrl) || (CFG.dcFolder + "/" + number + ".pdf");
+    const url = CFG.spHost + encodeURI(rel);
+    const out = await runBatch(chosen, c => c.ItemID, async c => {
+      await spMerge("Claims", c.Id, {DC_x0020_Number: number, DC_x0020_URL: url, DC_x0020_Generated_x0020_Date: now, ClaimStatus: CS.dc});
+      await patchUnit(unitOf(c), {Availability: AV.dcReady});
+    }, prog);
+    const addr = lsJson("hala_motor_addr", {}); addr[oemName] = address; lsSet("hala_motor_addr", JSON.stringify(addr));
+    dcSelected.clear(); F.dc.vehicle = ""; D.activity = null;
+    report(out, n => number + " generated for " + n + (n === 1 ? " unit" : " units") + ". The batch is ready for dispatch.");
+  });
+  if(doc && doc.bytes && !notice) saveBlob(new Blob([doc.bytes], {type: "application/pdf"}), doc.number + ".pdf");
+}
+async function downloadDC(number){
+  const d = dcList().find(x => x.number === number); if(!d || !d.url) return toast("This challan has no stored document.", true);
+  let u; try{ u = new URL(d.url); }catch(e){ return toast("The stored document link is not valid.", true); }
+  if(u.origin !== CFG.spHost) return toast("The stored document is not on the Hala SharePoint site.", true);
+  try{
+    const path = decodeURIComponent(u.pathname);
+    if(/^\/sites\//.test(path) && /\.pdf$/i.test(path)){
+      saveBlob(await sp("GetFileByServerRelativeUrl(" + lit(path) + ")/$value", {blob: true}), number + ".pdf");
+    }else window.open(d.url, "_blank", "noopener");
+  }catch(e){
+    if(e instanceof SignedOut) return showSignin("Your session expired. Sign in to carry on.");
+    window.open(d.url, "_blank", "noopener");
+  }
+}
+function askShip(number){
+  const d = dcList().find(x => x.number === number); if(!d || !d.ready.length) return;
+  modal("Mark shipped to plant", '<p><strong>' + esc(d.number) + '</strong> · ' + d.ready.length + ' ' + esc(d.oem) + ' units</p><p>Confirm this batch has left the warehouse. Every unit in the challan moves to ' + esc(PLANT) + '.</p>' +
+    field("Date shipped", '<input id="ship-date" type="date" value="' + todayIST() + '" required>') +
+    field("Dispatch / transport reference · optional", '<input id="ship-reference" maxlength="150" placeholder="Docket, courier or dispatch reference">'),
+    '<button class="primary" data-confirm-ship="' + esc(d.number) + '">Mark ' + d.ready.length + ' units shipped</button>');
+}
+async function actShip(number, day, reference){
+  if(!validDay(day)) return toast("Choose the date shipped.", true);
+  await withBusy("Marking shipped…", async prog => {
+    await loadCore();
+    const d = dcList().find(x => x.number === number);
+    if(!d || !d.ready.length){ notice = {error: true, text: "Generate a DC for the current claims before marking shipment."}; return; }
+    const iso = istMidnight(day);
+    const out = await runBatch(d.ready, c => c.ItemID, async c => {
+      const u = unitOf(c), key = "SHIP-CLAIM-" + c.Id;
+      const row = {Title: key, ItemID: u.Title, MovementDate: iso, Direction: "Outward", FromLocation: u.CurrentLocation || HOME, ToLocation: PLANT,
+        Reason: SHIP_REASON, Remarks: "DC: " + c.DC_x0020_Number + " | Claim: " + c.Id};
+      if(u.ItemType) row.ItemType = u.ItemType;
+      if(reference) row.DocketNo = reference;
+      /* One movement per claim, found again by its key, so a retry updates it instead of adding a second. */
+      const existing = (await spQuery("Movements", "$select=Id&$top=1&" + filterEq("Title", key)))[0];
+      if(existing) await spMerge("Movements", existing.Id, row); else await spCreate("Movements", row);
+      const cp = {DateSentToOEM: iso, ClaimStatus: CS.sent}; if(reference) cp.DocketNo = reference;
+      await spMerge("Claims", c.Id, cp);
+      await patchUnit(u, {CurrentLocation: PLANT, AtJeedimetla: false, Availability: AV.away, LastMovementReason: SHIP_REASON, LastMovementDate: iso});
+    }, prog);
+    D.activity = null; D.recentMoves = null;
+    report(out, n => n + (n === 1 ? " unit" : " units") + " marked shipped with " + number + ".");
+  });
+}
+
+/* ---------- register a received unit ---------- */
+const REG_SOURCE_SKIP = ["Fitted on Vehicle", "In Transit", "Scrap / Write-off", "Bengaluru"];
+function oemFromId(id){
+  const up = String(id || "").trim().toUpperCase(); if(!up) return "";
+  const hit = D.oems.find(o => o.code && o.code.split(",").some(p => p.trim() && up.startsWith(p.trim().toUpperCase())));
+  return hit ? hit.title : "";
+}
+const odysseModel = (typ, oemName, id) => typ === "Motor" && /odysse/i.test(oemName || "") ? (startsCI(String(id).trim(), "WDM") ? "Odysse Snap" : "Odysse Hyfy") : null;
+function askRegister(){
+  modal("Register a received unit", '<form id="register-form">' +
+    field("Item type *", '<select name="type" id="reg-type">' + options(D.itemTypes, "Motor") + '</select>') +
+    field('<span id="reg-id-label">Motor ID *</span>', '<input name="unitId" id="reg-id" maxlength="100" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="Scan or type the unit ID">') +
+    field("OEM / Make", '<select name="oem" id="reg-oem"><option value="">Not known</option>' + options(D.oems.map(o => o.title), "") + '</select>') +
+    field("Model", '<input name="model" id="reg-model" maxlength="100">') +
+    field("Serial No", '<input name="serial" id="reg-serial" maxlength="100" autocomplete="off" spellcheck="false">') +
+    field("Date first received *", '<input name="date" type="date" value="' + todayIST() + '" max="' + todayIST() + '" required>') +
+    field("Condition *", '<select name="condition" required><option value="">Choose condition</option>' + options(["New", "Faulty", "Repaired"], "") + '</select>') +
+    field("Received from *", '<select name="source" required><option value="">Choose where it came from</option>' + options(D.locations.filter(x => !REG_SOURCE_SKIP.includes(x)), "") + '</select>') +
+    '</form><p class="small-note" id="reg-note" style="margin-top:14px">New and Repaired units become Available; Faulty units join the inspection queue. An inward receipt is recorded from the source you choose.</p>',
+    '<button type="submit" form="register-form" class="primary">Register unit</button>');
+  regSync();
+}
+const regTouched = {oem: false, serial: false, model: false};
+function regSync(src){
+  const typ = $("#reg-type"), id = $("#reg-id"), o = $("#reg-oem"), model = $("#reg-model"), serial = $("#reg-serial"); if(!typ) return;
+  if(!src){ regTouched.oem = regTouched.serial = regTouched.model = false; }
+  const controller = typ.value === "Controller";
+  $("#reg-id-label").textContent = controller ? "Controller ID · optional, generated if blank" : "Motor ID *";
+  if(!regTouched.oem && (src === "id" || !src)) o.value = oemFromId(id.value) || "";
+  const fixed = odysseModel(typ.value, o.value, id.value);
+  if(fixed !== null){ model.value = fixed; model.readOnly = true; } else { if(model.readOnly) model.value = ""; model.readOnly = false; }
+  if(!regTouched.serial) serial.value = controller ? "" : id.value.trim();
+}
+async function actRegister(form){
+  const v = Object.fromEntries(new FormData(form)); const id = String(v.unitId || "").trim(), typ = v.type;
+  if(!typ || (!id && typ !== "Controller") || !validDay(v.date) || !v.condition || !v.source) return toast("Complete the item type, condition, received date and source. Motors also need an ID.", true);
+  if(v.date > todayIST()) return toast("The received date cannot be in the future.", true);
+  const iso = istMidnight(v.date);
+  const reason = startsCI(v.source, "Jeedimetla") ? "Stock audit correction" : !startsCI(v.source, "OEM") ? "Hub to Jeedimetla (return)"
+    : v.condition === "Repaired" ? "Received from OEM - repaired" : v.condition === "New" ? "New stock receipt (purchase)" : "Stock audit correction";
+  $("#modal").close();
+  await withBusy("Registering unit…", async () => {
+    if(id){
+      const dup = await spQuery("Items", "$select=Id,Title&$top=1&" + filterEq("Title", id));
+      if(dup.length){ notice = {error: true, text: id + " is already registered. Open it under All units; registration details are edited in the Power App."}; toast(notice.text, true); return; }
+    }
+    const fixed = odysseModel(typ, v.oem, id);
+    const row = {Title: id || ("CTL-PENDING-" + crypto.randomUUID()), ItemType: typ, Model: fixed !== null ? fixed : String(v.model || "").trim(), SerialNo: String(v.serial || "").trim(),
+      DateFirstReceived: iso, Condition: v.condition, AtJeedimetla: true, CurrentLocation: HOME,
+      Availability: ["New", "Repaired"].includes(v.condition) ? AV.availOem : AV.bench, LastMovementDate: iso, LastMovementReason: reason};
+    if(v.oem) row.OEMMake = v.oem;
+    const made = await spCreate("Items", row);
+    let finalId = row.Title;
+    if(!id){
+      /* Controllers without a printed ID take the next internal number, as in the Power App. */
+      finalId = "CTL-" + String(made.Id).padStart(6, "0");
+      const clash = await spQuery("Items", "$select=Id&$top=1&" + filterEq("Title", finalId));
+      if(clash.length) throw new Error("The generated ID " + finalId + " is already in use. The saved record is kept for review.");
+      await spMerge("Items", made.Id, {Title: finalId});
+    }
+    const mv = {Title: "REG-RECEIPT-" + made.Id, ItemID: finalId, ItemType: typ, MovementDate: iso, Direction: "Inward", FromLocation: v.source, ToLocation: HOME, Reason: reason};
+    try{ await spCreate("Movements", mv); }
+    catch(e){ if(e instanceof SignedOut) throw e; throw new Error(finalId + " was registered, but its inward receipt was not recorded. Open the same ID in the Power App's Register screen and save it to record the receipt."); }
+    D.activity = null; D.recentMoves = null; notice = null;
+    toast("Registered " + finalId + " — inward receipt recorded.");
+  });
+}
+
+/* ============================================================
+   LOG INWARD / OUTWARD
+   ============================================================ */
+const faultyRoute = d => startsCI(d, "OEM") || startsCI(d, "Scrap") || d === "Jeedimetla - Refurb Bay";
+function moveCandidates(){
+  if(M.dir === "Inward") return D.units.filter(u => !u.AtJeedimetla);
+  if(!M.to) return [];
+  if(faultyRoute(M.to)) return D.units.filter(u => u.AtJeedimetla && FAULTY_STATES.includes(u.Availability));
+  return D.units.filter(u => u.AtJeedimetla && startsCI(u.Availability, "AVAILABLE"));
+}
+/* "" when the movement may be saved, otherwise what is still missing. */
+function moveBlock(){
+  if(M.dir === "Outward" && !M.to) return "Pick where it is going.";
+  if(!M.unit) return "Pick a Motor ID from the list.";
+  if(M.dir === "Inward" && !M.from) return "Pick where it is coming from.";
+  if(!M.reason) return "Pick a reason.";
+  if(!validDay(M.date)) return "Pick the movement date.";
+  if(M.dir === "Outward" && !startsCI(M.unit.Availability, "AVAILABLE")){
+    const c = D.latestClaim.get(M.unit.Title);
+    if(!(M.to === "OEM - Supplier Works" && c && c.ClaimStatus === "Approved"))
+      return "Not cleared to go out: only AVAILABLE units, or units with an approved claim going to OEM - Supplier Works.";
+  }
+  return "";
+}
+function moveView(){
+  return title("Stock movements", "Log inward / outward", "Record a unit arriving at Jeedimetla or leaving for a hub.") +
+    '<section class="panel"><div class="panel-head"><h2>Record a movement</h2><span class="small-note">Warranty dispatch uses Delivery challans</span></div><div class="mv-form">' +
+    '<div class="field wide"><span id="lblDir">Direction</span><div class="seg" role="radiogroup" aria-labelledby="lblDir"><button type="button" role="radio" id="dirIn">Inward</button><button type="button" role="radio" id="dirOut">Outward</button></div></div>' +
+    field('<span id="lblFrom">From</span>', '<select id="selFrom"></select>') + field('<span id="lblTo">To</span>', '<select id="selTo"></select>') +
+    '<div class="field wide"><label for="unitInput">Motor ID *</label><div class="combo"><input id="unitInput" type="text" role="combobox" aria-expanded="false" aria-controls="unitList" aria-autocomplete="list" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" style="width:100%">' +
+    '<button type="button" class="combo-x" id="unitClear" aria-label="Clear Motor ID" hidden>×</button><ul class="combo-list" id="unitList" role="listbox" hidden></ul></div><div class="field-note" id="where"></div></div>' +
+    field("Movement date", '<input id="inpDate" type="date">') + field("Reason *", '<select id="selReason"></select>') +
+    '<div class="rule-note wide" id="rule" hidden></div></div>' +
+    '<div class="bulkbar"><span id="why"></span><button class="primary" id="btnSave" disabled>Save movement ' + icon("arrow") + '</button></div></section>' +
+    '<section class="panel"><div class="panel-head"><h2>Latest movements</h2><span class="small-note">Most recent first</span></div><div id="recentRows"></div></section>';
+}
+function fillSelect(sel, values, current, fixed){
+  /* Only rebuild the options when they actually change: replacing them while
+     the dropdown is opening would close it under the user's finger. */
+  const extra = current && !values.includes(current) ? current : "";
+  const sig = JSON.stringify([fixed, values, extra]);
+  if(sel.dataset.sig !== sig){
+    sel.dataset.sig = sig; sel.textContent = "";
+    if(fixed) sel.appendChild(new Option(fixed, fixed));
+    else{
+      sel.appendChild(new Option("Select…", ""));
+      for(const v of values) sel.appendChild(new Option(v, v));
+      if(extra) sel.appendChild(new Option(extra, extra));
+    }
+  }
+  sel.disabled = !!fixed;
+  const want = fixed || current || "";
+  if(sel.value !== want) sel.value = want;
+}
+function moveRender(){
+  const inward = M.dir === "Inward", inp = $("#unitInput"); if(!inp) return;
+  $("#dirIn").setAttribute("aria-checked", String(inward)); $("#dirOut").setAttribute("aria-checked", String(!inward));
+  $("#lblFrom").textContent = inward ? "From *" : "From"; $("#lblTo").textContent = inward ? "To" : "To *";
+  fillSelect($("#selFrom"), D.locations, M.from, inward ? "" : HOME);
+  fillSelect($("#selTo"), D.locations, M.to, inward ? HOME : "");
+  fillSelect($("#selReason"), D.reasons, M.reason, "");
+  if($("#inpDate").value !== M.date) $("#inpDate").value = M.date;
+  const n = moveCandidates().length;
+  let ph = "Find items", off = false;
+  if(!inward && !M.to){ ph = "Pick ‘To’ first"; off = true; }
+  else if(!n){ off = true; ph = inward ? "No units away from Jeedimetla" : faultyRoute(M.to) ? "No faulty units at Jeedimetla" : "No bench-tested units in stock"; }
+  inp.placeholder = ph; inp.disabled = off;
+  if(M.unit){ if(document.activeElement !== inp) inp.value = M.unit.Title; } else if(off) inp.value = "";
+  $("#unitClear").hidden = !inp.value || off;
+  const w = $("#where");
+  w.innerHTML = M.unit ? 'Currently at: <b>' + esc(M.unit.CurrentLocation || "—") + '</b> | <b>' + esc(M.unit.Availability || "—") + '</b>' : off ? "" : n + (n === 1 ? " unit" : " units") + " to choose from";
+  const rule = $("#rule");
+  if(inward && M.reason){ rule.textContent = EX_OEM_REASONS.includes(M.reason) ? "Ex-OEM: goes straight to AVAILABLE, no bench test needed." : "From a hub: this unit will need a bench test before use."; rule.hidden = false; }
+  else rule.hidden = true;
+  const why = moveBlock();
+  $("#why").textContent = M.saving ? "Saving…" : why;
+  $("#btnSave").disabled = M.saving || !!why;
+  const rows = $("#recentRows");
+  rows.innerHTML = !D.recentMoves ? '<div class="empty"><h3>Loading…</h3></div>' : D.recentMoves.length ? '<div class="table-wrap"><table><thead><tr><th>Unit</th><th>Direction</th><th>Route</th><th>Reason</th><th>Date</th></tr></thead><tbody>' +
+    D.recentMoves.map(m => '<tr><td class="unit-id">' + esc(m.ItemID) + '</td><td><span class="chipline ' + (m.Direction === "Outward" ? "out" : "") + '">' + esc(m.Direction || "") + '</span></td><td>' +
+      esc((m.FromLocation || "—") + " → " + (m.ToLocation || "—")) + '</td><td>' + esc(m.Reason || "") + '</td><td>' + fmt(m.MovementDate) + '</td></tr>').join("") + '</tbody></table></div>'
+    : '<div class="empty"><h3>No movements yet</h3></div>';
+}
+async function loadRecentMoves(){
+  try{ D.recentMoves = await spQuery("Movements", "$select=Id,ItemID,MovementDate,Direction,FromLocation,ToLocation,Reason&$orderby=Id desc&$top=10"); }
+  catch(e){ if(e instanceof SignedOut) return showSignin("Your session expired. Sign in to carry on."); D.recentMoves = []; }
+  if(view === "move") moveRender();
+}
+const combo = {open: false, idx: -1, items: []};
+function comboMatches(){
+  const inp = $("#unitInput"), q = inp.value.trim().toLowerCase(), all = moveCandidates().slice().sort(byTitle);
+  if(!q || (M.unit && inp.value === M.unit.Title)) return all;
+  return all.filter(u => String(u.Title).toLowerCase().includes(q));
+}
+function comboOpen(){
+  const ul = $("#unitList"), inp = $("#unitInput"); if(inp.disabled) return;
+  combo.items = comboMatches(); combo.open = true;
+  if(combo.idx >= combo.items.length) combo.idx = combo.items.length - 1;
+  const shown = combo.items.slice(0, 80);
+  ul.innerHTML = shown.map((u, i) => '<li role="option" id="opt' + i + '" data-opt="' + i + '" aria-selected="' + (i === combo.idx) + '"><div class="id">' + esc(u.Title) + '</div><div class="sub">' +
+    esc([u.ItemType, u.OEMMake, u.CurrentLocation].filter(Boolean).join(" · ")) + '</div></li>').join("") +
+    (!shown.length ? '<li class="none">No match in this list.</li>' : combo.items.length > shown.length ? '<li class="none">' + (combo.items.length - shown.length) + ' more — keep typing to narrow down.</li>' : '');
+  ul.hidden = false; inp.setAttribute("aria-expanded", "true");
+  if(combo.idx >= 0) inp.setAttribute("aria-activedescendant", "opt" + combo.idx); else inp.removeAttribute("aria-activedescendant");
+  const act = ul.querySelector('[aria-selected="true"]'); if(act) act.scrollIntoView({block: "nearest"});
+}
+function comboClose(){
+  combo.open = false; combo.idx = -1;
+  const ul = $("#unitList"), inp = $("#unitInput"); if(!ul) return;
+  ul.hidden = true; inp.setAttribute("aria-expanded", "false"); inp.removeAttribute("aria-activedescendant");
+}
+function pickUnit(u){
+  M.unit = u; $("#unitInput").value = u.Title; comboClose();
+  /* An inward unit usually comes from where it was last recorded. */
+  if(M.dir === "Inward" && !M.from && D.locations.includes(u.CurrentLocation) && !startsCI(u.CurrentLocation, "Jeedimetla")) M.from = u.CurrentLocation;
+  moveRender();
+}
+function clearUnit(){ M.unit = null; const i = $("#unitInput"); if(i) i.value = ""; comboClose(); }
+function setDir(d){ if(M.dir === d) return; M.dir = d; M.from = ""; M.to = ""; clearUnit(); moveRender(); }
+function moveMount(){
+  if(M.unit) M.unit = D.units.find(u => u.Id === M.unit.Id) || null;
+  const inp = $("#unitInput");
+  $("#dirIn").addEventListener("click", () => setDir("Inward"));
+  $("#dirOut").addEventListener("click", () => setDir("Outward"));
+  for(const id of ["dirIn", "dirOut"]) $("#" + id).addEventListener("keydown", ev => {
+    if(!/^Arrow/.test(ev.key)) return; ev.preventDefault();
+    const next = id === "dirIn" ? "Outward" : "Inward"; setDir(next); $(next === "Inward" ? "#dirIn" : "#dirOut").focus();
+  });
+  $("#selFrom").addEventListener("change", ev => { M.from = ev.target.value; moveRender(); });
+  $("#selTo").addEventListener("change", ev => { M.to = ev.target.value; clearUnit(); moveRender(); });
+  $("#selReason").addEventListener("change", ev => { M.reason = ev.target.value; moveRender(); });
+  $("#inpDate").addEventListener("change", ev => { M.date = ev.target.value; moveRender(); });
+  $("#btnSave").addEventListener("click", moveSave);
+  $("#unitClear").addEventListener("click", () => { clearUnit(); moveRender(); inp.focus(); });
+  $("#unitList").addEventListener("mousedown", ev => { const li = ev.target.closest("[data-opt]"); if(!li) return; ev.preventDefault(); pickUnit(combo.items[Number(li.dataset.opt)]); });
+  inp.addEventListener("focus", () => { inp.select(); combo.idx = -1; comboOpen(); });
+  inp.addEventListener("click", () => { if(!combo.open) comboOpen(); });
+  inp.addEventListener("input", () => { if(M.unit && inp.value !== M.unit.Title) M.unit = null; combo.idx = -1; moveRender(); comboOpen(); });
+  inp.addEventListener("blur", () => { comboClose(); moveRender(); });
+  inp.addEventListener("keydown", ev => {
+    if(ev.key === "ArrowDown" || ev.key === "ArrowUp"){
+      ev.preventDefault(); if(!combo.open){ comboOpen(); return; }
+      const max = Math.min(combo.items.length, 80) - 1;
+      combo.idx = ev.key === "ArrowDown" ? Math.min(max, combo.idx + 1) : Math.max(0, combo.idx - 1); comboOpen();
+    }else if(ev.key === "Enter"){
+      if(!combo.open) return; ev.preventDefault();
+      const q = inp.value.trim().toLowerCase();
+      const hit = combo.idx >= 0 ? combo.items[combo.idx] : combo.items.find(u => String(u.Title).toLowerCase() === q) || (combo.items.length === 1 ? combo.items[0] : null);
+      if(hit) pickUnit(hit);
+    }else if(ev.key === "Escape" && combo.open){ ev.preventDefault(); ev.stopPropagation(); comboClose(); }
+  });
+  moveRender();
+}
+async function moveSave(){
+  if(M.saving || moveBlock()) return;
+  const u = M.unit, dir = M.dir, reason = M.reason, date = M.date;
+  const to = dir === "Inward" ? HOME : M.to, from = dir === "Outward" ? HOME : M.from;
+  M.saving = true; moveRender();
+  let redraw = false;
   try{
     /* Read the unit as it is right now: someone else may have moved it since the list loaded. */
-    const live = await sp("getbytitle('Items')/items(" + Number(u.Id) + ")?$select=Id,Title,ItemType,OEMMake,CurrentLocation,Availability,AtJeedimetla");
+    const live = await sp(L("Items") + "/items(" + Number(u.Id) + ")?$select=" + ITEM_COLS);
     const before = u.Availability + "|" + !!u.AtJeedimetla;
-    Object.assign(u, live);
-    if(live.Title !== S.unit.Title || !candidates().includes(u) || blockReason()){
+    Object.assign(u, live); u.stage = stageOf(u);
+    if(!moveCandidates().includes(u) || moveBlock()){
       const changed = before !== live.Availability + "|" + !!live.AtJeedimetla;
-      clearUnit();
-      toast(changed ? live.Title + " was just updated by someone else (now at " + (live.CurrentLocation || "—") + "). Nothing was saved."
-                    : live.Title + " can no longer be moved this way. Nothing was saved.", "warn");
+      clearUnit(); redraw = true;
+      toast(changed ? live.Title + " was just updated by someone else (now at " + (live.CurrentLocation || "—") + "). Nothing was saved." : live.Title + " can no longer be moved this way. Nothing was saved.", true);
       return;
     }
-    if(dir === "Outward" && (to === "OEM - Plant" || WARRANTY_REASONS.includes(reason) || WARRANTY_STATES.includes(live.Availability))){
-      toast(WARRANTY_MSG, "warn"); return;
-    }
-    /* The date is stored as midnight India time, as the Power Apps date picker stores it. */
-    const iso = new Date(date + "T00:00:00+05:30").toISOString();
-    const row = {Title: u.Title + " / " + date + " / " + dir, ItemID: u.Title, MovementDate: iso,
-                 Direction: dir, FromLocation: from, ToLocation: to, Reason: reason};
+    if(dir === "Outward" && (to === PLANT || WARRANTY_REASONS.includes(reason) || WARRANTY_STATES.includes(live.Availability))){ toast(WARRANTY_MSG, true); return; }
+    const iso = istMidnight(date);
+    const row = {Title: u.Title + " / " + date + " / " + dir, ItemID: u.Title, MovementDate: iso, Direction: dir, FromLocation: from, ToLocation: to, Reason: reason};
     if(live.ItemType) row.ItemType = live.ItemType;
-    const made = await sp("getbytitle('Movements')/items", {body: row});
-
+    const made = await spCreate("Movements", row);
     const atHome = startsCI(to, "Jeedimetla");
-    const patch = {
-      CurrentLocation: to, LastMovementReason: reason, LastMovementDate: iso, AtJeedimetla: atHome,
-      Availability: live.Availability === "Scrap" ? "Scrap"
-                  : !atHome ? "Away from Jeedimetla"
-                  : EX_OEM_REASONS.includes(reason) ? "AVAILABLE - ex-OEM" : "AWAITING BENCH TEST",
-    };
-    S.recent = [Object.assign({Id: made && made.Id}, row)].concat(S.recent).slice(0, 8);
-    try{ await patchItem(u.Id, patch); }
-    catch(e){
-      /* The movement row exists; keep the status change so it can be finished, never lost. */
-      pendingSet(pendingList().filter(x => x.id !== u.Id).concat([{id: u.Id, title: u.Title, patch}]));
-      clearUnit(); S.reason = "";
-      if(e instanceof SignedOut) throw e;
-      toast("Movement saved, but the unit status did not update. Use “Finish update” above.", "err");
-      return;
-    }
-    Object.assign(u, patch);
-    clearUnit(); S.reason = "";
-    toast(u.Title + " moved to " + to, "ok");
+    const patch = {CurrentLocation: to, LastMovementReason: reason, LastMovementDate: iso, AtJeedimetla: atHome,
+      Availability: live.Availability === AV.scrap ? AV.scrap : !atHome ? AV.away : EX_OEM_REASONS.includes(reason) ? AV.availOem : AV.bench};
+    if(D.recentMoves) D.recentMoves = [Object.assign({Id: made && made.Id}, row)].concat(D.recentMoves).slice(0, 10);
+    D.activity = null; redraw = true;
+    clearUnit(); M.reason = "";
+    try{ await patchUnit(u, patch); toast(u.Title + " moved to " + to); }
+    catch(e){ if(e instanceof SignedOut) throw e; toast("Movement saved, but the unit status did not update. Use Finish update at the top.", true); }
   }catch(e){
-    if(e instanceof SignedOut) showSignin("Your session expired. Sign in to carry on.");
-    else toast("Not saved: " + (e.message === "Failed to fetch" ? "no connection to SharePoint." : e.message), "err");
+    if(e instanceof SignedOut) return showSignin("Your session expired. Sign in to carry on.");
+    toast("Not saved: " + (e.message === "Failed to fetch" ? "no connection to SharePoint." : e.message), true);
   }finally{
-    S.saving = false; render();
+    M.saving = false;
+    /* If the sign-in card replaced the page, leave it alone. */
+    if(view === "move" && $("#unitInput")){ if(redraw) render(); else moveRender(); }
   }
 }
 
 /* ============================================================
-   VIEWS + EVENTS
+   EVENTS
    ============================================================ */
-let toastTimer = 0;
-function toast(msg, kind){
-  const t = $("toast"); t.textContent = msg; t.className = kind || ""; t.hidden = false;
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { t.hidden = true; }, kind === "ok" ? 4500 : 9000);
+function redrawTable(){
+  const box = $("#unit-table"); if(!box) return;
+  box.innerHTML = pagedTable(view === "inspections", view === "inventory");
+  const rc = $("#result-count"); if(rc) rc.textContent = filtered().length + " matching units";
+  syncSelection();
 }
-function showSignin(msg){
-  $("viewApp").hidden = true; $("viewSignin").hidden = false;
-  const e = $("signinErr"); e.textContent = msg || ""; e.hidden = !msg;
-  $("btnSignin").textContent = AUTH.name ? "Sign in as " + AUTH.name : "Sign in with Microsoft";
+function syncSelection(){
+  const sc = $("#selected-count"); if(sc) sc.textContent = selected.size + " units selected";
+  const b = $('[data-action="inspect"]'); if(b) b.disabled = !selected.size;
+  const c = $('[data-action="clear-selection"]'); if(c) c.disabled = !selected.size;
+  const m = $('[data-action="select-matching"]'); if(m) m.firstChild.textContent = "Select all " + filtered().length + " matching";
 }
-function showApp(){
-  $("viewSignin").hidden = true; $("viewApp").hidden = false;
-  $("whoName").textContent = AUTH.name || AUTH.upn || "";
-  renderPending(); render();
-}
-function setDir(d){
-  if(S.dir === d) return;
-  S.dir = d; S.from = ""; S.to = ""; clearUnit(); render();
-}
-
-$("btnSignin").addEventListener("click", () => signIn(false));
-$("btnSignout").addEventListener("click", () => { clearAuth(true); sessionStorage.removeItem(SS_SILENT); showSignin(""); });
-$("dirIn").addEventListener("click", () => setDir("Inward"));
-$("dirOut").addEventListener("click", () => setDir("Outward"));
-for(const id of ["dirIn", "dirOut"]) $(id).addEventListener("keydown", ev => {
-  if(!/^Arrow/.test(ev.key)) return;
-  ev.preventDefault();
-  const next = id === "dirIn" ? "Outward" : "Inward";
-  setDir(next); $(next === "Inward" ? "dirIn" : "dirOut").focus();
-});
-$("selFrom").addEventListener("change", ev => { S.from = ev.target.value; render(); });
-$("selTo").addEventListener("change", ev => { S.to = ev.target.value; clearUnit(); render(); });
-$("selReason").addEventListener("change", ev => { S.reason = ev.target.value; render(); });
-$("inpDate").addEventListener("change", ev => { S.date = ev.target.value; render(); });
-$("btnSave").addEventListener("click", save);
-$("btnRefresh").addEventListener("click", loadAll);
-$("unitClear").addEventListener("click", () => { clearUnit(); render(); $("unitInput").focus(); });
-
-const unitInput = $("unitInput");
-unitInput.addEventListener("focus", () => { unitInput.select(); combo.idx = -1; comboOpen(); });
-unitInput.addEventListener("click", () => { if(!combo.open) comboOpen(); });
-unitInput.addEventListener("input", () => {
-  if(S.unit && unitInput.value !== S.unit.Title) S.unit = null;
-  combo.idx = -1; render(); comboOpen();
-});
-unitInput.addEventListener("blur", () => { comboClose(); render(); });
-unitInput.addEventListener("keydown", ev => {
-  if(ev.key === "ArrowDown" || ev.key === "ArrowUp"){
-    ev.preventDefault();
-    if(!combo.open){ comboOpen(); return; }
-    const max = Math.min(combo.items.length, 80) - 1;
-    combo.idx = ev.key === "ArrowDown" ? Math.min(max, combo.idx + 1) : Math.max(0, combo.idx - 1);
-    comboOpen();
-  }else if(ev.key === "Enter"){
-    if(!combo.open) return;
-    ev.preventDefault();
-    const q = unitInput.value.trim().toLowerCase();
-    const hit = combo.idx >= 0 ? combo.items[combo.idx]
-              : combo.items.find(u => String(u.Title).toLowerCase() === q) || (combo.items.length === 1 ? combo.items[0] : null);
-    if(hit) pickUnit(hit);
-  }else if(ev.key === "Escape"){
-    if(combo.open){ ev.preventDefault(); comboClose(); }
+document.addEventListener("click", async e => {
+  const t = e.target.closest("button"); if(!t) return;
+  const d = t.dataset;
+  if(d.page){ page = Number(d.page); redrawTable(); return; }
+  if(d.nav){ $("#modal").open && $("#modal").close(); nav(d.nav); return; }
+  if(d.stage){ nav("inventory"); stage = d.stage; render(); return; }
+  if(d.claimOem){ claimOem = d.claimOem; render(); return; }
+  if(d.dcOem){ dcOem = d.dcOem; dcSelected.clear(); F.dc.address = ""; render(); return; }
+  if(d.history){ openHistory(Number(d.history)); return; }
+  if(d.download){ downloadDC(d.download); return; }
+  if(d.ship){ askShip(d.ship); return; }
+  if(d.confirmShip){ const day = $("#ship-date").value, ref = $("#ship-reference").value.trim(); $("#modal").close(); await actShip(d.confirmShip, day, ref); return; }
+  if(d.finish !== undefined){
+    const list = pendingList(), p = list[Number(d.finish)]; if(!p) return;
+    t.disabled = true; t.textContent = "Updating…";
+    try{
+      await spMerge("Items", p.id, p.patch);
+      pendingSet(pendingList().filter(x => x.id !== p.id));
+      const u = D.units.find(x => x.Id === p.id); if(u){ Object.assign(u, p.patch); u.stage = stageOf(u); }
+      toast(p.title + " updated."); render();
+    }catch(err){
+      if(err instanceof SignedOut) return showSignin("Your session expired. Sign in to carry on.");
+      t.disabled = false; t.textContent = "Finish update"; toast("Still could not update: " + err.message, true);
+    }
+    return;
+  }
+  switch(d.action){
+    case "signin": signIn(false); break;
+    case "signout": clearAuth(true); sessionStorage.removeItem(SS_SILENT); $("#modal").open && $("#modal").close(); D.loaded = false; showSignin(""); break;
+    case "menu": $(".sidebar").classList.toggle("open"); break;
+    case "close": $("#modal").close(); break;
+    case "dismiss": notice = null; render(); break;
+    case "refresh": if(D.loaded) toast("Refreshing records…"); await loadAll(); break;
+    case "export": exportView(); break;
+    case "register": askRegister(); break;
+    case "inspect": await actInspect(); break;
+    case "select-matching": filtered().forEach(u => selected.add(u.Id)); redrawTable(); break;
+    case "clear-selection": selected.clear(); redrawTable(); break;
+    case "claim": await askClaim(); break;
+    case "claim-confirm": { const fault = $("#claim-fault").value.trim(); $("#modal").close(); await actClaim(fault); break; }
+    case "dc": await actDC(); break;
+    case "connection":
+      modal("Hala workspace", '<p>Signed in as <strong>' + esc(AUTH.name || AUTH.upn) + '</strong>' + (AUTH.upn && AUTH.name ? ' (' + esc(AUTH.upn) + ')' : '') + '.</p>' +
+        '<p>Records are read from and saved to the Fleet Ops SharePoint lists under your own account, so your SharePoint permissions apply.</p>' +
+        '<p>OEM decisions, hub receipts, QR operations, labels, worksheets and masters remain in the Power App: <a href="' + esc(CFG.powerApp) + '" rel="noopener" target="_blank">open Motor Tracker in Power Apps</a>.</p>',
+        '<button data-action="signout">Sign out</button>');
+      break;
   }
 });
-
+document.addEventListener("submit", async e => { if(e.target.id === "register-form"){ e.preventDefault(); await actRegister(e.target); } });
+document.addEventListener("input", e => {
+  const id = e.target.id;
+  if(id === "search"){ search = e.target.value; page = 1; redrawTable(); return; }
+  if(id === "inspect-technician") F.insp.technician = e.target.value;
+  else if(id === "inspect-fault") F.insp.fault = e.target.value;
+  else if(id === "inspect-date") F.insp.date = e.target.value;
+  else if(id === "dc-address") F.dc.address = e.target.value;
+  else if(id === "dc-vehicle") F.dc.vehicle = e.target.value;
+  else if(id === "reg-id") regSync("id");
+  else if(id === "reg-serial") regTouched.serial = true;
+});
+document.addEventListener("change", e => {
+  const t = e.target;
+  if(t.id === "filter-oem"){ oem = t.value; page = 1; selected.clear(); render(); }
+  else if(t.id === "filter-type"){ type = t.value; page = 1; selected.clear(); render(); }
+  else if(t.id === "filter-stage"){ stage = t.value; page = 1; render(); }
+  else if(t.id === "inspect-scope"){ F.insp.scope = t.value; page = 1; selected.clear(); render(); }
+  else if(t.id === "inspect-by") F.insp.by = t.value;
+  else if(t.id === "inspect-result"){ F.insp.result = t.value; F.insp.decision = ""; render(); }
+  else if(t.id === "inspect-decision") F.insp.decision = t.value;
+  else if(t.id === "reg-type") regSync("type");
+  else if(t.id === "reg-oem"){ regTouched.oem = true; regSync("oem"); }
+  else if(t.dataset.unit){
+    const id = Number(t.dataset.unit); if(t.checked) selected.add(id); else selected.delete(id);
+    t.closest("tr").classList.toggle("row-select", t.checked); syncSelection();
+    const all = $('[data-select-all="units"]'); if(all) all.checked = pageUnits().every(u => selected.has(u.Id));
+  }
+  else if(t.dataset.claim){ const id = Number(t.dataset.claim); if(t.checked) dcSelected.add(id); else dcSelected.delete(id); }
+  else if(t.dataset.selectAll === "units"){ pageUnits().forEach(u => t.checked ? selected.add(u.Id) : selected.delete(u.Id)); redrawTable(); }
+  else if(t.dataset.selectAll === "claims"){
+    dcPending(dcOem).forEach(c => t.checked ? dcSelected.add(c.Id) : dcSelected.delete(c.Id));
+    document.querySelectorAll("[data-claim]").forEach(c => { c.checked = t.checked; });
+  }
+});
 /* Lists go stale while the tab sits in the background; reload when it comes back. */
 document.addEventListener("visibilitychange", () => {
-  if(!document.hidden && S.loaded && !S.saving && !$("viewApp").hidden && Date.now() - S.lastLoad > 60000) loadAll();
+  if(!document.hidden && D.loaded && !busy && !M.saving && !$("#modal").open && Date.now() - D.lastLoad > 120000 && !selected.size && !dcSelected.size) loadAll();
 });
 
 (async function boot(){
-  S.date = todayIST();
   loadAuth();
   const res = await handleRedirect();
   if(res && res !== "silent"){ showSignin(res); return; }
-  if(tokenFresh() || AUTH.refresh){ showApp(); loadAll(); return; }
+  if(tokenFresh() || AUTH.refresh){ render(); loadAll(); return; }
   /* A device that has signed in before gets one quiet attempt per browser session. */
-  if(res !== "silent" && AUTH.known && !sessionStorage.getItem(SS_SILENT)){
-    sessionStorage.setItem(SS_SILENT, "1"); signIn(true); return;
-  }
+  if(res !== "silent" && AUTH.known && !sessionStorage.getItem(SS_SILENT)){ sessionStorage.setItem(SS_SILENT, "1"); signIn(true); return; }
   showSignin("");
 })();
+
 </script>
 </body>
 </html>
