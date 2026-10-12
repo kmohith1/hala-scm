@@ -916,13 +916,59 @@ async function openHistory(id){
   const u = D.units.find(x => x.Id === id); if(!u) return;
   modal(u.Title, '<p>' + esc(u.ItemType) + ' · ' + esc(u.OEMMake || "No OEM") + (u.Model ? ' · ' + esc(u.Model) : '') + '</p><p>' + badge(u) + '</p>' +
     '<dl class="kv"><dt>Location</dt><dd>' + esc(u.CurrentLocation || "—") + '</dd><dt>Stored status</dt><dd>' + esc(u.Availability || "—") + '</dd><dt>Serial</dt><dd>' + esc(u.SerialNo || "—") +
-    '</dd><dt>First received</dt><dd>' + fmt(u.DateFirstReceived) + '</dd><dt>Inspected / claimed</dt><dd>' + (u.TimesInspected || 0) + ' / ' + (u.TimesClaimed || 0) + '</dd></dl><div id="history-body"><p class="small-note">Loading history…</p></div>');
+    '</dd><dt>First received</dt><dd>' + fmt(u.DateFirstReceived) + '</dd><dt>Inspected / claimed</dt><dd>' + (u.TimesInspected || 0) + ' / ' + (u.TimesClaimed || 0) + '</dd></dl><p><button class="text-button" data-edit-unit="' + u.Id + '">Correct details</button></p><div id="history-body"><p class="small-note">Loading history…</p></div>');
   try{
     const f = "&" + filterEq("ItemID", u.Title) + "&$top=500";
     const [i, m, c] = await Promise.all([spQuery("Inspections", INSP_Q + f), spQuery("Movements", MOVE_Q + f), spQuery("Claims", CLAIM_Q + f)]);
     const list = [...i.map(inspEvent), ...m.map(moveEvent), ...c.map(claimEvent)].sort((a, b) => new Date(b.at) - new Date(a.at));
     const box = $("#history-body"); if(box) box.innerHTML = activityList(list);
   }catch(e){ const box = $("#history-body"); if(box) box.innerHTML = '<div class="banner err">' + esc(explain(e, "Could not load history")) + '</div>'; }
+}
+/* Correct a unit's registration details. The ID stays as it is, because every
+   movement, inspection and claim is filed under it. A changed item type is also
+   carried onto those records so lists and challans agree. */
+function askEditUnit(id){
+  const u = D.units.find(x => x.Id === id); if(!u) return;
+  const oems = D.oems.map(o => o.title), types = D.itemTypes.includes(u.ItemType) || !u.ItemType ? D.itemTypes : D.itemTypes.concat([u.ItemType]);
+  modal("Correct details · " + u.Title, '<form id="edit-unit-form" data-id="' + u.Id + '">' +
+    field("Item type *", '<select name="type" id="ed-type">' + options(types, u.ItemType || "Motor") + '</select>') +
+    field("OEM / Make", '<select name="oem" id="ed-oem"><option value="">Not known</option>' + options(oems.includes(u.OEMMake) || !u.OEMMake ? oems : oems.concat([u.OEMMake]), u.OEMMake || "") + '</select>') +
+    field("Model", '<input name="model" id="ed-model" maxlength="100" value="' + esc(u.Model || "") + '">') +
+    field("Serial No", '<input name="serial" maxlength="100" autocomplete="off" spellcheck="false" value="' + esc(u.SerialNo || "") + '">') +
+    '</form><p class="small-note" id="ed-note" style="margin-top:14px">' + (typeFromId(u.Title) && typeFromId(u.Title) !== u.ItemType ? 'IDs like this one are usually a ' + esc(typeFromId(u.Title)) + '. ' : '') + 'The unit ID is not changed here.</p>',
+    '<button type="submit" form="edit-unit-form" class="primary">Save details</button>');
+  edSync();
+}
+function edSync(){
+  const f = $("#edit-unit-form"); if(!f) return;
+  const u = D.units.find(x => x.Id === Number(f.dataset.id)), model = $("#ed-model"); if(!u) return;
+  const fixed = odysseModel($("#ed-type").value, $("#ed-oem").value, u.Title);
+  if(fixed !== null){ model.value = fixed; model.readOnly = true; } else { if(model.readOnly) model.value = u.Model && !/^Odysse (Hyfy|Snap)$/.test(u.Model) ? u.Model : ""; model.readOnly = false; }
+}
+async function actEditUnit(form){
+  const v = Object.fromEntries(new FormData(form)), id = Number(form.dataset.id), u0 = D.units.find(x => x.Id === id); if(!u0 || !v.type) return toast("Choose the item type.", true);
+  $("#modal").close();
+  let done = "";
+  await withBusy("Saving details…", async () => {
+    const [u] = (await spQuery("Items", "$select=" + ITEM_COLS + "&$top=5&" + filterEq("Title", u0.Title))).filter(x => x.Id === id);
+    if(!u) throw new Error(u0.Title + " is no longer on the register.");
+    const fixed = odysseModel(v.type, v.oem, u.Title);
+    const patch = {}, want = {ItemType: v.type, OEMMake: v.oem || null, Model: fixed !== null ? fixed : String(v.model || "").trim(), SerialNo: String(v.serial || "").trim()};
+    for(const k in want) if((u[k] || "") !== (want[k] || "")) patch[k] = want[k];
+    if(!Object.keys(patch).length){ done = "Nothing to change for " + u.Title + "."; return; }
+    await spMerge("Items", u.Id, patch);
+    let carried = 0;
+    if(patch.ItemType){
+      const f = filterEq("ItemID", u.Title);
+      for(const list of ["Movements", "Inspections", "Claims"]){
+        const rows = await spQuery(list, "$select=Id,ItemType&" + f + "&$top=500");
+        for(const r of rows) if(r.ItemType !== v.type){ await spMerge(list, r.Id, {ItemType: v.type}); carried++; }
+      }
+    }
+    done = u.Title + " updated" + (patch.ItemType ? " to " + v.type + (carried ? " (and " + carried + " linked record" + (carried === 1 ? "" : "s") + ")" : "") : "") + ".";
+    D.activity = null; D.recentMoves = null;
+  });
+  if(done) toast(done);
 }
 function modal(heading, body, actions){
   const m = $("#modal");
@@ -1215,6 +1261,17 @@ function oemFromId(id){
   const hit = D.oems.find(o => o.code && o.code.split(",").some(p => p.trim() && up.startsWith(p.trim().toUpperCase())));
   return hit ? hit.title : "";
 }
+/* Controller IDs carry an LCT-style mark (OLCT…, 0LCT…, ESLCT…). Otherwise the register
+   decides: if units whose IDs start the same way are nearly all one type, that type. */
+const CTRL_ID = /^(?:[O0]L(?:CT|TC)|ESLCT|ECRS|CTL-)/i;
+function typeFromId(id){
+  const t = String(id || "").trim(); if(alnum(t).length < 4) return "";
+  if(CTRL_ID.test(t)) return "Controller";
+  const key = canonId(t).slice(0, 4), tally = {};
+  for(const u of D.units) if(u.ItemType && u.Title !== t && canonId(u.Title).slice(0, 4) === key) tally[u.ItemType] = (tally[u.ItemType] || 0) + 1;
+  const n = Object.values(tally).reduce((a, b) => a + b, 0), top = Object.keys(tally).sort((a, b) => tally[b] - tally[a])[0];
+  return n >= 3 && tally[top] / n >= 0.8 ? top : "";
+}
 const odysseModel = (typ, oemName, id) => typ === "Motor" && /odysse/i.test(oemName || "") ? (startsCI(String(id).trim(), "WDM") ? "Odysse Snap" : "Odysse Hyfy") : null;
 function askRegister(){
   modal("Register a received unit", '<form id="register-form">' +
@@ -1230,10 +1287,11 @@ function askRegister(){
     '<button type="submit" form="register-form" class="primary">Register unit</button>');
   regSync();
 }
-const regTouched = {oem: false, serial: false, model: false};
+const regTouched = {oem: false, serial: false, model: false, type: false};
 function regSync(src){
   const typ = $("#reg-type"), id = $("#reg-id"), o = $("#reg-oem"), model = $("#reg-model"), serial = $("#reg-serial"); if(!typ) return;
-  if(!src){ regTouched.oem = regTouched.serial = regTouched.model = false; }
+  if(!src){ regTouched.oem = regTouched.serial = regTouched.model = regTouched.type = false; }
+  if(!regTouched.type && src !== "type"){ const g = typeFromId(id.value); typ.value = g && D.itemTypes.includes(g) ? g : (D.itemTypes.includes("Motor") ? "Motor" : typ.value); }
   const controller = typ.value === "Controller";
   $("#reg-id-label").textContent = controller ? "Controller ID · optional, generated if blank" : "Motor ID *";
   if(!regTouched.oem && (src === "id" || !src)) o.value = oemFromId(id.value) || "";
@@ -1252,7 +1310,7 @@ async function actRegister(form){
   await withBusy("Registering unit…", async () => {
     if(id){
       const dup = await spQuery("Items", "$select=Id,Title&$top=1&" + filterEq("Title", id));
-      if(dup.length){ notice = {error: true, text: id + " is already registered. Open it under All units; registration details are edited in the Power App."}; toast(notice.text, true); return; }
+      if(dup.length){ notice = {error: true, text: id + " is already registered. Open it under All units; use Correct details on its record to fix the type, OEM, model or serial."}; toast(notice.text, true); return; }
     }
     const fixed = odysseModel(typ, v.oem, id);
     const row = {Title: id || ("CTL-PENDING-" + crypto.randomUUID()), ItemType: typ, Model: fixed !== null ? fixed : String(v.model || "").trim(), SerialNo: String(v.serial || "").trim(),
@@ -1573,6 +1631,7 @@ document.addEventListener("click", async e => {
   if(d.claimOem){ claimOem = d.claimOem; render(); return; }
   if(d.dcOem){ dcOem = d.dcOem; dcSelected.clear(); F.dc.address = ""; render(); return; }
   if(d.history){ openHistory(Number(d.history)); return; }
+  if(d.editUnit){ askEditUnit(Number(d.editUnit)); return; }
   if(d.undoMove){ askUndo(Number(d.undoMove)); return; }
   if(d.undoConfirm){ const st = $("#undo-status").value; $("#modal").close(); await actUndo(Number(d.undoConfirm), st); return; }
   if(d.download){ downloadDC(d.download); return; }
@@ -1620,7 +1679,10 @@ document.addEventListener("click", async e => {
       break;
   }
 });
-document.addEventListener("submit", async e => { if(e.target.id === "register-form"){ e.preventDefault(); await actRegister(e.target); } });
+document.addEventListener("submit", async e => {
+  if(e.target.id === "register-form"){ e.preventDefault(); await actRegister(e.target); }
+  else if(e.target.id === "edit-unit-form"){ e.preventDefault(); await actEditUnit(e.target); }
+});
 document.addEventListener("input", e => {
   const id = e.target.id;
   if(id === "search"){ search = e.target.value; page = 1; redrawTable(); return; }
@@ -1658,7 +1720,8 @@ document.addEventListener("change", e => {
     const g = lotGroup(), all = $('[data-select-all="picks"]'); if(all && g) all.checked = lotUnits(g).every(u => F.lot.picked.has(u.Id));
   }
   else if(t.dataset.selectAll === "picks"){ const g = lotGroup(); if(g) lotUnits(g).forEach(u => t.checked ? F.lot.picked.add(u.Id) : F.lot.picked.delete(u.Id)); redrawTable(); }
-  else if(t.id === "reg-type") regSync("type");
+  else if(t.id === "reg-type"){ regTouched.type = true; regSync("type"); }
+  else if(t.id === "ed-type" || t.id === "ed-oem") edSync();
   else if(t.id === "reg-oem"){ regTouched.oem = true; regSync("oem"); }
   else if(t.dataset.unit){
     const id = Number(t.dataset.unit); if(t.checked) selected.add(id); else selected.delete(id);
@@ -1818,7 +1881,7 @@ const confusables = id => [...new Set(String(id || "").match(/[01568OISBG]/g) ||
 function parseLabel(text){
   const raw = String(text || ""), up = raw.toUpperCase(), out = {cat: "", oem: "", model: ""};
   if(/\bMOTOR\b/.test(up)) out.cat = "Motor";
-  if(/CONTROLLER/.test(up)) out.cat = "Controller";       // "motor controller" is a controller
+  if(/CONTR?OL+(?:E|O)?R|\bCONTROL\b|\bECU\b|\bMCU\b/.test(up)) out.cat = "Controller";       // "motor controller" (or "controler") is a controller
   const hay = alnum(raw); let best = 0;
   for(const o of D.oems) for(const part of o.title.split(/\s+-\s+/)){
     const k = alnum(part);
@@ -2786,8 +2849,8 @@ function scanUse(){
   if(target === "reg"){
     const f = document.getElementById("reg-id"); if(!f) return;
     f.value = id;
-    if(D.byTitle.has(id)){ regSync("id"); return toast(id + " is already on the register. Registration details are edited in the Power App.", true); }
-    if(lab.cat && D.itemTypes.includes(lab.cat)) document.getElementById("reg-type").value = lab.cat;
+    if(D.byTitle.has(id)){ regSync("id"); return toast(id + " is already on the register. Use Correct details on its record to fix it.", true); }
+    if(lab.cat && D.itemTypes.includes(lab.cat) && !CTRL_ID.test(id)){ document.getElementById("reg-type").value = lab.cat; regTouched.type = true; }
     regSync("id");
     const o = document.getElementById("reg-oem"), m = document.getElementById("reg-model");
     if(!o.value && lab.oem){ o.value = lab.oem; regSync("oem"); }
