@@ -654,7 +654,7 @@ function render(){
     '<div class="breadcrumb">Workspace <span aria-hidden="true"> / </span> <strong>' + names[view] + '</strong></div>' +
     '<div class="topbar-right"><span class="pill">Live · Fleet Ops lists</span><span class="user-avatar" title="' + esc(AUTH.name) + '">' + esc(initials) + '</span></div></header>' +
     (busy ? '<div class="busybar"><span id="busy-msg">' + esc(busy.msg) + '</span><span class="progress-line"><i></i></span></div>' : '') +
-    '<div class="content ' + (busy ? "loading" : "") + '">' + (D.error ? '<div class="banner err">' + esc(D.error) + '</div>' : '') + noticeHtml() + pendingHtml() +
+    '<div class="content ' + (busy ? "loading" : "") + '">' + (D.error ? '<div class="banner err">' + esc(D.error) + '</div>' : '') + noticeHtml() + pendingHtml() + slipsHtml() +
     ({overview, inventory, inspections, claims, dc, move: moveView, activity})[view]() +
     '<div class="demo-footer"><span>Hala internal workspace · ' + esc(AUTH.name || AUTH.upn) + ' · ' + D.units.length + ' units · loaded in ' + esc(D.loadSecs) + ' s</span>' +
     '<button class="text-button" data-action="refresh">Refresh records</button></div></div></main>';
@@ -957,14 +957,7 @@ async function actEditUnit(form){
     for(const k in want) if((u[k] || "") !== (want[k] || "")) patch[k] = want[k];
     if(!Object.keys(patch).length){ done = "Nothing to change for " + u.Title + "."; return; }
     await spMerge("Items", u.Id, patch);
-    let carried = 0;
-    if(patch.ItemType){
-      const f = filterEq("ItemID", u.Title);
-      for(const list of ["Movements", "Inspections", "Claims"]){
-        const rows = await spQuery(list, "$select=Id,ItemType&" + f + "&$top=500");
-        for(const r of rows) if(r.ItemType !== v.type){ await spMerge(list, r.Id, {ItemType: v.type}); carried++; }
-      }
-    }
+    const carried = patch.ItemType ? await carryType(u.Title, v.type) : 0;
     done = u.Title + " updated" + (patch.ItemType ? " to " + v.type + (carried ? " (and " + carried + " linked record" + (carried === 1 ? "" : "s") + ")" : "") : "") + ".";
     D.activity = null; D.recentMoves = null;
   });
@@ -1256,21 +1249,86 @@ async function actShip(number, day, reference){
 
 /* ---------- register a received unit ---------- */
 const REG_SOURCE_SKIP = ["Fitted on Vehicle", "In Transit", "Scrap / Write-off", "Bengaluru"];
-function oemFromId(id){
-  const up = String(id || "").trim().toUpperCase(); if(!up) return "";
-  const hit = D.oems.find(o => o.code && o.code.split(",").some(p => p.trim() && up.startsWith(p.trim().toUpperCase())));
-  return hit ? hit.title : "";
-}
-/* Controller IDs carry an LCT-style mark (OLCT…, 0LCT…, ESLCT…). Otherwise the register
-   decides: if units whose IDs start the same way are nearly all one type, that type. */
-const CTRL_ID = /^(?:[O0]L(?:CT|TC)|ESLCT|ECRS|CTL-)/i;
-function typeFromId(id){
+/* What an ID says about the unit. Known controller marks first:
+   E-Sprinto controllers OLCT… / 0LCT… / OLTC… / ESLCT… / ECRS…, Odysse controllers HYCL… / HVHYCL…
+   and ODY-0925-40W CA…. Then the OEM codes on the OEM list. Otherwise the register itself:
+   when units whose IDs start the same way are nearly all one type (or one OEM), that one. */
+const ID_RULES = [
+  [/^(?:[O0]L(?:CT|TC)|ESLCT|ECRS)/i, "Controller", "E - Sprinto"],
+  [/^(?:HV)?HYCL/i, "Controller", "Odysse"],
+  [/^ODY-?\d{4}-?\d+W[\s\-]*CA/i, "Controller", "Odysse"],
+  [/^CTL-/i, "Controller", ""]];
+const idRule = id => { const t = String(id || "").trim(); return ID_RULES.find(r => r[0].test(t)) || null; };
+const oemTitle = name => { const k = alnum(name); return k ? (D.oems.find(o => alnum(o.title) === k) || {}).title || "" : ""; };
+function registerSays(id, field){
   const t = String(id || "").trim(); if(alnum(t).length < 4) return "";
-  if(CTRL_ID.test(t)) return "Controller";
   const key = canonId(t).slice(0, 4), tally = {};
-  for(const u of D.units) if(u.ItemType && u.Title !== t && canonId(u.Title).slice(0, 4) === key) tally[u.ItemType] = (tally[u.ItemType] || 0) + 1;
+  for(const u of D.units) if(u[field] && u.Title !== t && canonId(u.Title).slice(0, 4) === key) tally[u[field]] = (tally[u[field]] || 0) + 1;
   const n = Object.values(tally).reduce((a, b) => a + b, 0), top = Object.keys(tally).sort((a, b) => tally[b] - tally[a])[0];
   return n >= 3 && tally[top] / n >= 0.8 ? top : "";
+}
+function oemFromId(id){
+  const up = String(id || "").trim().toUpperCase(); if(!up) return "";
+  const r = idRule(up); if(r && oemTitle(r[2])) return oemTitle(r[2]);
+  const hit = D.oems.find(o => o.code && o.code.split(",").some(p => p.trim() && up.startsWith(p.trim().toUpperCase())));
+  return hit ? hit.title : oemTitle(registerSays(up, "OEMMake"));
+}
+function typeFromId(id){
+  const t = String(id || "").trim(); if(alnum(t).length < 4) return "";
+  const r = idRule(t); if(r) return r[1];
+  return registerSays(t, "ItemType");
+}
+/* Units already saved whose ID clearly marks a controller, but saved as something else
+   (or with no OEM). Shown with a one-tap fix. */
+function typeSlips(){
+  return D.units.map(u => {
+    const r = idRule(u.Title); if(!r || !D.itemTypes.includes(r[1])) return null;
+    const patch = {};
+    if(u.ItemType !== r[1]) patch.ItemType = r[1];
+    if(!u.OEMMake && oemTitle(r[2])) patch.OEMMake = oemTitle(r[2]);
+    return Object.keys(patch).length ? {u, patch} : null;
+  }).filter(Boolean);
+}
+function slipsHtml(){
+  if(!["overview", "inventory"].includes(view)) return "";
+  const list = typeSlips(); if(!list.length) return "";
+  const names = list.slice(0, 4).map(x => x.u.Title).join(", ") + (list.length > 4 ? " and " + (list.length - 4) + " more" : "");
+  return '<div class="banner"><div class="row"><span><strong>' + list.length + (list.length === 1 ? " unit has" : " units have") + ' a controller ID but ' + (list.length === 1 ? "is" : "are") + ' saved differently:</strong> ' + esc(names) +
+    '.</span><button data-action="fix-types">Review and fix</button></div></div>';
+}
+function askFixTypes(){
+  const list = typeSlips(); if(!list.length) return toast("Every controller ID is already saved as a controller.");
+  const say = (x, k, label) => x.patch[k] ? label + ' <s>' + esc(x.u[k] || "blank") + '</s> → <strong>' + esc(x.patch[k]) + '</strong>' : "";
+  modal("Fix controller types", '<p>These IDs are controller IDs. Saving sets them as below; their movements, inspections and claims take the same item type.</p>' +
+    '<div class="table-wrap"><table><thead><tr><th>Unit</th><th>Change</th></tr></thead><tbody>' +
+    list.map(x => '<tr><td class="unit-id">' + esc(x.u.Title) + '</td><td>' + [say(x, "ItemType", "Type"), say(x, "OEMMake", "OEM")].filter(Boolean).join("<br>") + '</td></tr>').join("") + '</tbody></table></div>',
+    '<button class="primary" data-action="fix-types-confirm">Fix ' + list.length + (list.length === 1 ? " unit" : " units") + '</button>');
+}
+async function carryType(title, type){
+  let n = 0; const f = filterEq("ItemID", title);
+  for(const list of ["Movements", "Inspections", "Claims"]){
+    const rows = await spQuery(list, "$select=Id,ItemType&" + f + "&$top=500");
+    for(const r of rows) if(r.ItemType !== type){ await spMerge(list, r.Id, {ItemType: type}); n++; }
+  }
+  return n;
+}
+async function actFixTypes(){
+  $("#modal").close();
+  await withBusy("Fixing item types…", async prog => {
+    const want = new Map(typeSlips().map(x => [x.u.Id, x]));
+    const out = await runBatch([...want.values()], x => x.u.Title, async x => {
+      const [live] = (await spQuery("Items", "$select=" + ITEM_COLS + "&$top=5&" + filterEq("Title", x.u.Title))).filter(r => r.Id === x.u.Id);
+      if(!live) throw new Skip("no longer on the register");
+      const patch = {};
+      if(x.patch.ItemType && live.ItemType !== x.patch.ItemType) patch.ItemType = x.patch.ItemType;
+      if(x.patch.OEMMake && !live.OEMMake) patch.OEMMake = x.patch.OEMMake;
+      if(!Object.keys(patch).length) return;
+      await spMerge("Items", live.Id, patch);
+      if(patch.ItemType) await carryType(live.Title, patch.ItemType);
+    }, prog);
+    D.activity = null; D.recentMoves = null;
+    report(out, n => n + (n === 1 ? " unit" : " units") + " fixed.");
+  });
 }
 const odysseModel = (typ, oemName, id) => typ === "Motor" && /odysse/i.test(oemName || "") ? (startsCI(String(id).trim(), "WDM") ? "Odysse Snap" : "Odysse Hyfy") : null;
 function askRegister(){
@@ -1660,6 +1718,8 @@ document.addEventListener("click", async e => {
     case "refresh": if(D.loaded) toast("Refreshing records…"); await loadAll(); break;
     case "export": exportView(); break;
     case "register": askRegister(); break;
+    case "fix-types": askFixTypes(); break;
+    case "fix-types-confirm": await actFixTypes(); break;
     case "inspect": await actInspect(); break;
     case "lot-save": await actLot(); break;
     case "lot-clear": F.lot.rows = {}; redrawTable(); break;
@@ -2850,7 +2910,7 @@ function scanUse(){
     const f = document.getElementById("reg-id"); if(!f) return;
     f.value = id;
     if(D.byTitle.has(id)){ regSync("id"); return toast(id + " is already on the register. Use Correct details on its record to fix it.", true); }
-    if(lab.cat && D.itemTypes.includes(lab.cat) && !CTRL_ID.test(id)){ document.getElementById("reg-type").value = lab.cat; regTouched.type = true; }
+    if(lab.cat && D.itemTypes.includes(lab.cat) && !idRule(id)){ document.getElementById("reg-type").value = lab.cat; regTouched.type = true; }
     regSync("id");
     const o = document.getElementById("reg-oem"), m = document.getElementById("reg-model");
     if(!o.value && lab.oem){ o.value = lab.oem; regSync("oem"); }
