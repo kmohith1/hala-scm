@@ -314,7 +314,7 @@ const filterEq = (col, v) => "$filter=" + encodeURIComponent(col + " eq " + odq(
 /* ============================================================
    DATA
    ============================================================ */
-const ITEM_COLS = "Id,Title,ItemType,OEMMake,Model,SerialNo,DateFirstReceived,WarrantyStart,WarrantyMonths,CurrentLocation,Availability,LastMovementDate,LastTestDate,LatestTestResult,TimesInspected,TimesClaimed,AtJeedimetla,Condition";
+const ITEM_COLS = "Id,Title,ItemType,OEMMake,Model,SerialNo,DateFirstReceived,WarrantyStart,WarrantyMonths,CurrentLocation,Availability,LastMovementReason,LastMovementDate,LastTestDate,LatestTestResult,TimesInspected,TimesClaimed,AtJeedimetla,Condition";
 const CLAIM_COLS = "Id,Title,ItemID,ItemType,OEMSupplier,FaultReported,DateSentToOEM,DocketNo,WarrantyAtDespatch,ClaimStatus,Resolution,ReplacementSerial,DC_x0020_Number,DC_x0020_URL,DC_x0020_Generated_x0020_Date,Created";
 const D = {units: [], claims: [], tested: new Map(), byTitle: new Map(), latestClaim: new Map(), loaded: false, lastLoad: 0, loadSecs: "",
   locations: [], reasons: [], oems: [], itemTypes: [], recentMoves: null, activity: null, error: ""};
@@ -611,7 +611,7 @@ const badge = u => '<span class="badge ' + esc(u.stage) + '">' + esc(u.stage ===
 function nav(next){
   view = next; page = 1; selected.clear(); dcSelected.clear(); search = ""; oem = "All OEMs"; type = "All types"; stage = "All stages";
   render(); window.scrollTo(0, 0);
-  if(next === "move" && !D.recentMoves) loadRecentMoves();
+  if(next === "move") loadRecentMoves();
   if(next === "activity" && !D.activity) loadActivity();
 }
 function title(eyebrow, heading, sub, actions){
@@ -1354,13 +1354,82 @@ function moveRender(){
   $("#why").textContent = M.saving ? "Saving…" : why;
   $("#btnSave").disabled = M.saving || !!why;
   const rows = $("#recentRows");
-  rows.innerHTML = !D.recentMoves ? '<div class="empty"><h3>Loading…</h3></div>' : D.recentMoves.length ? '<div class="table-wrap"><table><thead><tr><th>Unit</th><th>Direction</th><th>Route</th><th>Reason</th><th>Date</th></tr></thead><tbody>' +
+  const undo = undoable();
+  rows.innerHTML = !D.recentMoves ? '<div class="empty"><h3>Loading…</h3></div>' : D.recentMoves.length ? '<div class="table-wrap"><table><thead><tr><th>Unit</th><th>Direction</th><th>Route</th><th>Reason</th><th>Date</th><th></th></tr></thead><tbody>' +
     D.recentMoves.map(m => '<tr><td class="unit-id">' + esc(m.ItemID) + '</td><td><span class="chipline ' + (m.Direction === "Outward" ? "out" : "") + '">' + esc(m.Direction || "") + '</span></td><td>' +
-      esc((m.FromLocation || "—") + " → " + (m.ToLocation || "—")) + '</td><td>' + esc(m.Reason || "") + '</td><td>' + fmt(m.MovementDate) + '</td></tr>').join("") + '</tbody></table></div>'
+      esc((m.FromLocation || "—") + " → " + (m.ToLocation || "—")) + '</td><td>' + esc(m.Reason || "") + '</td><td>' + fmt(m.MovementDate) + '</td>' +
+      '<td>' + (undo.has(m.Id) ? '<button class="text-button" data-undo-move="' + m.Id + '">Undo</button>' : '') + '</td></tr>').join("") + '</tbody></table></div>'
     : '<div class="empty"><h3>No movements yet</h3></div>';
 }
+/* ---------- Undo a movement ----------
+   Only a unit's latest movement, only an ordinary one (not a registration receipt or a warranty dispatch, which belong
+   to their own steps), and only while the unit is still where that movement put it. The unit goes back to where it
+   came from with the status it had; the movement itself goes to the SharePoint recycle bin. When the movement was
+   saved on this device the status before it was noted at the time and is restored exactly; otherwise the most likely
+   status is suggested and the user confirms it. */
+const MOVE_SNAP = "hala_motor_moves";
+function rememberMove(id, before){
+  const all = lsJson(MOVE_SNAP, {}); all[id] = before;
+  const keys = Object.keys(all).map(Number).sort((a, b) => b - a); keys.slice(60).forEach(k => { delete all[k]; });
+  lsSet(MOVE_SNAP, JSON.stringify(all));
+}
+const movedBefore = id => lsJson(MOVE_SNAP, {})[id] || null;
+const plainMove = m => !/^(SHIP-CLAIM-|REG-RECEIPT-)/.test(String(m.Title || ""));
+/* The movements in the recent list that can be undone: for each unit only its newest, which is the first one listed. */
+function undoable(){
+  const seen = new Set(), ok = new Set();
+  for(const m of D.recentMoves || []){
+    if(seen.has(m.ItemID)) continue; seen.add(m.ItemID);
+    const u = D.byTitle.get(m.ItemID);
+    if(m.Id && plainMove(m) && u && u.CurrentLocation === m.ToLocation) ok.add(m.Id);
+  }
+  return ok;
+}
+function undoChoices(m, u){
+  const snap = movedBefore(m.Id);
+  let list, guess;
+  if(m.Direction === "Inward"){ list = [AV.away, AV.scrap]; guess = u.Availability === AV.scrap ? AV.scrap : AV.away; }
+  else if(faultyRoute(m.ToLocation)){ list = FAULTY_STATES.slice(); guess = AV.claimReady; }
+  else { list = [AV.availBench, AV.availOem]; guess = u.LatestTestResult === "Working" ? AV.availBench : AV.availOem; }
+  if(snap && snap.Availability) guess = snap.Availability;
+  if(!list.includes(guess)) list.unshift(guess);
+  return {list, guess, exact: !!snap};
+}
+function askUndo(id){
+  const m = (D.recentMoves || []).find(x => x.Id === id), u = m && D.byTitle.get(m.ItemID);
+  if(!m || !u || !undoable().has(id)) return toast("This movement can no longer be undone here.", true);
+  const c = undoChoices(m, u);
+  modal("Undo movement",
+    '<p><strong>' + esc(m.ItemID) + '</strong> — ' + esc(m.Direction) + ', ' + esc(m.FromLocation || "—") + ' → ' + esc(m.ToLocation || "—") + ', ' + fmt(m.MovementDate) + (m.Reason ? ' (' + esc(m.Reason) + ')' : '') + '.</p>' +
+    '<p>Undo puts the unit back at <strong>' + esc(m.FromLocation || "—") + '</strong> and removes this movement. The movement goes to the SharePoint recycle bin, so it can still be recovered there.</p>' +
+    '<label class="field" style="margin-top:12px">Status it goes back to<select id="undo-status">' + options(c.list, c.guess) + '</select></label>' +
+    '<p class="small-note" style="margin-top:8px">' + (c.exact ? "This is the status it had when the movement was saved." : "This movement was saved elsewhere, so its earlier status is a best guess — check it before you undo.") + '</p>',
+    '<button class="primary" data-undo-confirm="' + id + '">Undo movement</button>');
+}
+async function actUndo(id, status){
+  const m = (D.recentMoves || []).find(x => x.Id === id); if(!m) return;
+  let done = "";
+  await withBusy("Undoing the movement…", async () => {
+    const u0 = D.byTitle.get(m.ItemID); if(!u0) throw new Error(m.ItemID + " is no longer in the register");
+    /* As it is right now: someone may have moved or changed it since the page loaded. */
+    const live = await sp(L("Items") + "/items(" + Number(u0.Id) + ")?$select=" + ITEM_COLS);
+    const last = await spQuery("Movements", filterEq("ItemID", m.ItemID) + "&$select=Id,Title,Reason,MovementDate&$orderby=Id desc&$top=2");
+    if(!last.length || last[0].Id !== id) throw new Error(m.ItemID + " has been moved again since — undo its latest movement first. Nothing was changed.");
+    if(live.CurrentLocation !== m.ToLocation) throw new Error(m.ItemID + " is no longer at " + m.ToLocation + " (now " + (live.CurrentLocation || "—") + "). Nothing was changed.");
+    const snap = movedBefore(id), prev = last[1] || null;
+    await sp(L("Movements") + "/items(" + id + ")/recycle()", {method: "POST"});
+    const u = Object.assign(u0, live);
+    await patchUnit(u, {CurrentLocation: m.FromLocation, AtJeedimetla: startsCI(m.FromLocation, "Jeedimetla"), Availability: status,
+      LastMovementReason: snap ? snap.LastMovementReason || null : prev ? prev.Reason || null : null,
+      LastMovementDate: snap ? snap.LastMovementDate || null : prev ? prev.MovementDate || null : null});
+    const all = lsJson(MOVE_SNAP, {}); delete all[id]; lsSet(MOVE_SNAP, JSON.stringify(all));
+    D.recentMoves = (D.recentMoves || []).filter(x => x.Id !== id); D.activity = null;
+    done = m.ItemID + " is back at " + m.FromLocation + " (" + status + "). The movement was removed.";
+  });
+  if(done){ toast(done); loadRecentMoves(); }
+}
 async function loadRecentMoves(){
-  try{ D.recentMoves = await spQuery("Movements", "$select=Id,ItemID,MovementDate,Direction,FromLocation,ToLocation,Reason&$orderby=Id desc&$top=10"); }
+  try{ D.recentMoves = await spQuery("Movements", "$select=Id,Title,ItemID,MovementDate,Direction,FromLocation,ToLocation,Reason&$orderby=Id desc&$top=10"); }
   catch(e){ if(e instanceof SignedOut) return showSignin("Your session expired. Sign in to carry on."); D.recentMoves = []; }
   if(view === "move") moveRender();
 }
@@ -1451,6 +1520,7 @@ async function moveSave(){
     const row = {Title: u.Title + " / " + date + " / " + dir, ItemID: u.Title, MovementDate: iso, Direction: dir, FromLocation: from, ToLocation: to, Reason: reason};
     if(live.ItemType) row.ItemType = live.ItemType;
     const made = await spCreate("Movements", row);
+    if(made && made.Id) rememberMove(made.Id, {Availability: live.Availability || null, LastMovementReason: live.LastMovementReason || null, LastMovementDate: live.LastMovementDate || null});
     const atHome = startsCI(to, "Jeedimetla");
     const patch = {CurrentLocation: to, LastMovementReason: reason, LastMovementDate: iso, AtJeedimetla: atHome,
       Availability: live.Availability === AV.scrap ? AV.scrap : !atHome ? AV.away : EX_OEM_REASONS.includes(reason) ? AV.availOem : AV.bench};
@@ -1503,6 +1573,8 @@ document.addEventListener("click", async e => {
   if(d.claimOem){ claimOem = d.claimOem; render(); return; }
   if(d.dcOem){ dcOem = d.dcOem; dcSelected.clear(); F.dc.address = ""; render(); return; }
   if(d.history){ openHistory(Number(d.history)); return; }
+  if(d.undoMove){ askUndo(Number(d.undoMove)); return; }
+  if(d.undoConfirm){ const st = $("#undo-status").value; $("#modal").close(); await actUndo(Number(d.undoConfirm), st); return; }
   if(d.download){ downloadDC(d.download); return; }
   if(d.ship){ askShip(d.ship); return; }
   if(d.confirmShip){ const day = $("#ship-date").value, ref = $("#ship-reference").value.trim(); $("#modal").close(); await actShip(d.confirmShip, day, ref); return; }
