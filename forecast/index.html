@@ -1,0 +1,1037 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#10243e">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2310243e'/%3E%3Cpath d='M7 22l6-7 5 4 7-9' fill='none' stroke='%23ffffff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<style>html, body { margin: 0; } [hidden] { display: none !important; } img { max-width: 100%; }</style>
+<script>window.HALA_SITE = {"data": "https://raw.githubusercontent.com/kmohith1/hala-scm/fleet-data/", "iter": 310000, "salt": "VJ3Z1Di9xK0EDta1T6ofkg==", "check": "FGSvK7T3yrvYRcvN/TPvvbOaE31DBt02VriNKrZNKA4mEO47aGI="};</script>
+<title>HALA Spares Forecast</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600&family=Barlow:wght@400;500;600&display=swap">
+<style>
+/* Layout: a navy band carries the title, the tabs and four headline numbers; below it one filter row shared by
+   the tabs, then the tab's own sections. Same look as the fleet dashboard. */
+:root {
+  --band: #10243e; --band-2: #1a3355; --band-ink: #ffffff; --band-ink2: #b9c7da; --band-line: rgba(255,255,255,.14);
+  --bg: #f4f5f7; --surface: #ffffff; --sunk: #eef0f3;
+  --ink: #141b26; --ink2: #4a5464; --muted: #76808f;
+  --line: #e2e5ea; --line2: #cdd2da;
+  --accent: #1c5cab; --accent-wash: #e6eefa;
+  --s-new: #2a78d6; --s-old: #eb6834; --s-3: #1baf7a; --bar: #2a78d6; --track: #e6e9ee;
+  --warn-bg: #fdf0d3; --warn-ink: #6b4a00;
+  --sans: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --cond: "Barlow Semi Condensed", "Barlow", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --band: #142033; --band-2: #1d2e48; --band-ink: #ffffff; --band-ink2: #aebdd2; --band-line: rgba(255,255,255,.12);
+    --bg: #0d1014; --surface: #161a20; --sunk: #1f242c;
+    --ink: #f1f3f5; --ink2: #bcc3cd; --muted: #8a93a1;
+    --line: #272c35; --line2: #373e49;
+    --accent: #7db0ee; --accent-wash: #1b2a40;
+    --s-new: #3987e5; --s-old: #d95926; --s-3: #199e70; --bar: #3987e5; --track: #262c35;
+    --warn-bg: #3a2c08; --warn-ink: #f6cf75;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --band: #142033; --band-2: #1d2e48; --band-ink: #ffffff; --band-ink2: #aebdd2; --band-line: rgba(255,255,255,.12);
+  --bg: #0d1014; --surface: #161a20; --sunk: #1f242c;
+  --ink: #f1f3f5; --ink2: #bcc3cd; --muted: #8a93a1;
+  --line: #272c35; --line2: #373e49;
+  --accent: #7db0ee; --accent-wash: #1b2a40;
+  --s-new: #3987e5; --s-old: #d95926; --s-3: #199e70; --bar: #3987e5; --track: #262c35;
+  --warn-bg: #3a2c08; --warn-ink: #f6cf75;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.45 var(--sans); margin: 0; }
+button, select, input { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.num { font-variant-numeric: tabular-nums; }
+.in { max-width: 1280px; margin: 0 auto; padding-inline: 28px; }
+
+/* ---- band */
+.band { background: var(--band); color: var(--band-ink); }
+.band .in { padding-block: 22px 26px; display: flex; flex-direction: column; gap: 20px; }
+.mast { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 8px 24px; }
+.mast h1 { font: 600 26px/1.15 var(--cond); margin: 0; letter-spacing: .005em; }
+.mast p { margin: 4px 0 0; color: var(--band-ink2); font-size: 14px; max-width: 70ch; }
+.asof { text-align: right; color: var(--band-ink2); font-size: 14px; }
+.asof b { color: var(--band-ink); font-weight: 600; }
+.asof a { color: var(--band-ink2); }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.tabs button { background: transparent; border: 1px solid var(--band-line); color: var(--band-ink2); padding: 7px 18px; border-radius: 99px; cursor: pointer; font-size: 15px; }
+.tabs button:hover { color: var(--band-ink); }
+.tabs button[aria-selected="true"] { background: var(--band-ink); color: var(--band); border-color: var(--band-ink); font-weight: 600; }
+.tabs button:focus-visible { outline: 2px solid var(--band-ink); outline-offset: 2px; }
+.kpis { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--band-line); }
+.kpi { padding: 18px 22px 0 0; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.kpi + .kpi { padding-left: 22px; border-left: 1px solid var(--band-line); }
+.kpi .nm { font-size: 14px; color: var(--band-ink2); }
+.kpi b { font: 600 38px/1.05 var(--cond); letter-spacing: -.005em; }
+.kpi .sh { font-size: 14px; color: var(--band-ink2); }
+.kpi .sh .g { color: #86e0a4; font-weight: 600; } .kpi .sh .b { color: #ffa59c; font-weight: 600; }
+
+/* ---- page */
+.wrap { display: flex; flex-direction: column; gap: 26px; padding-block: 20px 56px; }
+.filters { display: flex; flex-wrap: wrap; gap: 12px 14px; align-items: flex-end; }
+.fld { display: flex; flex-direction: column; gap: 4px; min-width: 0; font-size: 13px; color: var(--ink2); }
+.fld > select, .fld > input { height: 36px; padding: 0 10px; background: var(--surface); border: 1px solid var(--line2); border-radius: 6px; font-size: 14px; color: var(--ink); min-width: 140px; }
+.fld > input[type="search"] { min-width: 220px; }
+.btn { height: 36px; padding: 0 14px; background: var(--surface); border: 1px solid var(--line2); border-radius: 6px; cursor: pointer; white-space: nowrap; font-size: 14px; }
+.btn:hover { background: var(--sunk); }
+.btn.sm { height: 30px; padding: 0 11px; font-size: 13px; }
+.chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.chip { height: 36px; padding: 0 12px; border: 1px solid var(--line2); background: var(--surface); border-radius: 6px; font-size: 14px; color: var(--ink2); cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+:root[data-theme="dark"] .chip[aria-pressed="true"] { color: #0b1622; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .chip[aria-pressed="true"] { color: #0b1622; } }
+.seg { display: inline-flex; border: 1px solid var(--line2); border-radius: 6px; overflow: hidden; background: var(--surface); }
+.seg button { border: 0; background: none; height: 34px; padding: 0 12px; font-size: 14px; color: var(--ink2); cursor: pointer; border-right: 1px solid var(--line2); }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+:root[data-theme="dark"] .seg button[aria-pressed="true"] { color: #0b1622; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .seg button[aria-pressed="true"] { color: #0b1622; } }
+details.pop { position: relative; }
+details.pop > summary { list-style: none; height: 36px; display: flex; align-items: center; padding: 0 12px; border: 1px solid var(--line2); background: var(--surface); border-radius: 6px; cursor: pointer; font-size: 14px; color: var(--ink); white-space: nowrap; }
+details.pop > summary::-webkit-details-marker { display: none; }
+details.pop > summary::after { content: " ▾"; color: var(--muted); margin-left: 4px; }
+.popbody { position: absolute; z-index: 30; top: calc(100% + 6px); left: 0; width: min(320px, calc(100vw - 40px)); max-height: 360px; overflow: auto; background: var(--surface); border: 1px solid var(--line2); border-radius: 10px; padding: 10px; box-shadow: 0 10px 30px rgba(0,0,0,.18); display: flex; flex-direction: column; gap: 1px; }
+.popbody label { display: flex; gap: 8px; align-items: center; padding: 4px 5px; border-radius: 6px; font-size: 14px; color: var(--ink); }
+.popbody label:hover { background: var(--sunk); }
+.popbody label i { margin-left: auto; font-style: normal; color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.popact { display: flex; gap: 14px; padding: 2px 5px 8px; border-bottom: 1px solid var(--line); margin-bottom: 6px; font-size: 13px; }
+.link { border: 0; background: none; padding: 0; color: var(--accent); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; font-size: inherit; }
+
+.view { display: flex; flex-direction: column; gap: 26px; min-width: 0; }
+.sec { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.sec > header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 8px 16px; }
+.sec h2 { font: 600 20px/1.25 var(--cond); margin: 0; text-wrap: balance; }
+.sec header p { margin: 2px 0 0; color: var(--ink2); font-size: 14px; max-width: 80ch; }
+.tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; min-width: 0; }
+.pad { padding: 18px 20px; }
+.lede { font-size: 16px; max-width: 85ch; margin: 0; }
+.lede b { font-weight: 600; }
+.note { padding: 10px 18px 14px; color: var(--muted); font-size: 13px; margin: 0; }
+.flag { display: inline-block; padding: 1px 9px; border-radius: 99px; background: var(--warn-bg); color: var(--warn-ink); font-weight: 600; font-size: 13px; }
+
+.run { display: grid; grid-template-columns: repeat(4, 1fr); }
+.run > div { padding: 16px 20px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.run > div + div { border-left: 1px solid var(--line); }
+.run b { font: 600 28px/1.1 var(--cond); }
+.run span { font-size: 14px; }
+.run small { font-size: 13px; color: var(--ink2); }
+.two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.side h3 { font: 600 17px/1.2 var(--cond); margin: 0 0 12px; display: flex; align-items: center; gap: 8px; }
+.side h3 i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+.side h3 small { font: 400 13px var(--sans); color: var(--muted); }
+.figs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 18px; }
+.fig b { font: 600 26px/1.1 var(--cond); display: block; }
+.fig span { font-size: 13px; color: var(--ink2); }
+
+/* ---- tables */
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; font-size: 14px; }
+th, td { padding: 8px 12px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--line); }
+thead th, tr.rephead th { font-weight: 600; font-size: 13px; color: var(--ink2); background: var(--surface); vertical-align: bottom; border-bottom: 1px solid var(--line2); }
+th small, td.lab small { display: block; font-weight: 400; color: var(--muted); font-size: 12px; }
+th.lab, td.lab { text-align: left; position: sticky; left: 0; background: var(--surface); z-index: 1; white-space: normal; min-width: 200px; max-width: 320px; }
+th.sortable { cursor: pointer; user-select: none; }
+th.sortable:hover { color: var(--ink); }
+th[aria-sort="descending"]::after { content: " ↓"; } th[aria-sort="ascending"]::after { content: " ↑"; }
+tr.sec td { font: 600 12.5px var(--sans); letter-spacing: .07em; text-transform: uppercase; color: var(--muted); background: var(--sunk); text-align: left; padding-block: 9px 6px; }
+tr.sec td.lab { background: var(--sunk); max-width: none; }
+tr.l0 td { font-weight: 600; }
+tr.l1 td.lab { padding-left: 34px; } tr.l1 td { color: var(--ink2); }
+tr.l2 td.lab { padding-left: 56px; font-size: 13.5px; } tr.l2 td { color: var(--ink2); font-size: 13.5px; }
+tr.total td { font-weight: 600; background: var(--accent-wash); }
+tr.total td.lab { background: var(--accent-wash); }
+td.all, th.all { border-left: 1px solid var(--line2); }
+td.thin { color: var(--muted); }
+tbody tr.click { cursor: pointer; }
+tbody tr.click:hover td, tbody tr[aria-selected="true"] td { background: var(--accent-wash); }
+.tw { border: 0; background: none; padding: 0 6px 0 0; color: var(--accent); font-size: 12px; width: 20px; text-align: left; cursor: pointer; }
+.cellbar { display: block; height: 4px; border-radius: 2px; background: var(--track); margin-top: 3px; min-width: 50px; }
+.cellbar i { display: block; height: 100%; border-radius: 2px; background: var(--bar); }
+.ibar { display: grid; grid-template-columns: 70px minmax(50px, 110px); align-items: center; gap: 10px; justify-content: end; }
+.ibar b { font-weight: 500; text-align: right; }
+.ibar i { display: block; height: 10px; min-width: 2px; background: var(--bar); border-radius: 0 4px 4px 0; }
+.fcin { display: flex; flex-wrap: wrap; gap: 12px 14px; padding: 14px 18px; border-bottom: 1px solid var(--line); align-items: flex-end; }
+.fcin label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--ink2); }
+.fcin input[type="number"] { width: 112px; height: 34px; padding: 0 8px; border: 1px solid var(--line2); border-radius: 6px; background: var(--surface); text-align: right; font-variant-numeric: tabular-nums; }
+.fcin input.edited { border-color: var(--accent); background: var(--accent-wash); }
+.check { flex-direction: row !important; align-items: center; gap: 8px !important; font-size: 14px !important; color: var(--ink) !important; height: 34px; }
+
+/* ---- charts */
+.chart { position: relative; height: 220px; margin: 8px 0 0 52px; }
+.chart svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.chart .gl { position: absolute; left: 0; right: 0; border-top: 1px solid var(--line); pointer-events: none; }
+.chart .gl span { position: absolute; left: -52px; top: -9px; width: 44px; text-align: right; font-size: 12px; color: var(--muted); }
+.chart .base { border-top-color: var(--line2); }
+.chart .dot { position: absolute; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--surface); transform: translate(-50%, -50%); pointer-events: none; }
+.chart .hl { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--muted); pointer-events: none; }
+.chart .lbl { position: absolute; font-size: 12.5px; color: var(--ink2); white-space: nowrap; transform: translateY(-50%); pointer-events: none; }
+.chart .bar { position: absolute; bottom: 0; background: var(--bar); border-radius: 4px 4px 0 0; }
+.chart .hit { position: absolute; top: 0; bottom: 0; }
+.chart-x { position: relative; height: 18px; margin: 4px 0 0 52px; font-size: 12px; color: var(--muted); }
+.chart-x span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13.5px; color: var(--ink2); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; }
+.tip { position: fixed; z-index: 60; pointer-events: none; background: var(--ink); color: var(--bg); padding: 7px 10px; border-radius: 6px; font-size: 13px; line-height: 1.4; max-width: 300px; white-space: pre-line; box-shadow: 0 6px 18px rgba(0,0,0,.25); }
+
+/* ---- definitions, lock */
+.defs { margin: 0; display: grid; grid-template-columns: minmax(150px, 220px) 1fr; gap: 10px 22px; font-size: 14px; }
+.defs dt { font-weight: 600; } .defs dd { margin: 0; color: var(--ink2); }
+.foot { color: var(--muted); font-size: 13px; margin: 0; }
+.lock { position: fixed; inset: 0; z-index: 100; background: var(--band); display: flex; align-items: center; justify-content: center; padding: 20px; }
+.lockbox { width: min(420px, 100%); background: var(--surface); color: var(--ink); border-radius: 12px; padding: 26px 26px 22px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 20px 60px rgba(0,0,0,.35); }
+.lockbox h1 { font: 600 24px/1.2 var(--cond); margin: 0; }
+.lockbox p { margin: 0; color: var(--ink2); font-size: 14px; }
+.lockbox input { height: 42px; padding: 0 12px; border: 1px solid var(--line2); border-radius: 6px; background: var(--surface); font-size: 16px; letter-spacing: .06em; }
+.lockbox .btn { height: 42px; background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.lockbox .msg { min-height: 20px; color: var(--warn-ink); font-size: 13px; }
+.loading { padding: 60px 0; text-align: center; color: var(--muted); }
+
+@media (max-width: 900px) {
+  .in { padding-inline: 16px; }
+  .kpis { grid-template-columns: repeat(2, 1fr); }
+  .kpi:nth-child(3) { padding-left: 0; border-left: 0; }
+  .kpi b { font-size: 30px; }
+  .run { grid-template-columns: repeat(2, 1fr); }
+  .run > div:nth-child(3) { border-left: 0; }
+  .run > div:nth-child(n+3) { border-top: 1px solid var(--line); }
+  .two { grid-template-columns: 1fr; }
+  .asof { text-align: left; }
+  .defs { grid-template-columns: 1fr; gap: 2px 0; } .defs dd { margin-bottom: 10px; }
+  th.lab, td.lab { min-width: 150px; }
+  .fld > input[type="search"] { min-width: 0; width: 100%; }
+}
+@media print { .band { -webkit-print-color-adjust: exact; print-color-adjust: exact; } .filters, .tools, .tabs { display: none; } }
+</style>
+</head>
+<body>
+<header class="band">
+  <div class="in">
+    <div class="mast">
+      <div>
+        <h1>Spares Demand and Forecast</h1>
+        <p>What the fleet consumes by vehicle age, where it is consumed, what next month needs, and what has been bought.</p>
+      </div>
+      <div class="asof" id="asof">Loading…</div>
+    </div>
+    <div class="tabs" role="tablist" aria-label="Views">
+      <button role="tab" id="tab-fc" aria-selected="true" data-tab="fc">Forecast</button>
+      <button role="tab" id="tab-age" aria-selected="false" data-tab="age">Consumption by age</button>
+      <button role="tab" id="tab-hub" aria-selected="false" data-tab="hub">Hubs</button>
+      <button role="tab" id="tab-proc" aria-selected="false" data-tab="proc">Procurement</button>
+    </div>
+    <div class="kpis" id="kpis"></div>
+  </div>
+</header>
+
+<main class="in wrap" id="app" data-tab="fc">
+  <div class="loading" id="loading">Loading the data…</div>
+
+  <section class="filters" id="filters" aria-label="Filters" hidden></section>
+
+  <!-- ===== Forecast ===== -->
+  <div class="view" id="v-fc" hidden>
+    <section class="sec">
+      <header>
+        <div><h2 id="fc-title">Forecast</h2><p id="fc-sub"></p></div>
+        <div class="tools"><button class="btn" id="fc-reset" type="button">Reset vehicle counts</button></div>
+      </header>
+      <div class="panel">
+        <div class="fcin" id="fc-in"></div>
+        <div class="run" id="fc-run"></div>
+      </div>
+      <p class="lede" id="fc-lede"></p>
+    </section>
+    <section class="sec">
+      <header>
+        <div><h2>Forecast by part group and vehicle age</h2><p>Open a group to see its categories and parts.</p></div>
+        <div class="tools"><button class="btn" id="fc-copy" type="button">Copy table</button></div>
+      </header>
+      <div class="panel"><div class="scroll"><table id="fc-tbl"></table></div><p class="note" id="fc-note"></p></div>
+    </section>
+    <section class="sec">
+      <header>
+        <div><h2>Parts to plan</h2><p id="fcp-sub">Every part, its forecast for the month and what was fitted in the base months.</p></div>
+        <div class="tools">
+          <div class="fld"><input type="search" id="fcp-q" placeholder="Search parts" aria-label="Search parts"></div>
+          <button class="btn" id="fcp-csv" type="button">Download CSV</button>
+        </div>
+      </header>
+      <div class="panel"><div class="scroll"><table id="fcp-tbl"></table></div><p class="note" id="fcp-note"></p></div>
+    </section>
+  </div>
+
+  <!-- ===== Consumption by age ===== -->
+  <div class="view" id="v-age" hidden>
+    <section class="sec">
+      <p class="lede" id="age-lede"></p>
+      <div class="two" id="age-split"></div>
+    </section>
+    <section class="sec">
+      <header>
+        <div><h2>Spare parts per 100 vehicles, month by month</h2><p>New vehicles (0–180 days since first deployment) against old ones (181 days and over), per 30 days.</p></div>
+        <div class="legend"><span><i style="background:var(--s-new)"></i>New</span><span><i style="background:var(--s-old)"></i>Old</span></div>
+      </header>
+      <div class="panel pad"><div class="chart" id="age-chart"></div><div class="chart-x" id="age-chart-x"></div></div>
+    </section>
+    <section class="sec">
+      <header>
+        <div><h2>Consumption pattern by vehicle age</h2><p id="age-sub"></p></div>
+        <div class="tools">
+          <div class="seg" id="age-measure" role="group" aria-label="Measure for the part rows"></div>
+          <div class="seg" id="age-bw" role="group" aria-label="Age band width"></div>
+          <button class="btn" id="age-copy" type="button">Copy table</button>
+        </div>
+      </header>
+      <div class="panel"><div class="scroll"><table id="age-tbl"></table></div><p class="note" id="age-note"></p></div>
+    </section>
+  </div>
+
+  <!-- ===== Hubs ===== -->
+  <div class="view" id="v-hub" hidden>
+    <section class="sec">
+      <header>
+        <div><h2>Consumption and forecast by hub</h2><p id="hub-sub"></p></div>
+        <div class="tools"><button class="btn" id="hub-csv" type="button">Download CSV</button></div>
+      </header>
+      <div class="panel"><div class="scroll"><table id="hub-tbl"></table></div><p class="note" id="hub-note"></p></div>
+    </section>
+    <section class="sec" id="hubp-sec">
+      <header>
+        <div><h2 id="hubp-title">Parts for the hub</h2><p id="hubp-sub">Pick a hub above.</p></div>
+        <div class="tools">
+          <div class="fld"><input type="search" id="hubp-q" placeholder="Search parts" aria-label="Search parts for the hub"></div>
+          <button class="btn" id="hubp-csv" type="button">Download CSV</button>
+        </div>
+      </header>
+      <div class="panel"><div class="scroll"><table id="hubp-tbl"></table></div></div>
+    </section>
+  </div>
+
+  <!-- ===== Procurement ===== -->
+  <div class="view" id="v-proc" hidden>
+    <section class="sec">
+      <div class="panel"><div class="run" id="pr-run"></div></div>
+    </section>
+    <section class="sec">
+      <header><div><h2>Spend by month</h2><p id="pr-chart-sub">Excluding GST and freight, last 12 months. The selected period is shaded darker.</p></div></header>
+      <div class="panel pad"><div class="chart" id="pr-chart"></div><div class="chart-x" id="pr-chart-x"></div></div>
+    </section>
+    <section class="sec">
+      <header><div><h2>Vendors</h2><p id="pr-v-sub"></p></div><div class="tools"><button class="btn" id="pr-v-csv" type="button">Download CSV</button></div></header>
+      <div class="panel"><div class="scroll"><table id="pr-v-tbl"></table></div></div>
+    </section>
+    <section class="sec">
+      <header>
+        <div><h2>Items bought</h2><p id="pr-i-sub"></p></div>
+        <div class="tools">
+          <div class="fld"><input type="search" id="pr-q" placeholder="Search items" aria-label="Search items"></div>
+          <button class="btn" id="pr-i-csv" type="button">Download CSV</button>
+        </div>
+      </header>
+      <div class="panel"><div class="scroll"><table id="pr-i-tbl"></table></div><p class="note" id="pr-i-note"></p></div>
+    </section>
+    <section class="sec">
+      <header><div><h2>Lines to check</h2><p id="pr-f-sub"></p></div><div class="tools"><button class="btn" id="pr-f-more" type="button">Show all</button></div></header>
+      <div class="panel"><div class="scroll"><table id="pr-f-tbl"></table></div></div>
+    </section>
+  </div>
+
+  <section class="sec" id="defs-sec" hidden>
+    <header><h2>Definitions</h2></header>
+    <div class="panel pad"><dl class="defs" id="defs"></dl></div>
+    <p class="foot" id="foot"></p>
+    <p class="foot" id="lk-row" hidden><button class="btn sm" id="lk-forget" type="button">Lock the dashboard on this device</button></p>
+  </section>
+</main>
+
+<div class="lock" id="lock" hidden>
+  <form class="lockbox" id="lk-form" autocomplete="on">
+    <h1>HALA Spares Forecast</h1>
+    <p>This dashboard is private. Enter the access passphrase to open it. This device will remember it.</p>
+    <label class="fld" for="lk-in">Access passphrase</label>
+    <input id="lk-in" type="password" autocomplete="current-password" autocapitalize="characters" spellcheck="false">
+    <button class="btn" id="lk-go" type="submit">Open dashboard</button>
+    <p class="msg" id="lk-msg" role="status"></p>
+  </form>
+</div>
+<div class="tip" id="tip" hidden></div>
+
+<script>
+(function () {
+'use strict';
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const f0 = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 });
+const f1 = new Intl.NumberFormat('en-IN', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const n0 = v => v == null || isNaN(v) ? '–' : f0.format(v);
+const n1 = v => v == null || isNaN(v) ? '–' : f1.format(v);
+const pct = v => v == null || isNaN(v) ? '–' : f1.format(v) + '%';
+const inr = v => { if (v == null || isNaN(v)) return '–'; const a = Math.abs(v); if (a >= 1e7) return '₹' + (v / 1e7).toFixed(2) + ' Cr'; if (a >= 1e5) return '₹' + (v / 1e5).toFixed(2) + ' L'; return '₹' + f0.format(v); };
+const IST = 19800000, DAY = 864e5;
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const dayLabel = d => { const t = new Date(d * DAY); return t.getUTCDate() + ' ' + MON[t.getUTCMonth()] + ' ' + t.getUTCFullYear(); };
+const stamp = ms => { const t = new Date(ms + IST); return t.getUTCDate() + ' ' + MON[t.getUTCMonth()] + ', ' + String(t.getUTCHours()).padStart(2, '0') + ':' + String(t.getUTCMinutes()).padStart(2, '0') + ' IST'; };
+
+// part groups: 0-8 are spare-part categories (named as in the monthly spare parts plan); 9-11 are not spares
+const N_SPARE_CAT = 9;
+const GROUP_LABEL = ['Consumables (wear parts)', 'Plastic (body and panels)', 'Electrical', 'Mechanical', 'Motor and controller', 'Service and labour', 'Rider kit and branding', 'Battery (swap partner)'];
+const N_SPARE_GRP = 5;
+const GRP = [0, 0, 0, 1, 2, 2, 3, 3, 4, 5, 6, 7];
+const MIN_N = 30, POOL_N = 200;
+
+let D = null;                 // the data file
+let T = null;                 // typed arrays and derived indexes
+let R = null, F = null;       // consumption result, forecast result
+const state = { tab: 'fc', months: new Set(), two: true, models: null, svc: new Set([0, 1, 2, 3, 4]), city: '', bw: 180, measure: 'rate',
+  open: new Set(), fcOpen: new Set(), fcTarget: 1, fcRtd: false, fcPlan: 0, fcEdit: {}, fcpQ: '', fcpSort: ['fc', -1], fcpAll: false,
+  hub: null, hubpAll: false, hubSort: ['um', -1], hubpQ: '', prFrom: null, prTo: null, prVendor: -1, prQ: '', prSort: ['amt', -1], prVSort: ['amt', -1], prFlagsAll: false, prAll: false };
+
+// ---------- data source: the encrypted files the refresh publishes beside the fleet dashboard's, same passphrase
+const SITE = window.HALA_SITE || null, KEYNAME = 'hala_fleet_key', unb64 = t => Uint8Array.from(atob(t), c => c.charCodeAt(0));
+let sealKey = null, dataBase = '';
+async function getJSON(path) {
+  if (!SITE) { const r = await fetch(path, { cache: 'no-store' }); if (!r.ok) throw new Error(r.status); return r.json(); }
+  const r = await fetch(dataBase + path.replace(/\.json$/, '.bin')); if (!r.ok) throw new Error(r.status);
+  const b = new Uint8Array(await r.arrayBuffer()), plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b.subarray(0, 12) }, sealKey, b.subarray(12));
+  return JSON.parse(await new Response(new Blob([plain]).stream().pipeThrough(new DecompressionStream('gzip'))).text());
+}
+async function tryKey(raw) {
+  try { const k = await crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['decrypt']), c = unb64(SITE.check); await crypto.subtle.decrypt({ name: 'AES-GCM', iv: c.subarray(0, 12) }, k, c.subarray(12)); sealKey = k; return true; } catch (e) { return false; }
+}
+async function unlock() {
+  let saved = null; try { saved = localStorage.getItem(KEYNAME); } catch (e) {}
+  if (saved) { let raw = null; try { raw = unb64(saved); } catch (e) {} if (raw && await tryKey(raw)) return; }
+  $('#lock').hidden = false; document.documentElement.style.overflow = 'hidden'; $('#lk-in').focus();
+  await new Promise(done => $('#lk-form').addEventListener('submit', async e => {
+    e.preventDefault(); const btn = $('#lk-go'), msg = $('#lk-msg'), pass = $('#lk-in').value.toUpperCase().replace(/[^A-Z0-9]/g, ''); if (!pass || btn.disabled) return;
+    btn.disabled = true; msg.textContent = 'Checking';
+    try {
+      const km = await crypto.subtle.importKey('raw', new TextEncoder().encode(pass), 'PBKDF2', false, ['deriveBits']);
+      const raw = new Uint8Array(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: unb64(SITE.salt), iterations: SITE.iter }, km, 256));
+      if (await tryKey(raw)) { try { localStorage.setItem(KEYNAME, btoa(String.fromCharCode.apply(null, raw))); } catch (e2) {} $('#lock').hidden = true; document.documentElement.style.overflow = ''; $('#lk-in').value = ''; done(); return; }
+      msg.textContent = 'That passphrase is not right. Check it and try again.';
+    } catch (e1) { msg.textContent = 'This browser cannot open the dashboard. Use a current version of Chrome, Edge or Safari.'; }
+    btn.disabled = false;
+  }));
+}
+
+async function load() {
+  try {
+    if (SITE) {
+      await unlock();
+      const cur = await fetch(SITE.data + 'current.json?t=' + Date.now(), { cache: 'no-store' }).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
+      dataBase = SITE.data + cur.dir + '/';
+      $('#lk-row').hidden = false; $('#lk-forget').addEventListener('click', () => { try { localStorage.removeItem(KEYNAME); } catch (e) {} location.reload(); });
+    }
+    D = await getJSON('forecast.json');
+  } catch (e) {
+    $('#asof').innerHTML = '<span class="flag">Data did not load</span>';
+    $('#loading').textContent = String(e && e.message) === '404'
+      ? 'The last refresh did not include the forecast data. It appears after the next refresh made with the updated pull script and Refresh.bat.'
+      : 'The forecast data could not be read. Reload the page. If it stays like this, the last refresh did not publish the forecast data.';
+    return;
+  }
+  prepare(); readHash(); buildFilters(); bind(); defs(); render();
+  $('#loading').hidden = true; $('#filters').hidden = false; $('#defs-sec').hidden = false;
+}
+
+// ---------- typed arrays and indexes
+function prepare() {
+  const V = D.vm, L = D.pl;
+  T = { nVM: V.m.length, nPL: L.vm.length, m: Int8Array.from(V.m), model: Int16Array.from(V.model), hub: Int16Array.from(V.hub), age: Int32Array.from(V.age),
+    rent: Uint8Array.from(V.rent), two: Uint8Array.from(V.two), tk: Uint16Array.from(V.tk),
+    pvm: Int32Array.from(L.vm), psku: Int16Array.from(L.sku), psvc: Int8Array.from(L.svc), phub: Int16Array.from(L.hub), pq: Float64Array.from(L.q), pv: Float64Array.from(L.val) };
+  T.skuCat = Int8Array.from(D.skus.map(s => s[1]));
+  T.cityOfHub = D.hubCity;
+  T.cities = [...new Set(D.hubCity.filter(Boolean))].sort();
+  const nM = D.months.length;
+  // default base months: the last three complete months
+  const full = D.months.map((m, i) => i).filter(i => !D.months[i].partial);
+  full.slice(-3).forEach(i => state.months.add(i));
+  state.models = new Set(D.models.map((m, i) => i));
+  // procurement
+  if (D.proc) {
+    const P = D.proc, c = {}; P.cols.forEach((k, i) => c[k] = i); T.pc = c;
+    const months = new Map();
+    for (const r of P.rows) { const t = new Date(r[c.day] * DAY), k = t.getUTCFullYear() * 12 + t.getUTCMonth(); months.set(k, (months.get(k) || 0) + 1); }
+    T.prMonths = [...months.keys()].sort((a, b) => a - b);
+    const lastFull = (() => { const g = new Date(D.gen + IST); return g.getUTCFullYear() * 12 + g.getUTCMonth() - 1; })();
+    T.prLastFull = Math.min(lastFull, T.prMonths.length ? T.prMonths[T.prMonths.length - 1] : lastFull);
+    state.prTo = T.prLastFull;
+    state.prFrom = Math.max(T.prMonths[0] || 0, T.prLastFull - 2);
+    if (state.prFrom > state.prTo) state.prFrom = state.prTo;
+  }
+  T.nM = nM;
+}
+
+// ---------- filters
+const svcShown = () => [0, 1, 2, 3, 4].filter(s => s < 4 || svcHasOther());
+let _other = null; function svcHasOther() { if (_other === null) { _other = false; for (let j = 0; j < T.nPL; j++) if (T.psvc[j] === 4) { _other = true; break; } } return _other; }
+function pop(id, title, items, sel, onChange) {
+  const cnt = () => items.filter(it => sel.has(it.i)).length;
+  const sum = () => { const c = cnt(); return c === items.length ? 'All ' + title.toLowerCase() : c === 0 ? 'No ' + title.toLowerCase() : c + ' of ' + items.length + ' ' + title.toLowerCase(); };
+  let h = '<div class="fld"><span>' + esc(title) + '</span><details class="pop" id="' + id + '"><summary>' + esc(sum()) + '</summary><div class="popbody"><div class="popact"><button type="button" class="link" data-all>All</button><button type="button" class="link" data-none>None</button></div>';
+  items.forEach(it => { h += '<label><input type="checkbox" value="' + it.i + '"' + (sel.has(it.i) ? ' checked' : '') + '>' + esc(it.n) + (it.c != null ? '<i>' + n0(it.c) + '</i>' : '') + '</label>'; });
+  h += '</div></details></div>';
+  return { html: h, bind: () => {
+    const el = $('#' + id), upd = () => { el.querySelector('summary').textContent = sum(); onChange(); };
+    el.addEventListener('change', e => { const v = +e.target.value; if (e.target.checked) sel.add(v); else sel.delete(v); upd(); });
+    el.querySelector('[data-all]').addEventListener('click', () => { items.forEach(it => sel.add(it.i)); el.querySelectorAll('input').forEach(x => x.checked = true); upd(); });
+    el.querySelector('[data-none]').addEventListener('click', () => { sel.clear(); el.querySelectorAll('input').forEach(x => x.checked = false); upd(); });
+  } };
+}
+function buildFilters() {
+  const F = $('#filters'); let h = '', binds = [];
+  if (state.tab !== 'proc') {
+    h += '<div class="fld"><span>Base months: the rates come from these</span><div class="chips" id="f-months">' +
+      D.months.map((m, i) => '<button type="button" class="chip" data-m="' + i + '" aria-pressed="' + state.months.has(i) + '">' + esc(m.label.replace(' 20', ' ’')) + (m.partial ? ' (1–' + m.upto + ')' : '') + '</button>').join('') + '</div></div>';
+    h += '<div class="fld"><span>Vehicles</span><select id="f-two"><option value="1"' + (state.two ? ' selected' : '') + '>2-wheelers</option><option value="0"' + (!state.two ? ' selected' : '') + '>All vehicle types</option></select></div>';
+    h += '<div class="fld"><span>City</span><select id="f-city"><option value="">All cities</option>' + T.cities.map(c => '<option' + (state.city === c ? ' selected' : '') + '>' + esc(c) + '</option>').join('') + '</select></div>';
+    const mc = new Array(D.models.length).fill(0); for (const r of D.now) if (r[3] === 0) mc[r[0]]++;
+    const models = D.models.map((n, i) => ({ i, n, c: mc[i] })).filter(x => x.c > 0 || hasModelVM(x.i)).sort((a, b) => b.c - a.c);
+    const p1 = pop('f-model', 'Models', models, state.models, render); h += p1.html; binds.push(p1.bind);
+    const p2 = pop('f-svc', 'Service types', svcShown().map(i => ({ i, n: D.svc[i] })), state.svc, render); h += p2.html; binds.push(p2.bind);
+  } else {
+    const opt = (k, sel) => '<option value="' + k + '"' + (k === sel ? ' selected' : '') + '>' + MON[k % 12] + ' ' + Math.floor(k / 12) + '</option>';
+    h += '<div class="fld"><span>From</span><select id="f-pf">' + T.prMonths.map(k => opt(k, state.prFrom)).join('') + '</select></div>';
+    h += '<div class="fld"><span>To</span><select id="f-pt">' + T.prMonths.map(k => opt(k, state.prTo)).join('') + '</select></div>';
+    h += '<div class="fld"><span>Quick pick</span><div class="chips" id="f-pq"><button type="button" class="chip" data-q="1">Last month</button><button type="button" class="chip" data-q="3">Last 3 months</button><button type="button" class="chip" data-q="fy">This financial year</button><button type="button" class="chip" data-q="all">All</button></div></div>';
+    const vs = vendorList();
+    h += '<div class="fld"><span>Vendor</span><select id="f-pv"><option value="-1">All vendors</option>' + vs.map(v => '<option value="' + v.i + '"' + (state.prVendor === v.i ? ' selected' : '') + '>' + esc(v.n) + '</option>').join('') + '</select></div>';
+  }
+  F.innerHTML = h; binds.forEach(b => b());
+  if (state.tab !== 'proc') {
+    $('#f-months').addEventListener('click', e => { const b = e.target.closest('[data-m]'); if (!b) return; const i = +b.dataset.m; if (state.months.has(i)) { if (state.months.size > 1) state.months.delete(i); } else state.months.add(i); b.parentNode.querySelectorAll('[data-m]').forEach(x => x.setAttribute('aria-pressed', state.months.has(+x.dataset.m))); render(); });
+    $('#f-two').addEventListener('change', e => { state.two = e.target.value === '1'; render(); });
+    $('#f-city').addEventListener('change', e => { state.city = e.target.value; state.hub = null; render(); });
+  } else {
+    $('#f-pf').addEventListener('change', e => { state.prFrom = +e.target.value; if (state.prTo < state.prFrom) { state.prTo = state.prFrom; $('#f-pt').value = state.prTo; } render(); });
+    $('#f-pt').addEventListener('change', e => { state.prTo = +e.target.value; if (state.prFrom > state.prTo) { state.prFrom = state.prTo; $('#f-pf').value = state.prFrom; } render(); });
+    $('#f-pv').addEventListener('change', e => { state.prVendor = +e.target.value; render(); });
+    $('#f-pq').addEventListener('click', e => {
+      const b = e.target.closest('[data-q]'); if (!b) return; const q = b.dataset.q, last = T.prMonths[T.prMonths.length - 1];
+      const g = new Date(D.gen + IST), curK = g.getUTCFullYear() * 12 + g.getUTCMonth(), lastFull = curK - 1;
+      if (q === '1') { state.prFrom = state.prTo = Math.min(lastFull, last); }
+      else if (q === '3') { state.prTo = Math.min(lastFull, last); state.prFrom = state.prTo - 2; }
+      else if (q === 'fy') { const fyStart = (g.getUTCMonth() >= 3 ? g.getUTCFullYear() : g.getUTCFullYear() - 1) * 12 + 3; state.prFrom = fyStart; state.prTo = last; }
+      else { state.prFrom = T.prMonths[0]; state.prTo = last; }
+      state.prFrom = Math.max(state.prFrom, T.prMonths[0]); buildFilters(); render();
+    });
+  }
+}
+let _hasModel = null; function hasModelVM(i) { if (!_hasModel) { _hasModel = new Uint8Array(D.models.length); for (let k = 0; k < T.nVM; k++) _hasModel[T.model[k]] = 1; } return !!_hasModel[i]; }
+
+// ---------- which vehicle-months count
+function vmOn(i) { return (!state.two || T.two[i]) && state.models.has(T.model[i]) && (!state.city || T.cityOfHub[T.hub[i]] === state.city); }
+function bandOf(a, W, nb) { return a <= 0 ? 0 : Math.min(nb - 1, Math.floor((a - 1) / W)); }
+function bandLabels(W, nb) { const L = []; for (let b = 0; b < nb; b++) L.push(b === nb - 1 ? (b * W + 1) + '+' : (b === 0 ? '0' : String(b * W + 1)) + '–' + ((b + 1) * W)); return L; }
+
+// ---------- consumption: rates by age band over the base months
+function compute() {
+  const W = state.bw, nb = Math.ceil(720 / W) + 1, TT = nb, st = nb + 1, nSku = D.skus.length, nC = D.cats.length, nG = GROUP_LABEL.length;
+  const monOn = D.months.map((m, i) => state.months.has(i)), svcOn = [0, 1, 2, 3, 4].map(s => state.svc.has(s)), d30 = D.months.map(m => m.days / 30);
+  const band = new Int8Array(T.nVM).fill(-1), z = () => new Float64Array(st);
+  const r = { W, nb, T: TT, st, labels: bandLabels(W, nb), nMon: state.months.size, n: z(), expo: z(), tkVeh: z(), tk: z(), offRent: 0, noAge: 0,
+    no: { n: [0, 0], expo: [0, 0], tkVeh: [0, 0], rep: [0, 0], units: [0, 0], val: [0, 0] },
+    spare: { U: z(), V: z(), X: z() }, grp: [], cat: [], skuU: new Float64Array(nSku * st), skuV: new Float64Array(nSku * st), skuX: new Float64Array(nSku * st),
+    trend: D.months.map(() => ({ n: [0, 0], e: [0, 0], u: [0, 0] })) };
+  for (let g = 0; g < nG; g++) r.grp.push({ U: z(), V: z(), X: z() });
+  for (let c = 0; c < nC; c++) r.cat.push({ U: z(), V: z(), X: z() });
+  const trendBand = new Int8Array(T.nVM).fill(-1);
+  for (let i = 0; i < T.nVM; i++) {
+    if (!vmOn(i)) continue;
+    const m = T.m[i], a = T.age[i]; if (a < 0) { if (monOn[m]) r.noAge++; continue; }
+    const o = a > 180 ? 1 : 0; trendBand[i] = o; r.trend[m].n[o]++; r.trend[m].e[o] += d30[m];
+    if (!monOn[m]) continue;
+    const b = bandOf(a, W, nb); band[i] = b;
+    const e = d30[m];
+    r.n[b]++; r.n[TT]++; r.expo[b] += e; r.expo[TT] += e; r.no.n[o]++; r.no.expo[o] += e;
+    if (!T.rent[i]) r.offRent++;
+    let t = 0; for (let s = 0; s < 5; s++) if (svcOn[s]) t += T.tk[i * 5 + s];
+    if (t) { r.tkVeh[b]++; r.tkVeh[TT]++; r.tk[b] += t; r.tk[TT] += t; r.no.tkVeh[o]++; }
+  }
+  const lastSku = new Int32Array(nSku).fill(-1), lastCat = new Int32Array(nC).fill(-1), lastGrp = new Int32Array(nG).fill(-1); let lastSp = -1;
+  for (let j = 0; j < T.nPL; j++) {
+    const i = T.pvm[j]; if (!svcOn[T.psvc[j]]) continue;
+    const k = T.psku[j], q = T.pq[j], x = T.pv[j], c = T.skuCat[k], g = GRP[c];
+    if (c < N_SPARE_CAT && trendBand[i] >= 0) r.trend[T.m[i]].u[trendBand[i]] += q;
+    const b = band[i]; if (b < 0) continue;
+    r.skuU[k * st + b] += q; r.skuU[k * st + TT] += q; r.skuX[k * st + b] += x; r.skuX[k * st + TT] += x;
+    if (lastSku[k] !== i) { lastSku[k] = i; r.skuV[k * st + b]++; r.skuV[k * st + TT]++; }
+    const C = r.cat[c]; C.U[b] += q; C.U[TT] += q; C.X[b] += x; C.X[TT] += x; if (lastCat[c] !== i) { lastCat[c] = i; C.V[b]++; C.V[TT]++; }
+    const G = r.grp[g]; G.U[b] += q; G.U[TT] += q; G.X[b] += x; G.X[TT] += x; if (lastGrp[g] !== i) { lastGrp[g] = i; G.V[b]++; G.V[TT]++; }
+    if (c < N_SPARE_CAT) {
+      const o = T.age[i] > 180 ? 1 : 0; r.spare.U[b] += q; r.spare.U[TT] += q; r.spare.X[b] += x; r.spare.X[TT] += x; r.no.units[o] += q; r.no.val[o] += x;
+      if (lastSp !== i) { lastSp = i; r.spare.V[b]++; r.spare.V[TT]++; r.no.rep[o]++; }
+    }
+  }
+  let last = 0; for (let b = 0; b < nb; b++) if (r.n[b] > 0) last = b; r.show = last + 1;
+  // rate source per band: its own vehicle-months, or the older bands pooled when a band is too thin
+  const src = []; let oldN = 0; for (let b = 1; b < nb; b++) oldN += r.n[b];
+  for (let b = 0; b < nb; b++) { if (r.n[b] >= POOL_N) src.push([b]); else if (b > 0 && oldN >= POOL_N) { const a = []; for (let x = 1; x < nb; x++) a.push(x); src.push(a); } else { const a = []; for (let x = 0; x < nb; x++) a.push(x); src.push(a); } }
+  r.src = src;
+  return r;
+}
+const pooled = (arr, b, off) => { let s = 0; for (const x of R.src[b]) s += arr[(off || 0) + x]; return s; };
+
+// ---------- forecast: next month's vehicles by age band x each band's rate
+function targetMonth() {
+  const g = new Date(D.gen + IST), k = g.getUTCFullYear() * 12 + g.getUTCMonth() + state.fcTarget, y = Math.floor(k / 12), mo = k % 12;
+  const s = Date.UTC(y, mo, 1) / DAY, e = Date.UTC(y, mo + 1, 1) / DAY;
+  return { label: MON[mo] + ' ' + y, days: e - s, end: e - 1, k };
+}
+function forecast() {
+  const tm = targetMonth(), genDay = Math.floor((D.gen + IST) / DAY), shift = tm.end - genDay, nb = R.nb;
+  const base = new Float64Array(nb), hubVeh = new Map();
+  for (const r of D.now) {
+    const [mo, hub, age, tag, two] = r; if (age < 0) continue;
+    if (!(tag === 0 || (state.fcRtd && tag === 1))) continue;
+    if (state.two && !two) continue; if (!state.models.has(mo)) continue; if (state.city && T.cityOfHub[hub] !== state.city) continue;
+    const b = bandOf(age + shift, R.W, nb); base[b]++;
+    let h = hubVeh.get(hub); if (!h) hubVeh.set(hub, h = new Float64Array(nb)); h[b]++;
+  }
+  base[0] += Math.max(0, state.fcPlan || 0);
+  const veh = new Float64Array(nb); for (let b = 0; b < nb; b++) { const e = state.fcEdit[b]; veh[b] = e == null || isNaN(e) ? base[b] : Math.max(0, e); }
+  const f = tm.days / 30;
+  const fc = (U, off) => { const o = new Float64Array(R.st); let t = 0; for (let b = 0; b < nb; b++) { const e = pooled(R.expo, b); const v = e > 0 ? veh[b] * pooled(U, b, off) / e * f : 0; o[b] = v; t += v; } o[R.T] = t; return o; };
+  return { tm, base, veh, f, fc, hubVeh, shift };
+}
+
+// ---------- render
+function render() {
+  R = compute(); F = forecast();
+  kpis();
+  $$('.view').forEach(v => v.hidden = v.id !== 'v-' + state.tab);
+  if (state.tab === 'fc') renderForecast();
+  else if (state.tab === 'age') renderAge();
+  else if (state.tab === 'hub') renderHubs();
+  else renderProc();
+  writeHash();
+}
+function lastFullMonth() { for (let i = D.months.length - 1; i >= 0; i--) if (!D.months[i].partial) return i; return D.months.length - 1; }
+function monthTotals(mi) {
+  let n = 0, units = 0, val = 0; const on = new Uint8Array(T.nVM);
+  for (let i = 0; i < T.nVM; i++) if (T.m[i] === mi && vmOn(i) && T.age[i] >= 0) { on[i] = 1; n++; }
+  for (let j = 0; j < T.nPL; j++) if (on[T.pvm[j]] && state.svc.has(T.psvc[j]) && T.skuCat[T.psku[j]] < N_SPARE_CAT) { units += T.pq[j]; val += T.pv[j]; }
+  return { n, units, val };
+}
+function kpis() {
+  const lm = lastFullMonth(), a = monthTotals(lm), b = lm > 0 ? monthTotals(lm - 1) : null, mL = D.months[lm];
+  const chg = (x, y, good) => { if (!y) return ''; const d = 100 * (x - y) / y; const cls = (d > 0) === good ? 'g' : 'b'; return ' · <span class="' + cls + '">' + (d >= 0 ? '+' : '') + f1.format(d) + '%</span> on ' + MON[(D.months[lm - 1].ym.slice(5) - 1)]; };
+  const fcU = F.fc(R.spare.U)[R.T], fcX = F.fc(R.spare.X)[R.T];
+  let h = '<div class="kpi"><span class="nm">Deployed vehicles, ' + esc(mL.label) + '</span><b class="num">' + n0(a.n) + '</b><span class="sh">' + (b ? chg(a.n, b.n, true).replace(' · ', '') : '') + '</span></div>';
+  h += '<div class="kpi"><span class="nm">Spare parts fitted, ' + esc(mL.label) + '</span><b class="num">' + n0(a.units) + '</b><span class="sh">' + inr(a.val) + ' at purchase price' + (b ? chg(a.units, b.units, false) : '') + '</span></div>';
+  h += '<div class="kpi"><span class="nm">Forecast, ' + esc(F.tm.label) + '</span><b class="num">' + n0(fcU) + '</b><span class="sh">spare units · ' + inr(fcX) + '</span></div>';
+  if (D.proc) { const k = T.prLastFull, p = procTotals(k, k, true); h += '<div class="kpi"><span class="nm">Bought, ' + MON[k % 12] + ' ' + Math.floor(k / 12) + '</span><b class="num">' + inr(p.amt) + '</b><span class="sh">excl. GST · ' + n0(p.inv) + ' invoices</span></div>'; }
+  else h += '<div class="kpi"><span class="nm">Procurement</span><b class="num">–</b><span class="sh">no Spares Master Report in the last refresh</span></div>';
+  $('#kpis').innerHTML = h;
+  const parts = stamp(D.partsGen), fleet = stamp(D.gen);
+  $('#asof').innerHTML = 'Cercle OS data as of <b>' + esc(parts) + '</b>' + (D.partsStale ? ' <span class="flag">parts from an earlier pull</span>' : '') + (Math.abs(D.partsGen - D.gen) > 3 * 3600e3 ? '<br>fleet as of ' + esc(fleet) : '') + (D.proc ? '<br>purchases: ' + esc(D.proc.src) : '') + '<br><a href="../fleet/">Fleet dashboard</a>';
+}
+
+// ---------- tables shared by Forecast and Consumption by age
+function cells(vals, kind, bar, tips, show) {
+  const nb = show == null ? R.show : show; let mx = 0, h = '';
+  if (bar) for (let b = 0; b < nb; b++) if (R.n[b] >= MIN_N && vals[b] > mx) mx = vals[b];
+  const fmt = v => kind === 'int' ? n0(v) : kind === 'pct' ? pct(v) : kind === 'inr' ? inr(v) : n1(v);
+  for (let b = 0; b < nb; b++) {
+    const v = vals[b], thin = R.n[b] < MIN_N, w = bar && mx > 0 && !thin && !isNaN(v) ? Math.max(0, Math.min(100, 100 * v / mx)) : 0;
+    h += '<td class="' + (thin ? 'thin' : '') + '"' + (tips ? ' data-tip="' + esc(tips(b)) + '"' : '') + '>' + fmt(v) + (bar ? '<span class="cellbar"' + (thin ? ' style="visibility:hidden"' : '') + '><i style="width:' + w.toFixed(1) + '%"></i></span>' : '') + '</td>';
+  }
+  return h + '<td class="all"' + (tips ? ' data-tip="' + esc(tips(R.T)) + '"' : '') + '>' + fmt(vals[R.T]) + (bar ? '<span class="cellbar" style="visibility:hidden"><i></i></span>' : '') + '</td>';
+}
+const bandName = b => b === R.T ? 'All ages' : R.labels[b] + ' days';
+function headRow(first, total, flagThin, cls, show) {
+  const nb = show == null ? R.show : show;
+  let h = '<tr' + (cls ? ' class="' + cls + '"' : '') + '><th class="lab">' + first + '</th>';
+  for (let b = 0; b < nb; b++) h += '<th>' + R.labels[b] + '<small>days' + (flagThin && R.n[b] < MIN_N ? ' · few vehicles' : '') + '</small></th>';
+  return h + '<th class="all">' + total + '</th></tr>';
+}
+function tree(openSet, rowFn, prefix, have) {
+  const skuRows = c => { const st = R.st, list = []; for (let k = 0; k < D.skus.length; k++) if (T.skuCat[k] === c && have(R.skuU, k * st)) list.push(k); list.sort((a, b) => R.skuU[b * st + R.T] - R.skuU[a * st + R.T]); return list.map(k => rowFn(2, D.skus[k][0], R.skuU.subarray(k * st, k * st + st), R.skuV.subarray(k * st, k * st + st), R.skuX.subarray(k * st, k * st + st))).join(''); };
+  const part = g => {
+    if (!have(R.grp[g].U, 0)) return '';
+    const cats = []; for (let c = 0; c < D.cats.length; c++) if (GRP[c] === g && have(R.cat[c].U, 0)) cats.push(c);
+    const gk = prefix + 'g' + g, go = openSet.has(gk); let s = rowFn(0, GROUP_LABEL[g], R.grp[g].U, R.grp[g].V, R.grp[g].X, gk, go, true);
+    if (go) { if (cats.length === 1) s += skuRows(cats[0]); else for (const c of cats) { const ck = prefix + 'c' + c, co = openSet.has(ck); s += rowFn(1, D.cats[c], R.cat[c].U, R.cat[c].V, R.cat[c].X, ck, co, true); if (co) s += skuRows(c); } }
+    return s;
+  };
+  const gs = []; for (let g = 0; g < GROUP_LABEL.length; g++) gs.push(g);
+  return { spare: gs.filter(g => g < N_SPARE_GRP).sort((a, b) => R.grp[b].U[R.T] - R.grp[a].U[R.T]).map(part).join(''), other: gs.filter(g => g >= N_SPARE_GRP).map(part).join('') };
+}
+const twBtn = (key, open, label) => '<button class="tw" type="button" data-tw="' + key + '" aria-expanded="' + open + '" aria-label="' + (open ? 'Collapse ' : 'Expand ') + esc(label) + '">' + (open ? '▾' : '▸') + '</button>';
+
+// ---------- Forecast tab
+function renderForecast() {
+  const tm = F.tm, nb = R.nb, show = Math.max(R.show, (() => { let l = 0; for (let b = 0; b < nb; b++) if (F.veh[b] > 0) l = b; return l + 1; })());
+  $('#fc-title').textContent = 'Forecast for ' + tm.label;
+  const sel = D.months.filter((m, i) => state.months.has(i)).map(m => m.label);
+  $('#fc-sub').textContent = 'Vehicles expected in each age band × that band\'s consumption in ' + sel.join(', ') + '. Change the vehicle counts to match the deployment plan.';
+  let h = '<label>Forecast month<select id="fc-t" style="height:34px;border:1px solid var(--line2);border-radius:6px;background:var(--surface);padding:0 8px">';
+  for (const k of [0, 1, 2]) { const g = new Date(D.gen + IST), kk = g.getUTCFullYear() * 12 + g.getUTCMonth() + k; h += '<option value="' + k + '"' + (k === state.fcTarget ? ' selected' : '') + '>' + MON[kk % 12] + ' ' + Math.floor(kk / 12) + (k === 0 ? ' (this month)' : '') + '</option>'; }
+  h += '</select></label>';
+  h += '<label class="check"><input type="checkbox" id="fc-rtd"' + (state.fcRtd ? ' checked' : '') + '> Count ready-to-deploy vehicles too</label>';
+  h += '<label>New deployments planned<input type="number" min="0" step="10" id="fc-plan" value="' + (state.fcPlan || 0) + '"></label>';
+  for (let b = 0; b < show; b++) { const ed = state.fcEdit[b] != null; h += '<label>' + R.labels[b] + ' days<input type="number" min="0" step="1" data-b="' + b + '" class="' + (ed ? 'edited' : '') + '" value="' + Math.round(F.veh[b]) + '" title="Starting point: ' + n0(F.base[b]) + '"></label>'; }
+  $('#fc-in').innerHTML = h;
+  const U = F.fc(R.spare.U), X = F.fc(R.spare.X), nVeh = F.veh.reduce((a, b) => a + b, 0);
+  const g = GROUP_LABEL.slice(0, N_SPARE_GRP).map((n, i) => ({ n, u: F.fc(R.grp[i].U)[R.T] })).sort((a, b) => b.u - a.u);
+  $('#fc-run').innerHTML = '<div><b class="num">' + n0(U[R.T]) + '</b><span>spare parts</span><small>' + n0(nVeh) + ' vehicles · ' + n1(nVeh ? 100 * U[R.T] / nVeh / F.f : NaN) + ' per 100 per 30 days</small></div>' +
+    '<div><b class="num">' + inr(X[R.T]) + '</b><span>at purchase price</span><small>excluding labour and rider kit</small></div>' +
+    '<div><b class="num">' + n0(g[0].u) + '</b><span>' + esc(g[0].n) + '</span><small>' + pct(U[R.T] ? 100 * g[0].u / U[R.T] : NaN) + ' of the forecast</small></div>' +
+    '<div><b class="num">' + n0(g[1].u) + '</b><span>' + esc(g[1].n) + '</span><small>' + pct(U[R.T] ? 100 * g[1].u / U[R.T] : NaN) + ' of the forecast</small></div>';
+  // lede: forecast against the base months' average
+  const per = R.nMon || 1, avgU = R.spare.U[R.T] / per, newU = (() => { let s = 0; for (let b = 0; b < nb; b++) if ((b + 1) * R.W <= 180) s += U[b]; return s; })();
+  $('#fc-lede').innerHTML = 'The base months fitted an average of <b>' + n0(avgU) + '</b> spare parts a month. ' + esc(tm.label) + ' is forecast at <b>' + n0(U[R.T]) + '</b>' +
+    (avgU > 0 ? ' (' + (U[R.T] >= avgU ? '+' : '') + f1.format(100 * (U[R.T] - avgU) / avgU) + '%)' : '') + ', because the fleet keeps ageing: ' +
+    '<b>' + pct(U[R.T] ? 100 * (U[R.T] - newU) / U[R.T] : NaN) + '</b> of the demand comes from vehicles over 180 days old.';
+  // table
+  const cols = show + 2;
+  const row = (label, sub, vals, kind, cls) => '<tr class="' + (cls || '') + '"><td class="lab">' + esc(label) + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</td>' + cells(vals, kind, false, null, show) + '</tr>';
+  const vv = new Float64Array(R.st); for (let b = 0; b < nb; b++) vv[b] = F.veh[b]; vv[R.T] = nVeh;
+  const rate = new Float64Array(R.st); for (let b = 0; b < nb; b++) { const e = pooled(R.expo, b); rate[b] = e > 0 ? 100 * pooled(R.spare.U, b) / e : NaN; } rate[R.T] = nVeh ? 100 * U[R.T] / nVeh / F.f : NaN;
+  let t = '<thead>' + headRow('Days since first deployment, at the end of ' + esc(tm.label), 'Total', false, '', show) + '</thead><tbody>';
+  t += row('Vehicles', 'expected in the month', vv, 'int');
+  t += row('Spare parts per 100 vehicles', 'per 30 days, from the base months', rate, 'dec');
+  t += '<tr class="sec"><td class="lab" colspan="' + cols + '">Forecast spare parts, units</td></tr>';
+  t += row('All spare parts', '', U, 'int', 'l0 total');
+  const fcRow = (lv, label, Ux, Vx, Xx, key, open, openable) => {
+    const off = Ux.byteOffset / 8; const all = Ux.buffer === R.skuU.buffer ? F.fc(R.skuU, off) : F.fc(Ux);
+    return '<tr class="l' + lv + '"><td class="lab">' + (openable ? twBtn(key, open, label) : (lv === 0 ? '<span class="tw"></span>' : '')) + esc(label) + '</td>' + cells(all, 'int', false, null, show) + '</tr>';
+  };
+  const tr = tree(state.fcOpen, fcRow, 'f', (arr, off) => arr[off + R.T] > 0);
+  t += tr.spare;
+  if (tr.other) t += '<tr class="sec"><td class="lab" colspan="' + cols + '">Not spare parts, units</td></tr>' + tr.other;
+  $('#fc-tbl').innerHTML = t + '</tbody>';
+  const notes = ['The starting vehicle counts are the vehicles on rent at the last refresh' + (state.fcRtd ? ' plus those ready to deploy' : '') + ', aged to the end of ' + tm.label + (state.fcPlan ? ', plus ' + n0(state.fcPlan) + ' new deployments in the first band' : '') + '.'];
+  const pooledB = []; for (let b = 0; b < show; b++) if (R.src[b].length > 1) pooledB.push(R.labels[b]);
+  if (pooledB.length) notes.push('Bands with fewer than ' + POOL_N + ' vehicle-months in the base months (' + pooledB.join(', ') + ' days) use the older bands together.');
+  if (D.months.some((m, i) => state.months.has(i) && m.partial)) notes.push('A part-month is in the base: its rates are scaled to 30 days, but a few days of tickets make it less steady than a full month.');
+  $('#fc-note').textContent = notes.join(' ');
+  renderFcParts();
+}
+function fcPartRows() {
+  const st = R.st, nb = R.nb, out = [], per = R.nMon || 1;
+  for (let k = 0; k < D.skus.length; k++) {
+    if (T.skuCat[k] >= N_SPARE_CAT && !state.fcpAll) continue;
+    const off = k * st; if (R.skuU[off + R.T] <= 0) continue;
+    const fc = F.fc(R.skuU, off)[R.T], fx = F.fc(R.skuX, off)[R.T];
+    out.push({ k, n: D.skus[k][0], c: D.cats[T.skuCat[k]], g: GROUP_LABEL[GRP[T.skuCat[k]]], fc, fx, avg: R.skuU[off + R.T] / per, veh: R.n[R.T] ? 100 * R.skuV[off + R.T] / R.n[R.T] : 0 });
+  }
+  return out;
+}
+function sortRows(rows, s) { const [k, d] = s; rows.sort((a, b) => (typeof a[k] === 'string' ? a[k].localeCompare(b[k]) : a[k] - b[k]) * d); return rows; }
+function sortHead(cols, s, id) { return '<thead><tr>' + cols.map(c => '<th class="' + (c.lab ? 'lab ' : '') + 'sortable" data-sort="' + c.k + '" data-tbl="' + id + '"' + (s[0] === c.k ? ' aria-sort="' + (s[1] < 0 ? 'descending' : 'ascending') + '"' : '') + '>' + c.t + (c.s ? '<small>' + c.s + '</small>' : '') + '</th>').join('') + '</tr></thead>'; }
+function renderFcParts() {
+  let rows = sortRows(fcPartRows(), state.fcpSort); const q = state.fcpQ.trim().toUpperCase();
+  const all = rows.length; if (q) rows = rows.filter(r => r.n.toUpperCase().includes(q) || r.c.toUpperCase().includes(q));
+  const cols = [{ k: 'n', t: 'Part', lab: 1 }, { k: 'c', t: 'Category' }, { k: 'fc', t: 'Forecast', s: 'units, ' + F.tm.label }, { k: 'fx', t: 'Value', s: 'at purchase price' }, { k: 'avg', t: 'Fitted', s: 'per month, base months' }, { k: 'veh', t: 'Vehicles needing it', s: '% of deployed, per month' }];
+  const shown = state.fcpAll || q ? rows : rows.slice(0, 60);
+  let h = sortHead(cols, state.fcpSort, 'fcp') + '<tbody>';
+  for (const r of shown) h += '<tr><td class="lab">' + esc(r.n) + '</td><td style="text-align:left">' + esc(r.c) + '</td><td><b>' + n0(Math.ceil(r.fc)) + '</b></td><td>' + inr(r.fx) + '</td><td>' + n0(r.avg) + '</td><td>' + pct(r.veh) + '</td></tr>';
+  $('#fcp-tbl').innerHTML = h + '</tbody>';
+  $('#fcp-note').innerHTML = (q ? n0(rows.length) + ' of ' + n0(all) + ' parts match.' : shown.length < rows.length ? 'Showing the top 60 of ' + n0(rows.length) + ' parts. <button class="link" type="button" id="fcp-more">Show all</button>' : n0(rows.length) + ' parts.') + ' Forecast units are rounded up. Service, labour and rider kit lines are left out.';
+  const more = $('#fcp-more'); if (more) more.addEventListener('click', () => { state.fcpAll = true; renderFcParts(); });
+}
+
+// ---------- Consumption by age tab
+function renderAge() {
+  const o = R.no, per = R.nMon || 1;
+  const side = (i, title, sub, col) => {
+    const n = o.n[i];
+    const fig = (k, v) => '<div class="fig"><b class="num">' + v + '</b><span>' + k + '</span></div>';
+    return '<div class="panel pad side"><h3><i style="background:' + col + '"></i>' + title + '<small>' + sub + '</small></h3><div class="figs">' +
+      fig('deployed vehicles, average per month', n ? n0(n / per) : '–') + fig('ticket rate: vehicles with a ticket in a month', n ? pct(100 * o.tkVeh[i] / n) : '–') +
+      fig('repair rate: vehicles fitted with a spare part', n ? pct(100 * o.rep[i] / n) : '–') + fig('spare parts per 100 vehicles per month', o.expo[i] ? n0(100 * o.units[i] / o.expo[i]) : '–') + '</div></div>';
+  };
+  $('#age-split').innerHTML = side(0, 'New vehicles', '0–180 days', 'var(--s-new)') + side(1, 'Old vehicles', '181 days and over', 'var(--s-old)');
+  if (o.n[0] >= MIN_N && o.n[1] >= MIN_N && o.units[0] > 0) {
+    const a = 100 * o.units[0] / o.expo[0], b = 100 * o.units[1] / o.expo[1], tn = 100 * o.tkVeh[0] / o.n[0], to = 100 * o.tkVeh[1] / o.n[1];
+    $('#age-lede').innerHTML = 'In a month, <b>' + n0(to) + '%</b> of old vehicles raise a ticket against <b>' + n0(tn) + '%</b> of new ones, and an old vehicle uses <b>' + (b / a).toFixed(1) + ' times</b> the spare parts of a new one (' + n0(b) + ' against ' + n0(a) + ' units per 100 vehicles).';
+  } else $('#age-lede').textContent = 'Not enough vehicles in the current selection to compare new and old.';
+  ageChart();
+  const W = state.bw;
+  $('#age-measure').innerHTML = [['rate', 'Per 100 vehicles'], ['pct', '% of vehicles'], ['units', 'Units'], ['val', '₹ per 100']].map(([k, t]) => '<button type="button" data-measure="' + k + '" aria-pressed="' + (state.measure === k) + '">' + t + '</button>').join('');
+  $('#age-bw').innerHTML = [90, 180, 360].map(w => '<button type="button" data-bw="' + w + '" aria-pressed="' + (W === w) + '">' + w + ' days</button>').join('');
+  const nb = R.show, cols = nb + 2, mk = fn => { const a = new Float64Array(R.st); for (let b = 0; b < R.st; b++) a[b] = fn(b); return a; };
+  const row = (label, sub, vals, kind, bar, tips, cls) => '<tr class="' + (cls || '') + '"><td class="lab">' + esc(label) + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</td>' + cells(vals, kind, bar, tips) + '</tr>';
+  let h = '<thead>' + headRow('Days since first deployment', 'All ages', true) + '</thead><tbody>';
+  h += '<tr class="sec"><td class="lab" colspan="' + cols + '">Fleet and tickets</td></tr>';
+  h += row('Deployed vehicles', 'average per month', mk(b => R.n[b] / per), 'int', false, b => bandName(b) + '\n' + n0(R.n[b]) + ' vehicle-months over ' + R.nMon + ' month' + (R.nMon === 1 ? '' : 's'));
+  h += row('Share of the deployed fleet', '', mk(b => R.n[R.T] ? 100 * R.n[b] / R.n[R.T] : NaN), 'pct', true);
+  h += row('Ticket rate', 'vehicles with a ticket ÷ deployed', mk(b => R.n[b] ? 100 * R.tkVeh[b] / R.n[b] : NaN), 'pct', true, b => bandName(b) + '\n' + n0(R.tkVeh[b]) + ' of ' + n0(R.n[b]) + ' vehicle-months had a ticket', 'l0');
+  h += row('Repair rate', 'vehicles fitted with a spare part ÷ deployed', mk(b => R.n[b] ? 100 * R.spare.V[b] / R.n[b] : NaN), 'pct', true, b => bandName(b) + '\n' + n0(R.spare.V[b]) + ' of ' + n0(R.n[b]) + ' vehicle-months had a spare part fitted', 'l0');
+  h += row('Tickets per 100 vehicles', 'per month', mk(b => R.expo[b] ? 100 * R.tk[b] / R.expo[b] : NaN), 'dec', true, b => bandName(b) + '\n' + n0(R.tk[b]) + ' tickets');
+  const kind = state.measure === 'units' ? 'int' : state.measure === 'pct' ? 'pct' : state.measure === 'val' ? 'inr' : 'dec';
+  const mval = (U, V, X, b) => state.measure === 'units' ? U[b] : state.measure === 'pct' ? (R.n[b] > 0 ? 100 * V[b] / R.n[b] : NaN) : state.measure === 'val' ? (R.expo[b] > 0 ? 100 * X[b] / R.expo[b] : NaN) : (R.expo[b] > 0 ? 100 * U[b] / R.expo[b] : NaN);
+  const mtext = state.measure === 'units' ? 'total units in the base months' : state.measure === 'pct' ? '% of deployed vehicles needing it in a month' : state.measure === 'val' ? '₹ at purchase price per 100 vehicles per month' : 'units per 100 vehicles per month';
+  const tip = (name, U, V) => b => name + ' · ' + bandName(b) + '\n' + n0(U[b]) + ' units on ' + n0(R.n[b]) + ' vehicle-months\n' + n0(V[b]) + ' vehicle-months needed it (' + (R.n[b] ? f1.format(100 * V[b] / R.n[b]) : '0') + '%)';
+  const prow = (lv, label, U, V, X, key, open, openable) => { const vals = mk(b => mval(U, V, X, b)); return '<tr class="l' + lv + '"><td class="lab">' + (openable ? twBtn(key, open, label) : (lv === 0 ? '<span class="tw"></span>' : '')) + esc(label) + '</td>' + cells(vals, kind, lv < 2 && state.measure !== 'units', tip(label, U, V)) + '</tr>'; };
+  const tr = tree(state.open, prow, 'a', (arr, off) => arr[off + R.T] > 0), rh = headRow('Days since first deployment', 'All ages', true, 'rephead');
+  h += '<tr class="sec"><td class="lab" colspan="' + cols + '">Spare parts · ' + esc(mtext) + '</td></tr>' + rh;
+  h += prow(0, 'All spare parts', R.spare.U, R.spare.V, R.spare.X, '', false, false).replace('class="l0"', 'class="l0 total"');
+  h += tr.spare;
+  if (tr.other) h += '<tr class="sec"><td class="lab" colspan="' + cols + '">Not spare parts · ' + esc(mtext) + '</td></tr>' + rh + tr.other;
+  $('#age-tbl').innerHTML = h + '</tbody>';
+  const sel = D.months.filter((m, i) => state.months.has(i)).map(m => m.label);
+  $('#age-sub').textContent = sel.join(', ') + ' · ' + (state.two ? '2-wheelers' : 'all vehicle types') + (state.city ? ' · ' + state.city : '') + ' · ' + (state.models.size === D.models.length ? 'all models' : state.models.size + ' models') + ' · ' + (svcShown().every(s => state.svc.has(s)) ? 'all service types' : svcShown().filter(s => state.svc.has(s)).map(s => D.svc[s]).join(', '));
+  const notes = []; let thin = []; for (let b = 0; b < nb; b++) if (R.n[b] > 0 && R.n[b] < MIN_N) thin.push(R.labels[b]);
+  if (thin.length) notes.push('Grey columns (' + thin.join(', ') + ' days) have fewer than ' + MIN_N + ' vehicle-months, so their rates are not reliable.');
+  if (R.offRent) notes.push(n0(R.offRent) + ' vehicle-months had a ticket or a part fitted while off rent and are counted as deployed.');
+  notes.push('Hover a figure to see the counts behind it. Use the arrows to open a group down to part level.');
+  $('#age-note').textContent = notes.join(' ');
+}
+function ageChart() {
+  const pts = D.months.map((m, i) => { const t = R.trend[i]; return { l: m.label.slice(0, 3) + (m.partial ? ' (1–' + m.upto + ')' : ''), p: m.partial, v: [0, 1].map(o => t.e[o] > 0 && t.n[o] >= MIN_N ? 100 * t.u[o] / t.e[o] : NaN), n: t.n, u: t.u }; });
+  lineChart('#age-chart', '#age-chart-x', pts, [['New', 'var(--s-new)'], ['Old', 'var(--s-old)']], v => n0(v), (p, i) => p.l + '\nNew: ' + n0(p.v[0]) + ' per 100 (' + n0(p.u[0]) + ' units, ' + n0(p.n[0]) + ' vehicles)\nOld: ' + n0(p.v[1]) + ' per 100 (' + n0(p.u[1]) + ' units, ' + n0(p.n[1]) + ' vehicles)' + (p.p ? '\nPart month: tickets still open are missing' : ''));
+}
+
+// ---------- charts (plain SVG + HTML; a crosshair and tooltip on hover)
+function niceMax(v) { if (!(v > 0)) return 1; const p = Math.pow(10, Math.floor(Math.log10(v))), s = [1, 2, 2.5, 5, 10].find(x => x * p >= v); return s * p; }
+function lineChart(sel, xsel, pts, series, fmt, tipFn) {
+  const el = $(sel), w = el.clientWidth || 600, H = el.clientHeight || 220, n = pts.length;
+  let mx = 0; pts.forEach(p => p.v.forEach(v => { if (!isNaN(v) && v > mx) mx = v; })); mx = niceMax(mx * 1.08);
+  const X = i => n === 1 ? w / 2 : 14 + i * (w - 28) / (n - 1), Y = v => H - (v / mx) * H;
+  let h = ''; for (let k = 0; k <= 4; k++) { const v = mx * k / 4; h += '<div class="gl' + (k === 0 ? ' base' : '') + '" style="top:' + Y(v).toFixed(1) + 'px"><span>' + fmt(v) + '</span></div>'; }
+  let svg = '<svg viewBox="0 0 ' + w + ' ' + H + '" preserveAspectRatio="none" aria-hidden="true">';
+  series.forEach((s, si) => {
+    let d = '', dd = '';
+    pts.forEach((p, i) => { const v = p.v[si]; if (isNaN(v)) return; const cmd = (p.p && i > 0 && !isNaN(pts[i - 1].v[si])) ? null : null; const seg = (d ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(v).toFixed(1); if (p.p && i > 0) { dd = 'M' + X(i - 1).toFixed(1) + ' ' + Y(pts[i - 1].v[si]).toFixed(1) + ' L' + X(i).toFixed(1) + ' ' + Y(v).toFixed(1); } else d += seg; });
+    svg += '<path d="' + d + '" fill="none" stroke="' + s[1] + '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>';
+    if (dd) svg += '<path d="' + dd + '" fill="none" stroke="' + s[1] + '" stroke-width="2" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"/>';
+  });
+  svg += '</svg>';
+  h += svg;
+  series.forEach((s, si) => pts.forEach((p, i) => { if (!isNaN(p.v[si])) h += '<span class="dot" style="left:' + X(i).toFixed(1) + 'px;top:' + Y(p.v[si]).toFixed(1) + 'px;background:' + s[1] + '"></span>'; }));
+  // direct labels at the last point
+  const li = (() => { for (let i = n - 1; i >= 0; i--) if (pts[i].v.some(v => !isNaN(v))) return i; return -1; })();
+  if (li >= 0) { const ys = series.map((s, si) => ({ si, y: Y(pts[li].v[si]) })).filter(o => !isNaN(o.y)).sort((a, b) => a.y - b.y); for (let k = 1; k < ys.length; k++) if (ys[k].y - ys[k - 1].y < 16) ys[k].y = ys[k - 1].y + 16; ys.forEach(o => { if (X(li) + 60 < w + 50) h += '<span class="lbl" style="left:' + (X(li) + 9).toFixed(1) + 'px;top:' + o.y.toFixed(1) + 'px">' + series[o.si][0] + ' ' + fmt(pts[li].v[o.si]) + '</span>'; }); }
+  h += '<div class="hl" hidden></div>';
+  el.innerHTML = h;
+  $(xsel).innerHTML = pts.map((p, i) => '<span style="left:' + X(i).toFixed(1) + 'px">' + esc(p.l) + '</span>').join('');
+  const hl = el.querySelector('.hl'), tip = $('#tip');
+  el.onpointermove = e => { const r = el.getBoundingClientRect(), x = e.clientX - r.left; let i = n === 1 ? 0 : Math.round((x - 14) / ((w - 28) / (n - 1))); i = Math.max(0, Math.min(n - 1, i)); hl.hidden = false; hl.style.left = X(i) + 'px'; tip.hidden = false; tip.textContent = tipFn(pts[i], i); placeTip(e); };
+  el.onpointerleave = () => { hl.hidden = true; tip.hidden = true; };
+}
+function barChart(sel, xsel, pts, fmt, tipFn) {
+  const el = $(sel), w = el.clientWidth || 600, H = el.clientHeight || 220, n = pts.length;
+  let mx = 0; pts.forEach(p => { if (p.v > mx) mx = p.v; }); mx = niceMax(mx * 1.05);
+  const slot = w / Math.max(1, n), bw = Math.max(6, Math.min(44, slot * 0.62)), Y = v => (v / mx) * H;
+  let h = ''; for (let k = 0; k <= 4; k++) { const v = mx * k / 4; h += '<div class="gl' + (k === 0 ? ' base' : '') + '" style="top:' + (H - Y(v)).toFixed(1) + 'px"><span>' + fmt(v) + '</span></div>'; }
+  pts.forEach((p, i) => { const x = slot * i + (slot - bw) / 2; h += '<div class="bar" style="left:' + x.toFixed(1) + 'px;width:' + bw.toFixed(1) + 'px;height:' + Math.max(p.v > 0 ? 2 : 0, Y(p.v)).toFixed(1) + 'px;' + (p.dim ? 'opacity:.38' : '') + '"></div><div class="hit" data-i="' + i + '" style="left:' + (slot * i).toFixed(1) + 'px;width:' + slot.toFixed(1) + 'px"></div>'; });
+  el.innerHTML = h;
+  $(xsel).innerHTML = pts.map((p, i) => '<span style="left:' + (slot * i + slot / 2).toFixed(1) + 'px">' + esc(p.l) + '</span>').join('');
+  const tip = $('#tip');
+  el.onpointermove = e => { const t = e.target.closest('.hit'); if (!t) { tip.hidden = true; return; } tip.hidden = false; tip.textContent = tipFn(pts[+t.dataset.i]); placeTip(e); };
+  el.onpointerleave = () => { tip.hidden = true; };
+}
+function placeTip(e) { const tip = $('#tip'), r = tip.getBoundingClientRect(); let x = e.clientX + 14, y = e.clientY + 14; if (x + r.width > innerWidth - 8) x = e.clientX - r.width - 14; if (y + r.height > innerHeight - 8) y = e.clientY - r.height - 14; tip.style.left = Math.max(8, x) + 'px'; tip.style.top = Math.max(8, y) + 'px'; }
+
+// ---------- Hubs tab
+function hubRows() {
+  const per = R.nMon || 1, monOn = D.months.map((m, i) => state.months.has(i)), d30 = D.months.map(m => m.days / 30), svcOn = [0, 1, 2, 3, 4].map(s => state.svc.has(s));
+  const H = D.hubs.map((n, i) => ({ i, n, city: T.cityOfHub[i] || '', vm: 0, e: 0, units: 0, val: 0, grp: new Float64Array(N_SPARE_GRP), fcVeh: 0, net: 0 }));
+  const on = new Uint8Array(T.nVM);
+  for (let i = 0; i < T.nVM; i++) { if (!monOn[T.m[i]] || !vmOn(i) || T.age[i] < 0) continue; on[i] = 1; const h = H[T.hub[i]]; h.vm++; h.e += d30[T.m[i]]; }
+  for (let j = 0; j < T.nPL; j++) { if (!on[T.pvm[j]] || !svcOn[T.psvc[j]]) continue; const c = T.skuCat[T.psku[j]]; if (c >= N_SPARE_CAT) continue; const h = H[T.phub[j]]; h.units += T.pq[j]; h.val += T.pv[j]; h.grp[GRP[c]] += T.pq[j]; }
+  // forecast: the hub's vehicles in the month x the hub's own spare parts per vehicle; and the same vehicles at network rates by age
+  const fu = F.fc(R.spare.U), netRate = new Float64Array(R.nb); for (let b = 0; b < R.nb; b++) netRate[b] = F.veh[b] > 0 ? fu[b] / F.veh[b] : 0;
+  const scale = F.base.reduce((a, b) => a + b, 0) > 0 ? F.veh.reduce((a, b) => a + b, 0) / Math.max(1, F.base.reduce((a, b) => a + b, 0) - Math.max(0, state.fcPlan || 0)) : 1;
+  for (const [hub, arr] of F.hubVeh) { const h = H[hub]; let v = 0, net = 0; for (let b = 0; b < R.nb; b++) { v += arr[b]; net += arr[b] * netRate[b]; } h.fcVeh = v; h.net = net; }
+  for (const h of H) {
+    h.veh = h.vm / per; h.um = h.units / per; h.vx = h.val / per; h.top = h.units > 0 ? GROUP_LABEL[h.grp.indexOf(Math.max(...h.grp))] : '';
+    h.own = h.veh >= MIN_N;                       // enough vehicles of its own for a rate per vehicle
+    h.rate = h.own && h.e > 0 ? 100 * h.units / h.e : NaN;
+    h.fc = h.own ? h.fcVeh * (h.units / h.e) * F.f : h.um * F.f;   // too few vehicles of its own (RSA, warehouses): its monthly average
+  }
+  return H.filter(h => (h.units > 0 || h.vm > 0 || h.fcVeh > 0) && (!state.city || h.city === state.city));
+}
+function renderHubs() {
+  let rows = sortRows(hubRows(), state.hubSort);
+  const tot = rows.reduce((a, h) => ({ veh: a.veh + h.veh, um: a.um + h.um, vx: a.vx + h.vx, fcVeh: a.fcVeh + h.fcVeh, fc: a.fc + h.fc, net: a.net + h.net }), { veh: 0, um: 0, vx: 0, fcVeh: 0, fc: 0, net: 0 });
+  const mxU = Math.max(1, ...rows.map(h => h.um));
+  const cols = [{ k: 'n', t: 'Hub', lab: 1 }, { k: 'city', t: 'City' }, { k: 'veh', t: 'Deployed vehicles', s: 'average per month' }, { k: 'um', t: 'Spare parts fitted', s: 'per month, base months' }, { k: 'rate', t: 'Per 100 vehicles', s: 'per 30 days' },
+    { k: 'vx', t: 'Value', s: 'per month' }, { k: 'fcVeh', t: 'Vehicles', s: F.tm.label }, { k: 'fc', t: 'Forecast', s: 'at the hub\'s own rate' }, { k: 'net', t: 'At network rates', s: 'by vehicle age' }];
+  let h = sortHead(cols, state.hubSort, 'hub') + '<tbody>';
+  for (const r of rows) h += '<tr class="click" data-hub="' + r.i + '" aria-selected="' + (state.hub === r.i) + '" tabindex="0"><td class="lab">' + esc(r.n) + '</td><td style="text-align:left">' + esc(r.city) + '</td><td>' + n0(r.veh) + '</td><td><div class="ibar"><b>' + n0(r.um) + '</b><i style="width:' + (100 * r.um / mxU).toFixed(1) + '%"></i></div></td><td>' + n0(r.rate) + '</td><td>' + inr(r.vx) + '</td><td>' + n0(r.fcVeh) + '</td><td><b>' + n0(r.fc) + '</b></td><td>' + (r.own ? n0(r.net) : '–') + '</td></tr>';
+  h += '<tr class="total"><td class="lab">All hubs</td><td></td><td>' + n0(tot.veh) + '</td><td>' + n0(tot.um) + '</td><td>' + n0(tot.veh ? 100 * tot.um / tot.veh : NaN) + '</td><td>' + inr(tot.vx) + '</td><td>' + n0(tot.fcVeh) + '</td><td>' + n0(tot.fc) + '</td><td>' + n0(tot.net) + '</td></tr>';
+  $('#hub-tbl').innerHTML = h + '</tbody>';
+  const sel = D.months.filter((m, i) => state.months.has(i)).map(m => m.label);
+  $('#hub-sub').textContent = 'Base months ' + sel.join(', ') + '. Parts count where they were fitted (the hub on the ticket); vehicles count at the hub they were deployed from. Pick a hub to see its parts.';
+  $('#hub-note').textContent = 'A hub whose forecast at its own rate is well above the network-rate figure is fitting more parts per vehicle than vehicles of the same age elsewhere. A hub with fewer than ' + MIN_N + ' deployed vehicles of its own, such as RSA technicians (S3) who fit parts on the road, is forecast at its monthly average. The network-rate column applies each age band\'s rate from the Forecast tab to the hub\'s vehicles, so it ages the fleet; the hub\'s own rate does not.';
+  if (state.hub == null || !rows.some(r => r.i === state.hub)) state.hub = rows.length ? rows.slice().sort((a, b) => b.um - a.um)[0].i : null;
+  $$('#hub-tbl tr[data-hub]').forEach(tr => tr.setAttribute('aria-selected', +tr.dataset.hub === state.hub));
+  renderHubParts(rows.find(r => r.i === state.hub));
+}
+function hubPartRows(hub) {
+  const per = R.nMon || 1, monOn = D.months.map((m, i) => state.months.has(i)), svcOn = [0, 1, 2, 3, 4].map(s => state.svc.has(s));
+  const u = new Float64Array(D.skus.length), x = new Float64Array(D.skus.length); let all = 0;
+  for (let j = 0; j < T.nPL; j++) { if (T.phub[j] !== hub.i || !svcOn[T.psvc[j]]) continue; const i = T.pvm[j]; if (!monOn[T.m[i]] || !vmOn(i) || T.age[i] < 0) continue; const k = T.psku[j]; if (T.skuCat[k] >= N_SPARE_CAT) continue; u[k] += T.pq[j]; x[k] += T.pv[j]; all += T.pq[j]; }
+  const ratio = all > 0 ? hub.fc / all : 0, out = [];
+  for (let k = 0; k < u.length; k++) if (u[k] > 0) out.push({ n: D.skus[k][0], c: D.cats[T.skuCat[k]], avg: u[k] / per, share: 100 * u[k] / all, fc: u[k] * ratio, fx: x[k] * ratio });
+  return out;
+}
+function renderHubParts(hub) {
+  if (!hub) { $('#hubp-tbl').innerHTML = ''; $('#hubp-title').textContent = 'Parts for the hub'; return; }
+  $('#hubp-title').textContent = 'Parts for ' + hub.n;
+  $('#hubp-sub').textContent = 'Fitted per month in the base months, and the hub\'s ' + F.tm.label + ' forecast of ' + n0(hub.fc) + ' units split in the same proportions.';
+  let rows = sortRows(hubPartRows(hub), ['fc', -1]); const q = state.hubpQ.trim().toUpperCase(); if (q) rows = rows.filter(r => r.n.toUpperCase().includes(q) || r.c.toUpperCase().includes(q));
+  let h = '<thead><tr><th class="lab">Part</th><th style="text-align:left">Category</th><th>Fitted<small>per month</small></th><th>Share<small>of the hub\'s parts</small></th><th>Forecast<small>units, ' + esc(F.tm.label) + '</small></th><th>Value<small>forecast</small></th></tr></thead><tbody>';
+  const lim = q || state.hubpAll ? rows : rows.slice(0, 40);
+  for (const r of lim) h += '<tr><td class="lab">' + esc(r.n) + '</td><td style="text-align:left">' + esc(r.c) + '</td><td>' + n0(r.avg) + '</td><td>' + pct(r.share) + '</td><td><b>' + n0(Math.ceil(r.fc)) + '</b></td><td>' + inr(r.fx) + '</td></tr>';
+  if (lim.length < rows.length) h += '<tr><td class="lab" colspan="6"><button class="link" type="button" id="hubp-more">Show all ' + n0(rows.length) + ' parts</button></td></tr>';
+  $('#hubp-tbl').innerHTML = h + '</tbody>';
+  const more = $('#hubp-more'); if (more) more.addEventListener('click', () => { state.hubpAll = true; renderHubs(); });
+}
+
+// ---------- Procurement tab
+function prRows(from, to, allVendors) {
+  const P = D.proc, c = T.pc; return P.rows.filter(r => { const t = new Date(r[c.day] * DAY), k = t.getUTCFullYear() * 12 + t.getUTCMonth(); return k >= from && k <= to && (allVendors || state.prVendor < 0 || r[c.vendor] === state.prVendor); });
+}
+function procTotals(from, to, allVendors) { const c = T.pc; let amt = 0; const inv = new Set(); for (const r of prRows(from, to, allVendors)) { if (r[c.freight]) continue; amt += r[c.amount] || 0; inv.add(r[c.vendor] + '|' + r[c.inv]); } return { amt, inv: inv.size }; }
+function vendorList() { const c = T.pc, s = new Map(); for (const r of D.proc.rows) s.set(r[c.vendor], (s.get(r[c.vendor]) || 0) + (r[c.amount] || 0)); return [...s.entries()].sort((a, b) => b[1] - a[1]).map(([i]) => ({ i, n: D.proc.dicts.vendor[i] })); }
+function renderProc() {
+  if (!D.proc) { $('#v-proc').innerHTML = '<div class="panel pad">No Spares Master Report was found when the data was last refreshed. Download it from SharePoint into Downloads and run the refresh.</div>'; return; }
+  const P = D.proc, c = T.pc, Dd = P.dicts, rows = prRows(state.prFrom, state.prTo);
+  let amt = 0, fr = 0, unpriced = 0; const inv = new Set(), vend = new Map(), items = new Map();
+  for (const r of rows) {
+    if (r[c.freight]) { fr += r[c.amount] || 0; continue; }
+    const a = r[c.amount] || 0; amt += a; inv.add(r[c.vendor] + '|' + r[c.inv]); if (!a) unpriced++;
+    let v = vend.get(r[c.vendor]); if (!v) vend.set(r[c.vendor], v = { n: Dd.vendor[r[c.vendor]], amt: 0, lines: 0, inv: new Set(), last: 0, items: new Set() }); v.amt += a; v.lines++; v.inv.add(r[c.inv]); v.last = Math.max(v.last, r[c.day]); v.items.add(r[c.item]);
+    let it = items.get(r[c.item]); if (!it) items.set(r[c.item], it = { n: Dd.item[r[c.item]], qty: 0, amt: 0, pq: 0, lo: Infinity, hi: 0, last: 0, lastRate: NaN, vend: new Set(), rows: [] });
+    it.qty += r[c.qty]; it.amt += a; if (r[c.cost] > 0 && a > 0) { it.pq += r[c.qty]; const rate = a / Math.max(1, r[c.qty]); it.lo = Math.min(it.lo, rate); it.hi = Math.max(it.hi, rate); if (r[c.day] >= it.last) { it.last = r[c.day]; it.lastRate = rate; } } it.vend.add(r[c.vendor]); it.rows.push(r[c.row]);
+  }
+  const period = MON[state.prFrom % 12] + ' ' + Math.floor(state.prFrom / 12) + (state.prTo !== state.prFrom ? ' – ' + MON[state.prTo % 12] + ' ' + Math.floor(state.prTo / 12) : '');
+  const nMon = state.prTo - state.prFrom + 1;
+  $('#pr-run').innerHTML = '<div><b class="num">' + inr(amt) + '</b><span>spent, excluding GST</span><small>' + esc(period) + (nMon > 1 ? ' · ' + inr(amt / nMon) + ' a month' : '') + '</small></div>' +
+    '<div><b class="num">' + n0(inv.size) + '</b><span>invoices</span><small>' + n0(rows.length) + ' lines</small></div>' +
+    '<div><b class="num">' + n0(vend.size) + '</b><span>vendors</span><small>' + (vend.size ? esc([...vend.values()].sort((a, b) => b.amt - a.amt)[0].n) + ' is the largest' : '') + '</small></div>' +
+    '<div><b class="num">' + inr(fr) + '</b><span>freight</span><small>kept out of item spend' + (unpriced ? ' · ' + n0(unpriced) + ' lines have no cost' : '') + '</small></div>';
+  // monthly chart: last 12 months that have data up to the end of the period
+  const endK = T.prMonths[T.prMonths.length - 1], ks = []; for (let k = endK - 11; k <= endK; k++) ks.push(k);
+  const byM = new Map(); for (const r of D.proc.rows) { if (r[c.freight]) continue; if (state.prVendor >= 0 && r[c.vendor] !== state.prVendor) continue; const t = new Date(r[c.day] * DAY), k = t.getUTCFullYear() * 12 + t.getUTCMonth(); byM.set(k, (byM.get(k) || 0) + (r[c.amount] || 0)); }
+  barChart('#pr-chart', '#pr-chart-x', ks.map(k => ({ k, l: MON[k % 12] + (k % 12 === 0 || k === ks[0] ? ' ’' + String(Math.floor(k / 12)).slice(2) : ''), v: byM.get(k) || 0, dim: k < state.prFrom || k > state.prTo })), v => inr(v).replace('₹', '').replace(' ', ''), p => MON[p.k % 12] + ' ' + Math.floor(p.k / 12) + '\n' + inr(p.v) + ' excluding GST');
+  // vendors
+  const vr = sortRows([...vend.values()].map(v => ({ n: v.n, amt: v.amt, share: amt ? 100 * v.amt / amt : 0, inv: v.inv.size, lines: v.lines, items: v.items.size, last: v.last })), state.prVSort);
+  const vmax = Math.max(1, ...vr.map(v => v.amt));
+  let h = sortHead([{ k: 'n', t: 'Vendor', lab: 1 }, { k: 'amt', t: 'Spend', s: 'excl. GST' }, { k: 'share', t: 'Share' }, { k: 'inv', t: 'Invoices' }, { k: 'items', t: 'Items' }, { k: 'last', t: 'Last purchase' }], state.prVSort, 'prv') + '<tbody>';
+  for (const v of vr) h += '<tr><td class="lab">' + esc(v.n) + '</td><td><div class="ibar"><b>' + inr(v.amt) + '</b><i style="width:' + (100 * v.amt / vmax).toFixed(1) + '%"></i></div></td><td>' + pct(v.share) + '</td><td>' + n0(v.inv) + '</td><td>' + n0(v.items) + '</td><td>' + esc(dayLabel(v.last)) + '</td></tr>';
+  $('#pr-v-tbl').innerHTML = h + '</tbody>'; $('#pr-v-sub').textContent = esc(period) + ', spend excluding GST and freight.';
+  T.prVend = vr;
+  // items
+  let ir = [...items.values()].map(it => ({ n: it.n, qty: it.qty, amt: it.amt, avg: it.pq > 0 ? it.amt / it.pq : NaN, lo: isFinite(it.lo) ? it.lo : NaN, hi: it.hi || NaN, last: it.lastRate, nv: it.vend.size, rows: it.rows }));
+  ir = sortRows(ir, state.prSort); T.prItems = ir; const q = state.prQ.trim().toUpperCase(); const shown = q ? ir.filter(r => r.n.toUpperCase().includes(q)) : ir;
+  h = sortHead([{ k: 'n', t: 'Item', lab: 1 }, { k: 'qty', t: 'Quantity' }, { k: 'amt', t: 'Spend', s: 'excl. GST' }, { k: 'avg', t: 'Average rate' }, { k: 'lo', t: 'Lowest rate' }, { k: 'hi', t: 'Highest rate' }, { k: 'last', t: 'Last rate' }, { k: 'nv', t: 'Vendors' }], state.prSort, 'pri') + '<tbody>';
+  const lim = state.prAll || q ? shown : shown.slice(0, 60);
+  for (const r of lim) h += '<tr data-tip="' + esc('Rows in the sheet: ' + r.rows.slice(0, 30).join(', ') + (r.rows.length > 30 ? ' …' : '')) + '"><td class="lab">' + esc(r.n) + '</td><td>' + n0(r.qty) + '</td><td>' + inr(r.amt) + '</td><td>' + (isNaN(r.avg) ? '–' : '₹' + n1(r.avg)) + '</td><td>' + (isNaN(r.lo) ? '–' : '₹' + n1(r.lo)) + '</td><td>' + (isNaN(r.hi) ? '–' : '₹' + n1(r.hi)) + '</td><td>' + (isNaN(r.last) ? '–' : '₹' + n1(r.last)) + '</td><td>' + n0(r.nv) + '</td></tr>';
+  $('#pr-i-tbl').innerHTML = h + '</tbody>';
+  $('#pr-i-sub').textContent = esc(period) + '. Different spellings of the same item are grouped; hover a row to see its rows in the sheet.';
+  $('#pr-i-note').innerHTML = (q ? n0(shown.length) + ' of ' + n0(ir.length) + ' items match.' : lim.length < shown.length ? 'Showing the top 60 of ' + n0(shown.length) + ' items. <button class="link" type="button" id="pr-more">Show all</button>' : n0(shown.length) + ' items.') + ' A wide gap between the lowest and highest rate is worth a look before the next order.';
+  const more = $('#pr-more'); if (more) more.addEventListener('click', () => { state.prAll = true; renderProc(); });
+  // flags for the period
+  const inP = new Set(rows.map(r => r[c.row])), fl = P.flags.filter(f => inP.has(f[0]) || /left out/.test(f[1]) && rowInPeriod(f[0]));
+  const fshow = state.prFlagsAll ? fl : fl.filter(f => !/^no unit cost$/.test(f[1])).slice(0, 25);
+  h = '<thead><tr><th style="text-align:left">Row</th><th class="lab">Item</th><th style="text-align:left">What the reader did</th></tr></thead><tbody>';
+  for (const f of fshow) h += '<tr><td style="text-align:left">' + f[0] + '</td><td class="lab">' + esc(f[2]) + '</td><td style="text-align:left;white-space:normal">' + esc(f[1]) + '</td></tr>';
+  $('#pr-f-tbl').innerHTML = h + '</tbody>';
+  $('#pr-f-sub').textContent = n0(fl.length) + ' lines in this period were read with care: repeats left out, dates corrected, costs that look like line totals, and lines without a cost. Row numbers are rows of the "Procurement vendor wise data" sheet.';
+  $('#pr-f-more').textContent = state.prFlagsAll ? 'Show fewer' : 'Show all';
+}
+function rowInPeriod(row) { const c = T.pc, rs = D.proc.rows; let best = null; for (const r of rs) { if (r[c.row] < row) best = r; else break; } if (!best) return false; const t = new Date(best[c.day] * DAY), k = t.getUTCFullYear() * 12 + t.getUTCMonth(); return k >= state.prFrom && k <= state.prTo; }
+
+// ---------- CSV, copy
+function csv(name, head, rows) {
+  const q = v => { const s = v == null ? '' : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  const text = '﻿' + [head, ...rows].map(r => r.map(q).join(',')).join('\r\n');
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'text/csv;charset=utf-8' })); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+}
+function copyTable(sel, btn) {
+  const rows = [...$(sel).querySelectorAll('tr')].map(tr => [...tr.children].map(td => (td.childNodes[0] && td.childNodes[0].nodeType === 3 ? td.childNodes[0].textContent : td.textContent).replace(/[▸▾]/g, '').trim()).join('\t')).join('\n');
+  const done = () => { const t = btn.textContent; btn.textContent = 'Copied'; setTimeout(() => btn.textContent = t, 1500); };
+  if (navigator.clipboard) navigator.clipboard.writeText(rows).then(done, () => {});
+}
+
+// ---------- events
+function bind() {
+  $$('.tabs button').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
+  document.addEventListener('click', e => {
+    const tw = e.target.closest('[data-tw]'); if (tw) { const k = tw.dataset.tw, set = k[0] === 'f' ? state.fcOpen : state.open; if (set.has(k)) set.delete(k); else set.add(k); render(); return; }
+    const m = e.target.closest('[data-measure]'); if (m) { state.measure = m.dataset.measure; render(); return; }
+    const bw = e.target.closest('[data-bw]'); if (bw) { state.bw = +bw.dataset.bw; state.fcEdit = {}; render(); return; }
+    const so = e.target.closest('th.sortable'); if (so) { const key = { fcp: 'fcpSort', hub: 'hubSort', pri: 'prSort', prv: 'prVSort' }[so.dataset.tbl], k = so.dataset.sort; state[key] = [k, state[key][0] === k ? -state[key][1] : (['n', 'c', 'city', 'top'].includes(k) ? 1 : -1)]; render(); return; }
+    const hr = e.target.closest('tr[data-hub]'); if (hr) { state.hub = +hr.dataset.hub; state.hubpAll = false; renderHubs(); $('#hubp-sec').scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+    const pd = e.target.closest('details.pop'); $$('details.pop[open]').forEach(d => { if (d !== pd) d.open = false; });
+  });
+  document.addEventListener('keydown', e => { if (e.key === 'Enter') { const hr = e.target.closest && e.target.closest('tr[data-hub]'); if (hr) { state.hub = +hr.dataset.hub; renderHubs(); } } if (e.key === 'Escape') $$('details.pop[open]').forEach(d => d.open = false); });
+  $('#fc-in').addEventListener('change', e => {
+    const t = e.target;
+    if (t.id === 'fc-t') { state.fcTarget = +t.value; state.fcEdit = {}; }
+    else if (t.id === 'fc-rtd') { state.fcRtd = t.checked; state.fcEdit = {}; }
+    else if (t.id === 'fc-plan') { state.fcPlan = Math.max(0, Math.round(+t.value || 0)); }
+    else if (t.dataset.b != null) { const v = t.value === '' ? null : +t.value; if (v == null || isNaN(v)) delete state.fcEdit[t.dataset.b]; else state.fcEdit[t.dataset.b] = v; }
+    render();
+  });
+  $('#fc-reset').addEventListener('click', () => { state.fcEdit = {}; state.fcPlan = 0; render(); });
+  $('#fc-copy').addEventListener('click', e => copyTable('#fc-tbl', e.target));
+  $('#age-copy').addEventListener('click', e => copyTable('#age-tbl', e.target));
+  $('#fcp-q').addEventListener('input', e => { state.fcpQ = e.target.value; renderFcParts(); });
+  $('#hubp-q').addEventListener('input', e => { state.hubpQ = e.target.value; renderHubs(); });
+  $('#pr-q').addEventListener('input', e => { state.prQ = e.target.value; renderProc(); });
+  $('#pr-f-more').addEventListener('click', () => { state.prFlagsAll = !state.prFlagsAll; renderProc(); });
+  $('#fcp-csv').addEventListener('click', () => { const rows = sortRows(fcPartRows(), ['fc', -1]); csv('Spares forecast ' + F.tm.label + '.csv', ['Part', 'Category', 'Group', 'Forecast units ' + F.tm.label, 'Forecast value (Rs)', 'Fitted per month (base months)', '% of deployed vehicles per month'], rows.map(r => [r.n, r.c, r.g, Math.ceil(r.fc), Math.round(r.fx), Math.round(r.avg), r.veh.toFixed(2)])); });
+  $('#hub-csv').addEventListener('click', () => { const rows = sortRows(hubRows(), ['um', -1]); csv('Spares by hub ' + F.tm.label + '.csv', ['Hub', 'City', 'Deployed vehicles per month', 'Spare parts per month', 'Per 100 vehicles', 'Value per month (Rs)', 'Largest group', 'Vehicles ' + F.tm.label, 'Forecast (hub rate)', 'Forecast (network rates)'], rows.map(h => [h.n, h.city, Math.round(h.veh), Math.round(h.um), isNaN(h.rate) ? '' : h.rate.toFixed(1), Math.round(h.vx), h.top, Math.round(h.fcVeh), Math.round(h.fc), Math.round(h.net)])); });
+  $('#hubp-csv').addEventListener('click', () => { const hub = hubRows().find(r => r.i === state.hub); if (!hub) return; const rows = sortRows(hubPartRows(hub), ['fc', -1]); csv('Spares for ' + hub.n + ' ' + F.tm.label + '.csv', ['Part', 'Category', 'Fitted per month', 'Share %', 'Forecast units ' + F.tm.label, 'Forecast value (Rs)'], rows.map(r => [r.n, r.c, Math.round(r.avg), r.share.toFixed(2), Math.ceil(r.fc), Math.round(r.fx)])); });
+  $('#pr-i-csv').addEventListener('click', () => csv('Items bought.csv', ['Item', 'Quantity', 'Spend excl GST (Rs)', 'Average rate', 'Lowest rate', 'Highest rate', 'Last rate', 'Vendors', 'Sheet rows'], (T.prItems || []).map(r => [r.n, r.qty, Math.round(r.amt), isNaN(r.avg) ? '' : r.avg.toFixed(2), isNaN(r.lo) ? '' : r.lo.toFixed(2), isNaN(r.hi) ? '' : r.hi.toFixed(2), isNaN(r.last) ? '' : r.last.toFixed(2), r.nv, r.rows.join(' ')])));
+  $('#pr-v-csv').addEventListener('click', () => csv('Vendors.csv', ['Vendor', 'Spend excl GST (Rs)', 'Share %', 'Invoices', 'Items', 'Last purchase'], (T.prVend || []).map(v => [v.n, Math.round(v.amt), v.share.toFixed(2), v.inv, v.items, dayLabel(v.last)])));
+  // tooltips on table cells
+  const tip = $('#tip');
+  document.addEventListener('pointerover', e => { const c = e.target.closest && e.target.closest('td[data-tip],tr[data-tip]'); if (!c) return; tip.hidden = false; tip.textContent = c.dataset.tip; placeTip(e); });
+  document.addEventListener('pointermove', e => { if (!tip.hidden && e.target.closest && e.target.closest('td[data-tip],tr[data-tip]')) placeTip(e); });
+  document.addEventListener('pointerout', e => { const c = e.target.closest && e.target.closest('td[data-tip],tr[data-tip]'); if (c && !c.contains(e.relatedTarget)) tip.hidden = true; });
+  let rt = 0; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (state.tab === 'age') ageChart(); if (state.tab === 'proc') renderProc(); }, 150); });
+  addEventListener('hashchange', () => { const t = location.hash.slice(1); if (['fc', 'age', 'hub', 'proc'].includes(t) && t !== state.tab) setTab(t); });
+}
+function setTab(t) {
+  const wasProc = state.tab === 'proc'; state.tab = t; $('#app').dataset.tab = t;
+  $$('.tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === t));
+  if (wasProc !== (t === 'proc')) buildFilters();
+  render();
+}
+function readHash() { const t = location.hash.slice(1); if (['fc', 'age', 'hub', 'proc'].includes(t)) { state.tab = t; $('#app').dataset.tab = t; $$('.tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === t)); } }
+function writeHash() { const h = '#' + state.tab; if (location.hash !== h) history.replaceState(null, '', h); }
+
+function defs() {
+  const items = [
+    ['Vehicle age', 'Days since the vehicle was first deployed, as Cercle OS counts it (“vehicle age”). New is 0–180 days, old is 181 days and over. For a past month, the age is taken at the end of that month.'],
+    ['Deployed vehicles', 'Vehicles on rent for at least part of the month, from the tag log, plus the few that had a ticket or a part fitted while off rent. A vehicle counts once per month.'],
+    ['Ticket rate', 'Vehicles with at least one vehicle ticket resolved in the month ÷ deployed vehicles.'],
+    ['Repair rate', 'Vehicles that had at least one spare part fitted in the month ÷ deployed vehicles. Labour-only tickets and tickets closed without work do not count.'],
+    ['Spare parts per 100 vehicles', 'Parts fitted ÷ deployed vehicles × 100, scaled to 30 days. A part counts in the month its ticket was resolved.'],
+    ['Value', 'Quantity × the purchase price on the Cercle OS line. A line without a purchase price takes the median purchase price of the same part.'],
+    ['Forecast', 'For each age band: vehicles expected in the month × that band\'s parts per vehicle in the base months × days in the month ÷ 30, added up. A band with fewer than ' + POOL_N + ' vehicle-months uses the older bands together. The starting vehicles are those on rent at the last refresh, aged to the end of the month; the counts can be changed.'],
+    ['Hub', 'Parts count at the hub on the ticket (where they were fitted). Vehicles count at the hub they were last deployed from in the month. S3 locations are shown together as RSA technicians.'],
+    ['Part groups', 'Consumables (wear parts) = brakes, tyres and wheels, fasteners. Plastic = body and panels. Electrical = electricals, lighting and mirrors. Mechanical = suspension and chassis, other parts. Motor and controller = motor and drivetrain. Names follow the monthly spare parts plan.'],
+    ['Procurement', 'Lines of the “Procurement vendor wise data” sheet of the Spares Master Report. Spend = quantity × unit cost, excluding GST; freight is shown apart. Repeated header rows and totals are skipped; an invoice keyed twice, a day and month typed the wrong way round, and a cost that is the line total are corrected and listed under Lines to check.']];
+  $('#defs').innerHTML = items.map(([a, b]) => '<dt>' + esc(a) + '</dt><dd>' + esc(b) + '</dd>').join('');
+  const c = D.chk;
+  $('#foot').textContent = 'Data: ' + n0(c.vehicles) + ' vehicles, ' + n0(c.tickets) + ' tickets and ' + n0(c.partUsed) + ' part lines since ' + D.months[0].label + '. Left out: ' + n0(c.partNoFleet) + ' part lines on vehicles not in the fleet list and ' + n0(c.partOutside) + ' outside the months shown. ' + (c.noPrice ? n0(c.noPriceUnits || 0) + ' spare units have no purchase price anywhere and carry no value. ' : '') + 'Refreshed with the fleet dashboard.';
+}
+
+load();
+})();
+</script>
+</body>
+</html>
