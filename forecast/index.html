@@ -246,30 +246,41 @@ tbody tr.click:hover td, tbody tr[aria-selected="true"] td { background: var(--a
     <section class="sec">
       <header>
         <div><h2 id="fc-title">Forecast</h2><p id="fc-sub"></p></div>
-        <div class="tools"><button class="btn" id="fc-reset" type="button">Reset vehicle counts</button></div>
+        <div class="tools"><div class="seg" id="fc-month" role="group" aria-label="Forecast month"></div></div>
       </header>
       <div class="panel">
-        <div class="fcin" id="fc-in"></div>
+        <div class="fcin">
+          <label>New deployments planned in the month<input type="number" min="0" step="50" id="fc-plan" value="0"></label>
+          <p class="note" style="padding:0 0 6px;max-width:60ch" id="fc-plan-note"></p>
+        </div>
         <div class="run" id="fc-run"></div>
       </div>
       <p class="lede" id="fc-lede"></p>
     </section>
     <section class="sec">
       <header>
-        <div><h2>Forecast by part group and vehicle age</h2><p>Open a group to see its categories and parts.</p></div>
+        <div><h2>By part group</h2><p id="fcg-sub"></p></div>
         <div class="tools"><button class="btn" id="fc-copy" type="button">Copy table</button></div>
       </header>
-      <div class="panel"><div class="scroll"><table id="fc-tbl"></table></div><p class="note" id="fc-note"></p></div>
+      <div class="panel"><div class="scroll"><table id="fc-tbl"></table></div></div>
     </section>
     <section class="sec">
       <header>
-        <div><h2>Parts to plan</h2><p id="fcp-sub">Every part, its forecast for the month and what was fitted in the base months.</p></div>
+        <div><h2>Parts to plan</h2><p id="fcp-sub"></p></div>
         <div class="tools">
           <div class="fld"><input type="search" id="fcp-q" placeholder="Search parts" aria-label="Search parts"></div>
           <button class="btn" id="fcp-csv" type="button">Download CSV</button>
         </div>
       </header>
       <div class="panel"><div class="scroll"><table id="fcp-tbl"></table></div><p class="note" id="fcp-note"></p></div>
+    </section>
+    <section class="sec">
+      <header>
+        <div><h2>How accurate it has been</h2><p>Each past month forecast by this same method, using only the data available on the 1st of that month (and, for comparison, from the middle of the month before), against the spare parts actually fitted.</p></div>
+        <div class="legend"><span><i style="background:var(--s-new)"></i>Forecast on the 1st</span><span><i style="background:var(--s-old)"></i>Actually fitted</span></div>
+      </header>
+      <div class="panel pad"><div class="chart" id="acc-chart"></div><div class="chart-x" id="acc-chart-x"></div></div>
+      <div class="panel"><div class="scroll"><table id="acc-tbl"></table></div><p class="note" id="acc-note"></p></div>
     </section>
   </div>
 
@@ -394,9 +405,9 @@ const MIN_N = 30, POOL_N = 200;
 
 let D = null;                 // the data file
 let T = null;                 // typed arrays and derived indexes
-let R = null, F = null;       // consumption result, forecast result
+let R = null, F = null;       // consumption result, forecast for the chosen month
 const state = { tab: 'fc', months: new Set(), two: true, models: null, svc: new Set([0, 1, 2, 3, 4]), city: '', bw: 180, measure: 'rate',
-  open: new Set(), fcOpen: new Set(), fcTarget: 1, fcRtd: false, fcPlan: 0, fcEdit: {}, fcpQ: '', fcpSort: ['fc', -1], fcpAll: false,
+  open: new Set(), fcT: 1, fcPlan: 0, fcpQ: '', fcpSort: ['fc', -1], fcpAll: false,
   hub: null, hubpAll: false, hubSort: ['um', -1], hubpQ: '', prFrom: null, prTo: null, prVendor: -1, prQ: '', prSort: ['amt', -1], prVSort: ['amt', -1], prFlagsAll: false, prAll: false };
 
 // ---------- data source: the encrypted files the refresh publishes beside the fleet dashboard's, same passphrase
@@ -445,7 +456,7 @@ async function load() {
     return;
   }
   prepare(); readHash(); buildFilters(); bind(); defs(); render();
-  $('#loading').hidden = true; $('#filters').hidden = false; $('#defs-sec').hidden = false;
+  $('#loading').hidden = true; $('#filters').hidden = state.tab === 'fc'; $('#defs-sec').hidden = false;
 }
 
 // ---------- typed arrays and indexes
@@ -587,34 +598,32 @@ function compute() {
 }
 const pooled = (arr, b, off) => { let s = 0; for (const x of R.src[b]) s += arr[(off || 0) + x]; return s; };
 
-// ---------- forecast: next month's vehicles by age band x each band's rate
-function targetMonth() {
-  const g = new Date(D.gen + IST), k = g.getUTCFullYear() * 12 + g.getUTCMonth() + state.fcTarget, y = Math.floor(k / 12), mo = k % 12;
-  const s = Date.UTC(y, mo, 1) / DAY, e = Date.UTC(y, mo + 1, 1) / DAY;
-  return { label: MON[mo] + ' ' + y, days: e - s, end: e - 1, k };
-}
+// ---------- forecast: computed by the refresh (official.py), shown here; planned deployments are added on the page
+const SAFE = q => { const z = D.fc2.safe[0], k = D.fc2.safe[1]; return q + z * Math.sqrt(q + (k * q) * (k * q)); };
+let PRICE = null;
 function forecast() {
-  const tm = targetMonth(), genDay = Math.floor((D.gen + IST) / DAY), shift = tm.end - genDay, nb = R.nb;
-  const base = new Float64Array(nb), hubVeh = new Map();
-  for (const r of D.now) {
-    const [mo, hub, age, tag, two] = r; if (age < 0) continue;
-    if (!(tag === 0 || (state.fcRtd && tag === 1))) continue;
-    if (state.two && !two) continue; if (!state.models.has(mo)) continue; if (state.city && T.cityOfHub[hub] !== state.city) continue;
-    const b = bandOf(age + shift, R.W, nb); base[b]++;
-    let h = hubVeh.get(hub); if (!h) hubVeh.set(hub, h = new Float64Array(nb)); h[b]++;
-  }
-  base[0] += Math.max(0, state.fcPlan || 0);
-  const veh = new Float64Array(nb); for (let b = 0; b < nb; b++) { const e = state.fcEdit[b]; veh[b] = e == null || isNaN(e) ? base[b] : Math.max(0, e); }
-  const f = tm.days / 30;
-  const fc = (U, off) => { const o = new Float64Array(R.st); let t = 0; for (let b = 0; b < nb; b++) { const e = pooled(R.expo, b); const v = e > 0 ? veh[b] * pooled(U, b, off) / e * f : 0; o[b] = v; t += v; } o[R.T] = t; return o; };
-  return { tm, base, veh, f, fc, hubVeh, shift };
+  const fc = D.fc2, tg = fc.targets[Math.min(state.fcT, fc.targets.length - 1)];
+  if (!PRICE) { PRICE = new Map(); for (const t of fc.targets) for (const [k, f, sf, v] of t.sku) if (f > 0 && !PRICE.has(k)) PRICE.set(k, v / f); }
+  const sku = new Map(); for (const [k, f] of tg.sku) sku.set(k, f);
+  const ref = fc.targets[1] || tg, add = Math.max(0, state.fcPlan || 0), sc = tg.days / ref.days;
+  if (add) for (const k in fc.newPer) sku.set(+k, (sku.get(+k) || 0) + fc.newPer[k] * add * sc);
+  let total = 0, value = 0, safe = 0; const groups = new Float64Array(N_SPARE_GRP), cats = new Float64Array(N_SPARE_CAT);
+  for (const [k, f] of sku) { total += f; value += f * (PRICE.get(k) || 0); safe += SAFE(f); const c = T.skuCat[k]; cats[c] += f; groups[GRP[c]] += f; }
+  return { tg, tm: { label: tg.label, days: tg.days }, sku, total, value, safe, groups, cats, add };
+}
+function lastFullActual() {
+  const lm = lastFullMonth(), by = new Map(), on = new Uint8Array(T.nVM);
+  for (let i = 0; i < T.nVM; i++) if (T.m[i] === lm && T.two[i]) on[i] = 1;
+  for (let j = 0; j < T.nPL; j++) { if (!on[T.pvm[j]]) continue; const k = T.psku[j]; if (T.skuCat[k] >= N_SPARE_CAT) continue; by.set(k, (by.get(k) || 0) + T.pq[j]); }
+  return { label: D.months[lm].label, by };
 }
 
 // ---------- render
 function render() {
-  R = compute(); F = forecast();
+  R = compute(); F = D.fc2 ? forecast() : { tm: { label: '' }, sku: new Map(), total: 0, value: 0 };
   kpis();
   $$('.view').forEach(v => v.hidden = v.id !== 'v-' + state.tab);
+  $('#filters').hidden = state.tab === 'fc';
   if (state.tab === 'fc') renderForecast();
   else if (state.tab === 'age') renderAge();
   else if (state.tab === 'hub') renderHubs();
@@ -631,10 +640,11 @@ function monthTotals(mi) {
 function kpis() {
   const lm = lastFullMonth(), a = monthTotals(lm), b = lm > 0 ? monthTotals(lm - 1) : null, mL = D.months[lm];
   const chg = (x, y, good) => { if (!y) return ''; const d = 100 * (x - y) / y; const cls = (d > 0) === good ? 'g' : 'b'; return ' · <span class="' + cls + '">' + (d >= 0 ? '+' : '') + f1.format(d) + '%</span> on ' + MON[(D.months[lm - 1].ym.slice(5) - 1)]; };
-  const fcU = F.fc(R.spare.U)[R.T], fcX = F.fc(R.spare.X)[R.T];
+  const nx = D.fc2 ? (D.fc2.targets[1] || D.fc2.targets[0]) : { label: 'next month', total: NaN, value: NaN };
+  const fcU = nx.total + (D.fc2 && state.fcPlan && state.fcT === D.fc2.targets.indexOf(nx) ? F.total - F.tg.total : 0), fcX = nx.value;
   let h = '<div class="kpi"><span class="nm">Deployed vehicles, ' + esc(mL.label) + '</span><b class="num">' + n0(a.n) + '</b><span class="sh">' + (b ? chg(a.n, b.n, true).replace(' · ', '') : '') + '</span></div>';
   h += '<div class="kpi"><span class="nm">Spare parts fitted, ' + esc(mL.label) + '</span><b class="num">' + n0(a.units) + '</b><span class="sh">' + inr(a.val) + ' at purchase price' + (b ? chg(a.units, b.units, false) : '') + '</span></div>';
-  h += '<div class="kpi"><span class="nm">Forecast, ' + esc(F.tm.label) + '</span><b class="num">' + n0(fcU) + '</b><span class="sh">spare units · ' + inr(fcX) + '</span></div>';
+  h += '<div class="kpi"><span class="nm">Forecast, ' + esc(nx.label) + '</span><b class="num">' + n0(fcU) + '</b><span class="sh">spare units · ' + inr(fcX) + '</span></div>';
   if (D.proc) { const k = T.prLastFull, p = procTotals(k, k, true); h += '<div class="kpi"><span class="nm">Bought, ' + MON[k % 12] + ' ' + Math.floor(k / 12) + '</span><b class="num">' + inr(p.amt) + '</b><span class="sh">excl. GST · ' + n0(p.inv) + ' invoices</span></div>'; }
   else h += '<div class="kpi"><span class="nm">Procurement</span><b class="num">–</b><span class="sh">no Spares Master Report in the last refresh</span></div>';
   $('#kpis').innerHTML = h;
@@ -676,75 +686,78 @@ const twBtn = (key, open, label) => '<button class="tw" type="button" data-tw="'
 
 // ---------- Forecast tab
 function renderForecast() {
-  const tm = F.tm, nb = R.nb, show = Math.max(R.show, (() => { let l = 0; for (let b = 0; b < nb; b++) if (F.veh[b] > 0) l = b; return l + 1; })());
-  $('#fc-title').textContent = 'Forecast for ' + tm.label;
-  const sel = D.months.filter((m, i) => state.months.has(i)).map(m => m.label);
-  $('#fc-sub').textContent = 'Vehicles expected in each age band × that band\'s consumption in ' + sel.join(', ') + '. Change the vehicle counts to match the deployment plan.';
-  let h = '<label>Forecast month<select id="fc-t" style="height:34px;border:1px solid var(--line2);border-radius:6px;background:var(--surface);padding:0 8px">';
-  for (const k of [0, 1, 2]) { const g = new Date(D.gen + IST), kk = g.getUTCFullYear() * 12 + g.getUTCMonth() + k; h += '<option value="' + k + '"' + (k === state.fcTarget ? ' selected' : '') + '>' + MON[kk % 12] + ' ' + Math.floor(kk / 12) + (k === 0 ? ' (this month)' : '') + '</option>'; }
-  h += '</select></label>';
-  h += '<label class="check"><input type="checkbox" id="fc-rtd"' + (state.fcRtd ? ' checked' : '') + '> Count ready-to-deploy vehicles too</label>';
-  h += '<label>New deployments planned<input type="number" min="0" step="10" id="fc-plan" value="' + (state.fcPlan || 0) + '"></label>';
-  for (let b = 0; b < show; b++) { const ed = state.fcEdit[b] != null; h += '<label>' + R.labels[b] + ' days<input type="number" min="0" step="1" data-b="' + b + '" class="' + (ed ? 'edited' : '') + '" value="' + Math.round(F.veh[b]) + '" title="Starting point: ' + n0(F.base[b]) + '"></label>'; }
-  $('#fc-in').innerHTML = h;
-  const U = F.fc(R.spare.U), X = F.fc(R.spare.X), nVeh = F.veh.reduce((a, b) => a + b, 0);
-  const g = GROUP_LABEL.slice(0, N_SPARE_GRP).map((n, i) => ({ n, u: F.fc(R.grp[i].U)[R.T] })).sort((a, b) => b.u - a.u);
-  $('#fc-run').innerHTML = '<div><b class="num">' + n0(U[R.T]) + '</b><span>spare parts</span><small>' + n0(nVeh) + ' vehicles · ' + n1(nVeh ? 100 * U[R.T] / nVeh / F.f : NaN) + ' per 100 per 30 days</small></div>' +
-    '<div><b class="num">' + inr(X[R.T]) + '</b><span>at purchase price</span><small>excluding labour and rider kit</small></div>' +
-    '<div><b class="num">' + n0(g[0].u) + '</b><span>' + esc(g[0].n) + '</span><small>' + pct(U[R.T] ? 100 * g[0].u / U[R.T] : NaN) + ' of the forecast</small></div>' +
-    '<div><b class="num">' + n0(g[1].u) + '</b><span>' + esc(g[1].n) + '</span><small>' + pct(U[R.T] ? 100 * g[1].u / U[R.T] : NaN) + ' of the forecast</small></div>';
-  // lede: forecast against the base months' average
-  const per = R.nMon || 1, avgU = R.spare.U[R.T] / per, newU = (() => { let s = 0; for (let b = 0; b < nb; b++) if ((b + 1) * R.W <= 180) s += U[b]; return s; })();
-  $('#fc-lede').innerHTML = 'The base months fitted an average of <b>' + n0(avgU) + '</b> spare parts a month. ' + esc(tm.label) + ' is forecast at <b>' + n0(U[R.T]) + '</b>' +
-    (avgU > 0 ? ' (' + (U[R.T] >= avgU ? '+' : '') + f1.format(100 * (U[R.T] - avgU) / avgU) + '%)' : '') + ', because the fleet keeps ageing: ' +
-    '<b>' + pct(U[R.T] ? 100 * (U[R.T] - newU) / U[R.T] : NaN) + '</b> of the demand comes from vehicles over 180 days old.';
-  // table
-  const cols = show + 2;
-  const row = (label, sub, vals, kind, cls) => '<tr class="' + (cls || '') + '"><td class="lab">' + esc(label) + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</td>' + cells(vals, kind, false, null, show) + '</tr>';
-  const vv = new Float64Array(R.st); for (let b = 0; b < nb; b++) vv[b] = F.veh[b]; vv[R.T] = nVeh;
-  const rate = new Float64Array(R.st); for (let b = 0; b < nb; b++) { const e = pooled(R.expo, b); rate[b] = e > 0 ? 100 * pooled(R.spare.U, b) / e : NaN; } rate[R.T] = nVeh ? 100 * U[R.T] / nVeh / F.f : NaN;
-  let t = '<thead>' + headRow('Days since first deployment, at the end of ' + esc(tm.label), 'Total', false, '', show) + '</thead><tbody>';
-  t += row('Vehicles', 'expected in the month', vv, 'int');
-  t += row('Spare parts per 100 vehicles', 'per 30 days, from the base months', rate, 'dec');
-  t += '<tr class="sec"><td class="lab" colspan="' + cols + '">Forecast spare parts, units</td></tr>';
-  t += row('All spare parts', '', U, 'int', 'l0 total');
-  const fcRow = (lv, label, Ux, Vx, Xx, key, open, openable) => {
-    const off = Ux.byteOffset / 8; const all = Ux.buffer === R.skuU.buffer ? F.fc(R.skuU, off) : F.fc(Ux);
-    return '<tr class="l' + lv + '"><td class="lab">' + (openable ? twBtn(key, open, label) : (lv === 0 ? '<span class="tw"></span>' : '')) + esc(label) + '</td>' + cells(all, 'int', false, null, show) + '</tr>';
-  };
-  const tr = tree(state.fcOpen, fcRow, 'f', (arr, off) => arr[off + R.T] > 0);
-  t += tr.spare;
-  if (tr.other) t += '<tr class="sec"><td class="lab" colspan="' + cols + '">Not spare parts, units</td></tr>' + tr.other;
-  $('#fc-tbl').innerHTML = t + '</tbody>';
-  const notes = ['The starting vehicle counts are the vehicles on rent at the last refresh' + (state.fcRtd ? ' plus those ready to deploy' : '') + ', aged to the end of ' + tm.label + (state.fcPlan ? ', plus ' + n0(state.fcPlan) + ' new deployments in the first band' : '') + '.'];
-  const pooledB = []; for (let b = 0; b < show; b++) if (R.src[b].length > 1) pooledB.push(R.labels[b]);
-  if (pooledB.length) notes.push('Bands with fewer than ' + POOL_N + ' vehicle-months in the base months (' + pooledB.join(', ') + ' days) use the older bands together.');
-  if (D.months.some((m, i) => state.months.has(i) && m.partial)) notes.push('A part-month is in the base: its rates are scaled to 30 days, but a few days of tickets make it less steady than a full month.');
-  $('#fc-note').textContent = notes.join(' ');
-  renderFcParts();
-}
-function fcPartRows() {
-  const st = R.st, nb = R.nb, out = [], per = R.nMon || 1;
-  for (let k = 0; k < D.skus.length; k++) {
-    if (T.skuCat[k] >= N_SPARE_CAT && !state.fcpAll) continue;
-    const off = k * st; if (R.skuU[off + R.T] <= 0) continue;
-    const fc = F.fc(R.skuU, off)[R.T], fx = F.fc(R.skuX, off)[R.T];
-    out.push({ k, n: D.skus[k][0], c: D.cats[T.skuCat[k]], g: GROUP_LABEL[GRP[T.skuCat[k]]], fc, fx, avg: R.skuU[off + R.T] / per, veh: R.n[R.T] ? 100 * R.skuV[off + R.T] / R.n[R.T] : 0 });
-  }
-  return out;
+  if (!D.fc2) { $('#v-fc').innerHTML = '<div class="panel pad">The forecast appears after the next refresh.</div>'; return; }
+  const fc = D.fc2, tg = F.tg, LA = lastFullActual();
+  $('#fc-month').innerHTML = fc.targets.map((t, i) => '<button type="button" data-fct="' + i + '" aria-pressed="' + (i === state.fcT) + '">' + esc(t.label) + (t.soFar != null ? ' (this month)' : '') + '</button>').join('');
+  $('#fc-title').textContent = 'Forecast for ' + tg.label;
+  $('#fc-sub').textContent = 'All 2-wheelers in all cities, spare parts only. Made from Cercle OS data up to ' + stamp(fc.made) + '.';
+  $('#fc-plan').value = state.fcPlan || 0;
+  const perNew = Object.values(fc.newPer).reduce((a, b) => a + b, 0) * tg.days / (fc.targets[1] || tg).days;
+  $('#fc-plan-note').textContent = 'Vehicles on rent now (' + n0(tg.onRent) + ') are already counted, with new deployments and returns at the recent pace. Add only deployments beyond the usual: each new vehicle adds about ' + n1(perNew) + ' parts in the month.';
+  const g = GROUP_LABEL.slice(0, N_SPARE_GRP).map((n, i) => ({ n, u: F.groups[i] })).sort((a, b) => b.u - a.u);
+  let run = '<div><b class="num">' + n0(F.total) + '</b><span>spare parts expected</span><small>' + inr(F.value) + ' at purchase price' + (F.add ? ' · includes ' + n0(F.add) + ' planned deployments' : '') + '</small></div>' +
+    (() => { const g = tg.drift, L = tg.lead, hi = D.fc2.driftCap[1], lo = F.total / Math.pow(g, L), up = F.total * Math.pow(hi / g, L);
+      return '<div><b class="num">' + n0(Math.round(lo / 100) * 100) + '–' + n0(Math.round(up / 100) * 100) + '</b><span>likely range</span><small>low if parts per vehicle stop rising now, high if they rise 8% a month</small></div>'; })();
+  if (tg.soFar != null) run += '<div><b class="num">' + n0(tg.soFar) + '</b><span>fitted so far</span><small>in the first ' + n1(tg.soFarDays) + ' days · about ' + n0(Math.max(0, F.total - tg.soFar)) + ' still to come</small></div>';
+  else run += '<div><b class="num">' + n0(g[0].u) + '</b><span>' + esc(g[0].n) + '</span><small>' + pct(F.total ? 100 * g[0].u / F.total : NaN) + ' of the forecast</small></div>';
+  run += '<div><b class="num">' + n0(g[1].u) + '</b><span>' + esc(g[1].n) + '</span><small>' + pct(F.total ? 100 * g[1].u / F.total : NaN) + ' of the forecast</small></div>';
+  $('#fc-run').innerHTML = run;
+  const la = [...LA.by.values()].reduce((a, b) => a + b, 0), recent = fc.track.filter(t => !t.partial).slice(-3);
+  const ch = la ? 100 * (F.total * 30 / tg.days - la * 30 / D.months[lastFullMonth()].days) / (la * 30 / D.months[lastFullMonth()].days) : NaN;
+  $('#fc-lede').innerHTML = esc(LA.label) + ' fitted <b>' + n0(la) + '</b> spare parts. ' + esc(tg.label) + ' is forecast at <b>' + n0(F.total) + '</b>, ' + f0.format(Math.abs(ch)) + '% ' + (ch >= 0 ? 'more' : 'fewer') + ' a day: the fleet on rent keeps ageing and parts per vehicle have been rising by about <b>' + f1.format(100 * (tg.drift - 1)) + '%</b> a month.' +
+    (recent.length ? ' Made on the 1st, the forecast missed the last ' + recent.length + ' full months by <b>' + recent.map(t => (t.err >= 0 ? '+' : '') + f1.format(t.err) + '%').join(', ') + '</b>' + (recent.some(t => Math.abs(t.err) > 10) ? ' (the large miss is July\'s sudden jump, explained below).' : '.') : '');
+  // groups and categories x months
+  const cols = fc.targets.map(t => t.label);
+  const catF = fc.targets.map((t, ti) => { const a = new Float64Array(N_SPARE_CAT); for (const [k, f] of (ti === state.fcT ? [...F.sku] : t.sku)) a[T.skuCat[k]] += f; return a; });
+  const catA = new Float64Array(N_SPARE_CAT); for (const [k, q] of LA.by) catA[T.skuCat[k]] += q;
+  const catS = new Float64Array(N_SPARE_CAT); const so = fc.targets[0].soFarSku || {}; for (const k in so) catS[T.skuCat[+k]] += so[k];
+  let h = '<thead><tr><th class="lab">Part group</th><th>' + esc(LA.label) + '<small>actual</small></th>' + (fc.targets[0].soFar != null ? '<th>' + esc(fc.targets[0].label) + '<small>so far, ' + n1(fc.targets[0].soFarDays) + ' days</small></th>' : '') + cols.map((c, i) => '<th' + (i === state.fcT ? ' style="color:var(--accent)"' : '') + '>' + esc(c) + '<small>forecast</small></th>').join('') + '</tr></thead><tbody>';
+  const sum = (a, idx) => idx.reduce((x, c) => x + a[c], 0);
+  const row = (lab, idx, cls) => '<tr class="' + cls + '"><td class="lab">' + lab + '</td><td>' + n0(sum(catA, idx)) + '</td>' + (fc.targets[0].soFar != null ? '<td>' + n0(sum(catS, idx)) + '</td>' : '') + catF.map(a => '<td>' + n0(sum(a, idx)) + '</td>').join('') + '</tr>';
+  const all = [...Array(N_SPARE_CAT).keys()];
+  h += row('All spare parts', all, 'l0 total');
+  GROUP_LABEL.slice(0, N_SPARE_GRP).map((n, gi) => ({ n, gi, idx: all.filter(c => GRP[c] === gi) })).sort((a, b) => sum(catF[state.fcT] || catF[0], b.idx) - sum(catF[state.fcT] || catF[0], a.idx)).forEach(G => {
+    h += row(esc(G.n), G.idx, 'l0');
+    if (G.idx.length > 1) G.idx.forEach(c => { h += row(esc(D.cats[c]), [c], 'l1'); });
+  });
+  $('#fc-tbl').innerHTML = h + '</tbody>';
+  $('#fcg-sub').textContent = 'Spare parts by group for each forecast month, beside the last full month and this month so far.';
+  renderFcParts(); renderAccuracy();
 }
 function sortRows(rows, s) { const [k, d] = s; rows.sort((a, b) => (typeof a[k] === 'string' ? a[k].localeCompare(b[k]) : a[k] - b[k]) * d); return rows; }
 function sortHead(cols, s, id) { return '<thead><tr>' + cols.map(c => '<th class="' + (c.lab ? 'lab ' : '') + 'sortable" data-sort="' + c.k + '" data-tbl="' + id + '"' + (s[0] === c.k ? ' aria-sort="' + (s[1] < 0 ? 'descending' : 'ascending') + '"' : '') + '>' + c.t + (c.s ? '<small>' + c.s + '</small>' : '') + '</th>').join('') + '</tr></thead>'; }
+function fcPartRows() {
+  const LA = lastFullActual(), so = D.fc2.targets[0].soFarSku || {}, out = [];
+  const keys = new Set([...F.sku.keys(), ...LA.by.keys()]);
+  for (const k of keys) {
+    const f = F.sku.get(k) || 0;
+    out.push({ k, n: D.skus[k][0], c: D.cats[T.skuCat[k]], fc: f, safe: f > 0 ? Math.ceil(SAFE(f)) : 0, fx: f * (PRICE.get(k) || 0), last: LA.by.get(k) || 0, so: so[k] || 0 });
+  }
+  return out;
+}
 function renderFcParts() {
   let rows = sortRows(fcPartRows(), state.fcpSort); const q = state.fcpQ.trim().toUpperCase();
   const all = rows.length; if (q) rows = rows.filter(r => r.n.toUpperCase().includes(q) || r.c.toUpperCase().includes(q));
-  const cols = [{ k: 'n', t: 'Part', lab: 1 }, { k: 'c', t: 'Category' }, { k: 'fc', t: 'Forecast', s: 'units, ' + F.tm.label }, { k: 'fx', t: 'Value', s: 'at purchase price' }, { k: 'avg', t: 'Fitted', s: 'per month, base months' }, { k: 'veh', t: 'Vehicles needing it', s: '% of deployed, per month' }];
+  const LA = lastFullActual(), t0 = D.fc2.targets[0];
+  const cols = [{ k: 'n', t: 'Part', lab: 1 }, { k: 'c', t: 'Category' }, { k: 'fc', t: 'Forecast', s: 'units, ' + F.tm.label }, { k: 'safe', t: 'Safe quantity', s: 'covers 9 in 10' }, { k: 'fx', t: 'Value', s: 'forecast at purchase price' }, { k: 'last', t: LA.label, s: 'fitted' }];
+  if (t0.soFar != null) cols.push({ k: 'so', t: t0.label, s: 'fitted so far' });
   const shown = state.fcpAll || q ? rows : rows.slice(0, 60);
   let h = sortHead(cols, state.fcpSort, 'fcp') + '<tbody>';
-  for (const r of shown) h += '<tr><td class="lab">' + esc(r.n) + '</td><td style="text-align:left">' + esc(r.c) + '</td><td><b>' + n0(Math.ceil(r.fc)) + '</b></td><td>' + inr(r.fx) + '</td><td>' + n0(r.avg) + '</td><td>' + pct(r.veh) + '</td></tr>';
+  for (const r of shown) h += '<tr><td class="lab">' + esc(r.n) + '</td><td style="text-align:left">' + esc(r.c) + '</td><td><b>' + n0(Math.round(r.fc)) + '</b></td><td>' + n0(r.safe) + '</td><td>' + inr(r.fx) + '</td><td>' + n0(r.last) + '</td>' + (t0.soFar != null ? '<td>' + n0(r.so) + '</td>' : '') + '</tr>';
   $('#fcp-tbl').innerHTML = h + '</tbody>';
-  $('#fcp-note').innerHTML = (q ? n0(rows.length) + ' of ' + n0(all) + ' parts match.' : shown.length < rows.length ? 'Showing the top 60 of ' + n0(rows.length) + ' parts. <button class="link" type="button" id="fcp-more">Show all</button>' : n0(rows.length) + ' parts.') + ' Forecast units are rounded up. Service, labour and rider kit lines are left out.';
+  $('#fcp-sub').textContent = 'Every spare part: the forecast for ' + F.tm.label + ', a safe quantity to hold, and what was actually fitted.';
+  $('#fcp-note').innerHTML = (q ? n0(rows.length) + ' of ' + n0(all) + ' parts match.' : shown.length < rows.length ? 'Showing the top 60 of ' + n0(rows.length) + ' parts. <button class="link" type="button" id="fcp-more">Show all</button>' : n0(rows.length) + ' parts.') +
+    ' Safe quantity = forecast plus a margin that, in past months, covered nine in ten parts fitted. A part forecast above zero but rarely fitted can still miss: the margin is wider in proportion for small numbers.';
   const more = $('#fcp-more'); if (more) more.addEventListener('click', () => { state.fcpAll = true; renderFcParts(); });
+}
+function renderAccuracy() {
+  const tr = D.fc2.track;
+  const pts = tr.map(t => ({ l: t.label.slice(0, 3) + (t.partial ? ' (1–' + Math.floor(t.days) + ')' : ''), p: false, v: [t.fc, t.act], t }));
+  lineChart('#acc-chart', '#acc-chart-x', pts, [['Forecast', 'var(--s-new)'], ['Actual', 'var(--s-old)']], v => n0(v), p => p.t.label + (p.t.partial ? ' (first ' + n1(p.t.days) + ' days)' : '') + '\nForecast on the 1st: ' + n0(p.t.fc) + '\nActually fitted: ' + n0(p.t.act) + '\nMiss: ' + (p.t.err >= 0 ? '+' : '') + f1.format(p.t.err) + '%');
+  let h = '<thead><tr><th class="lab">Month</th><th>Forecast<small>made on the 1st</small></th><th>Actually fitted</th><th>Miss<small>total</small></th><th>Miss by group<small>all groups</small></th><th>Miss by part<small>top 50 parts</small></th><th>Safe quantity covered<small>of parts fitted</small></th><th>Forecast<small>made mid month before</small></th><th>Miss</th></tr></thead><tbody>';
+  for (const t of tr.slice().reverse()) h += '<tr><td class="lab">' + esc(t.label) + (t.partial ? '<small>first ' + n1(t.days) + ' days</small>' : '') + '</td><td>' + n0(t.fc) + '</td><td>' + n0(t.act) + '</td><td><b>' + (t.err >= 0 ? '+' : '') + f1.format(t.err) + '%</b></td><td>' + f1.format(t.groupErr) + '%</td><td>' + f1.format(t.top50Err) + '%</td><td>' + f1.format(t.safeCover) + '%</td><td>' + (t.fcMid != null ? n0(t.fcMid) : '–') + '</td><td>' + (t.errMid != null ? (t.errMid >= 0 ? '+' : '') + f1.format(t.errMid) + '%' : '–') + '</td></tr>';
+  $('#acc-tbl').innerHTML = h + '</tbody>';
+  $('#acc-note').textContent = 'Miss by group and by part add up each group\'s or part\'s miss, over or under, as a share of all parts fitted. July shows what a sudden change does: parts per vehicle jumped by a third that month, which no forecast from June could see. The forecast is most accurate made on the 1st for the month ahead; six weeks out it misses more, so recheck it after each month closes.';
 }
 
 // ---------- Consumption by age tab
@@ -847,52 +860,52 @@ function hubRows() {
   const on = new Uint8Array(T.nVM);
   for (let i = 0; i < T.nVM; i++) { if (!monOn[T.m[i]] || !vmOn(i) || T.age[i] < 0) continue; on[i] = 1; const h = H[T.hub[i]]; h.vm++; h.e += d30[T.m[i]]; }
   for (let j = 0; j < T.nPL; j++) { if (!on[T.pvm[j]] || !svcOn[T.psvc[j]]) continue; const c = T.skuCat[T.psku[j]]; if (c >= N_SPARE_CAT) continue; const h = H[T.phub[j]]; h.units += T.pq[j]; h.val += T.pv[j]; h.grp[GRP[c]] += T.pq[j]; }
-  // forecast: the hub's vehicles in the month x the hub's own spare parts per vehicle; and the same vehicles at network rates by age
-  const fu = F.fc(R.spare.U), netRate = new Float64Array(R.nb); for (let b = 0; b < R.nb; b++) netRate[b] = F.veh[b] > 0 ? fu[b] / F.veh[b] : 0;
-  const scale = F.base.reduce((a, b) => a + b, 0) > 0 ? F.veh.reduce((a, b) => a + b, 0) / Math.max(1, F.base.reduce((a, b) => a + b, 0) - Math.max(0, state.fcPlan || 0)) : 1;
-  for (const [hub, arr] of F.hubVeh) { const h = H[hub]; let v = 0, net = 0; for (let b = 0; b < R.nb; b++) { v += arr[b]; net += arr[b] * netRate[b]; } h.fcVeh = v; h.net = net; }
+  // forecast: each part's network forecast split by where it was fitted in the last 30 days
+  const hs = D.fc2 ? D.fc2.hubShare : {}, fcH = new Float64Array(D.hubs.length), safeH = new Float64Array(D.hubs.length);
+  for (const [k, f] of F.sku) { const sh = hs[k]; if (!sh) continue; for (const [h, w] of sh) { fcH[h] += f * w; safeH[h] += SAFE(f * w); } }
   for (const h of H) {
     h.veh = h.vm / per; h.um = h.units / per; h.vx = h.val / per; h.top = h.units > 0 ? GROUP_LABEL[h.grp.indexOf(Math.max(...h.grp))] : '';
-    h.own = h.veh >= MIN_N;                       // enough vehicles of its own for a rate per vehicle
-    h.rate = h.own && h.e > 0 ? 100 * h.units / h.e : NaN;
-    h.fc = h.own ? h.fcVeh * (h.units / h.e) * F.f : h.um * F.f;   // too few vehicles of its own (RSA, warehouses): its monthly average
+    h.rate = h.veh >= MIN_N && h.e > 0 ? 100 * h.units / h.e : NaN; h.fc = fcH[h.i]; h.safe = safeH[h.i];
   }
-  return H.filter(h => (h.units > 0 || h.vm > 0 || h.fcVeh > 0) && (!state.city || h.city === state.city));
+  return H.filter(h => (h.units > 0 || h.vm > 0 || h.fc > 0.5) && (!state.city || h.city === state.city));
 }
 function renderHubs() {
   let rows = sortRows(hubRows(), state.hubSort);
-  const tot = rows.reduce((a, h) => ({ veh: a.veh + h.veh, um: a.um + h.um, vx: a.vx + h.vx, fcVeh: a.fcVeh + h.fcVeh, fc: a.fc + h.fc, net: a.net + h.net }), { veh: 0, um: 0, vx: 0, fcVeh: 0, fc: 0, net: 0 });
+  const tot = rows.reduce((a, h) => ({ veh: a.veh + h.veh, um: a.um + h.um, vx: a.vx + h.vx, fc: a.fc + h.fc, safe: a.safe + h.safe }), { veh: 0, um: 0, vx: 0, fc: 0, safe: 0 });
   const mxU = Math.max(1, ...rows.map(h => h.um));
   const cols = [{ k: 'n', t: 'Hub', lab: 1 }, { k: 'city', t: 'City' }, { k: 'veh', t: 'Deployed vehicles', s: 'average per month' }, { k: 'um', t: 'Spare parts fitted', s: 'per month, base months' }, { k: 'rate', t: 'Per 100 vehicles', s: 'per 30 days' },
-    { k: 'vx', t: 'Value', s: 'per month' }, { k: 'fcVeh', t: 'Vehicles', s: F.tm.label }, { k: 'fc', t: 'Forecast', s: 'at the hub\'s own rate' }, { k: 'net', t: 'At network rates', s: 'by vehicle age' }];
+    { k: 'vx', t: 'Value', s: 'per month' }, { k: 'fc', t: 'Forecast', s: F.tm.label }, { k: 'safe', t: 'Safe quantity', s: 'sum over its parts' }];
   let h = sortHead(cols, state.hubSort, 'hub') + '<tbody>';
-  for (const r of rows) h += '<tr class="click" data-hub="' + r.i + '" aria-selected="' + (state.hub === r.i) + '" tabindex="0"><td class="lab">' + esc(r.n) + '</td><td style="text-align:left">' + esc(r.city) + '</td><td>' + n0(r.veh) + '</td><td><div class="ibar"><b>' + n0(r.um) + '</b><i style="width:' + (100 * r.um / mxU).toFixed(1) + '%"></i></div></td><td>' + n0(r.rate) + '</td><td>' + inr(r.vx) + '</td><td>' + n0(r.fcVeh) + '</td><td><b>' + n0(r.fc) + '</b></td><td>' + (r.own ? n0(r.net) : '–') + '</td></tr>';
-  h += '<tr class="total"><td class="lab">All hubs</td><td></td><td>' + n0(tot.veh) + '</td><td>' + n0(tot.um) + '</td><td>' + n0(tot.veh ? 100 * tot.um / tot.veh : NaN) + '</td><td>' + inr(tot.vx) + '</td><td>' + n0(tot.fcVeh) + '</td><td>' + n0(tot.fc) + '</td><td>' + n0(tot.net) + '</td></tr>';
+  for (const r of rows) h += '<tr class="click" data-hub="' + r.i + '" aria-selected="' + (state.hub === r.i) + '" tabindex="0"><td class="lab">' + esc(r.n) + '</td><td style="text-align:left">' + esc(r.city) + '</td><td>' + n0(r.veh) + '</td><td><div class="ibar"><b>' + n0(r.um) + '</b><i style="width:' + (100 * r.um / mxU).toFixed(1) + '%"></i></div></td><td>' + n0(r.rate) + '</td><td>' + inr(r.vx) + '</td><td><b>' + n0(r.fc) + '</b></td><td>' + n0(r.safe) + '</td></tr>';
+  h += '<tr class="total"><td class="lab">All hubs</td><td></td><td>' + n0(tot.veh) + '</td><td>' + n0(tot.um) + '</td><td>' + n0(tot.veh ? 100 * tot.um / tot.veh : NaN) + '</td><td>' + inr(tot.vx) + '</td><td>' + n0(tot.fc) + '</td><td>' + n0(tot.safe) + '</td></tr>';
   $('#hub-tbl').innerHTML = h + '</tbody>';
   const sel = D.months.filter((m, i) => state.months.has(i)).map(m => m.label);
   $('#hub-sub').textContent = 'Base months ' + sel.join(', ') + '. Parts count where they were fitted (the hub on the ticket); vehicles count at the hub they were deployed from. Pick a hub to see its parts.';
-  $('#hub-note').textContent = 'A hub whose forecast at its own rate is well above the network-rate figure is fitting more parts per vehicle than vehicles of the same age elsewhere. A hub with fewer than ' + MIN_N + ' deployed vehicles of its own, such as RSA technicians (S3) who fit parts on the road, is forecast at its monthly average. The network-rate column applies each age band\'s rate from the Forecast tab to the hub\'s vehicles, so it ages the fleet; the hub\'s own rate does not.';
+  const hr = D.fc2 ? D.fc2.track.filter(t => t.hubErr != null).slice(-3) : [];
+  $('#hub-note').textContent = 'The forecast splits each part\'s network forecast for ' + F.tm.label + ' by where that part was fitted in the last 30 days. Choose the month on the Forecast tab.' + (hr.length ? ' Made on the 1st, hub forecasts were off by ' + hr.map(t => f1.format(t.hubErr) + '% (' + t.label.slice(0, 3) + ')').join(', ') + ' across all hubs, more than the network total, because vehicles and riders move between hubs.' : '') + ' RSA technicians (S3) fit parts on the road, so they have parts but few deployed vehicles of their own.';
   if (state.hub == null || !rows.some(r => r.i === state.hub)) state.hub = rows.length ? rows.slice().sort((a, b) => b.um - a.um)[0].i : null;
   $$('#hub-tbl tr[data-hub]').forEach(tr => tr.setAttribute('aria-selected', +tr.dataset.hub === state.hub));
   renderHubParts(rows.find(r => r.i === state.hub));
 }
 function hubPartRows(hub) {
   const per = R.nMon || 1, monOn = D.months.map((m, i) => state.months.has(i)), svcOn = [0, 1, 2, 3, 4].map(s => state.svc.has(s));
-  const u = new Float64Array(D.skus.length), x = new Float64Array(D.skus.length); let all = 0;
-  for (let j = 0; j < T.nPL; j++) { if (T.phub[j] !== hub.i || !svcOn[T.psvc[j]]) continue; const i = T.pvm[j]; if (!monOn[T.m[i]] || !vmOn(i) || T.age[i] < 0) continue; const k = T.psku[j]; if (T.skuCat[k] >= N_SPARE_CAT) continue; u[k] += T.pq[j]; x[k] += T.pv[j]; all += T.pq[j]; }
-  const ratio = all > 0 ? hub.fc / all : 0, out = [];
-  for (let k = 0; k < u.length; k++) if (u[k] > 0) out.push({ n: D.skus[k][0], c: D.cats[T.skuCat[k]], avg: u[k] / per, share: 100 * u[k] / all, fc: u[k] * ratio, fx: x[k] * ratio });
+  const u = new Float64Array(D.skus.length); let all = 0;
+  for (let j = 0; j < T.nPL; j++) { if (T.phub[j] !== hub.i || !svcOn[T.psvc[j]]) continue; const i = T.pvm[j]; if (!monOn[T.m[i]] || !vmOn(i) || T.age[i] < 0) continue; const k = T.psku[j]; if (T.skuCat[k] >= N_SPARE_CAT) continue; u[k] += T.pq[j]; all += T.pq[j]; }
+  const fh = new Map(), hs = D.fc2 ? D.fc2.hubShare : {};
+  for (const [k, f] of F.sku) { const sh = hs[k]; if (!sh) continue; for (const [h, w] of sh) if (h === hub.i) fh.set(k, f * w); }
+  const out = [];
+  for (let k = 0; k < u.length; k++) if (u[k] > 0 || fh.get(k) > 0.05) { const f = fh.get(k) || 0; out.push({ n: D.skus[k][0], c: D.cats[T.skuCat[k]], avg: u[k] / per, share: all ? 100 * u[k] / all : 0, fc: f, safe: f > 0 ? Math.ceil(SAFE(f)) : 0, fx: f * (PRICE.get(k) || 0) }); }
   return out;
 }
 function renderHubParts(hub) {
   if (!hub) { $('#hubp-tbl').innerHTML = ''; $('#hubp-title').textContent = 'Parts for the hub'; return; }
   $('#hubp-title').textContent = 'Parts for ' + hub.n;
-  $('#hubp-sub').textContent = 'Fitted per month in the base months, and the hub\'s ' + F.tm.label + ' forecast of ' + n0(hub.fc) + ' units split in the same proportions.';
+  $('#hubp-sub').textContent = 'Fitted per month in the base months, and the hub\'s share of each part\'s ' + F.tm.label + ' forecast: ' + n0(hub.fc) + ' units in all.';
   let rows = sortRows(hubPartRows(hub), ['fc', -1]); const q = state.hubpQ.trim().toUpperCase(); if (q) rows = rows.filter(r => r.n.toUpperCase().includes(q) || r.c.toUpperCase().includes(q));
-  let h = '<thead><tr><th class="lab">Part</th><th style="text-align:left">Category</th><th>Fitted<small>per month</small></th><th>Share<small>of the hub\'s parts</small></th><th>Forecast<small>units, ' + esc(F.tm.label) + '</small></th><th>Value<small>forecast</small></th></tr></thead><tbody>';
+  let h = '<thead><tr><th class="lab">Part</th><th style="text-align:left">Category</th><th>Fitted<small>per month</small></th><th>Share<small>of the hub\'s parts</small></th><th>Forecast<small>units, ' + esc(F.tm.label) + '</small></th><th>Safe quantity</th><th>Value<small>forecast</small></th></tr></thead><tbody>';
   const lim = q || state.hubpAll ? rows : rows.slice(0, 40);
-  for (const r of lim) h += '<tr><td class="lab">' + esc(r.n) + '</td><td style="text-align:left">' + esc(r.c) + '</td><td>' + n0(r.avg) + '</td><td>' + pct(r.share) + '</td><td><b>' + n0(Math.ceil(r.fc)) + '</b></td><td>' + inr(r.fx) + '</td></tr>';
-  if (lim.length < rows.length) h += '<tr><td class="lab" colspan="6"><button class="link" type="button" id="hubp-more">Show all ' + n0(rows.length) + ' parts</button></td></tr>';
+  for (const r of lim) h += '<tr><td class="lab">' + esc(r.n) + '</td><td style="text-align:left">' + esc(r.c) + '</td><td>' + n0(r.avg) + '</td><td>' + pct(r.share) + '</td><td><b>' + n0(Math.round(r.fc)) + '</b></td><td>' + n0(r.safe) + '</td><td>' + inr(r.fx) + '</td></tr>';
+  if (lim.length < rows.length) h += '<tr><td class="lab" colspan="7"><button class="link" type="button" id="hubp-more">Show all ' + n0(rows.length) + ' parts</button></td></tr>';
   $('#hubp-tbl').innerHTML = h + '</tbody>';
   const more = $('#hubp-more'); if (more) more.addEventListener('click', () => { state.hubpAll = true; renderHubs(); });
 }
@@ -968,32 +981,25 @@ function copyTable(sel, btn) {
 function bind() {
   $$('.tabs button').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
   document.addEventListener('click', e => {
-    const tw = e.target.closest('[data-tw]'); if (tw) { const k = tw.dataset.tw, set = k[0] === 'f' ? state.fcOpen : state.open; if (set.has(k)) set.delete(k); else set.add(k); render(); return; }
+    const tw = e.target.closest('[data-tw]'); if (tw) { const k = tw.dataset.tw, set = state.open; if (set.has(k)) set.delete(k); else set.add(k); render(); return; }
+    const ft = e.target.closest('[data-fct]'); if (ft) { state.fcT = +ft.dataset.fct; render(); return; }
     const m = e.target.closest('[data-measure]'); if (m) { state.measure = m.dataset.measure; render(); return; }
-    const bw = e.target.closest('[data-bw]'); if (bw) { state.bw = +bw.dataset.bw; state.fcEdit = {}; render(); return; }
+    const bw = e.target.closest('[data-bw]'); if (bw) { state.bw = +bw.dataset.bw; render(); return; }
     const so = e.target.closest('th.sortable'); if (so) { const key = { fcp: 'fcpSort', hub: 'hubSort', pri: 'prSort', prv: 'prVSort' }[so.dataset.tbl], k = so.dataset.sort; state[key] = [k, state[key][0] === k ? -state[key][1] : (['n', 'c', 'city', 'top'].includes(k) ? 1 : -1)]; render(); return; }
     const hr = e.target.closest('tr[data-hub]'); if (hr) { state.hub = +hr.dataset.hub; state.hubpAll = false; renderHubs(); $('#hubp-sec').scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
     const pd = e.target.closest('details.pop'); $$('details.pop[open]').forEach(d => { if (d !== pd) d.open = false; });
   });
   document.addEventListener('keydown', e => { if (e.key === 'Enter') { const hr = e.target.closest && e.target.closest('tr[data-hub]'); if (hr) { state.hub = +hr.dataset.hub; renderHubs(); } } if (e.key === 'Escape') $$('details.pop[open]').forEach(d => d.open = false); });
-  $('#fc-in').addEventListener('change', e => {
-    const t = e.target;
-    if (t.id === 'fc-t') { state.fcTarget = +t.value; state.fcEdit = {}; }
-    else if (t.id === 'fc-rtd') { state.fcRtd = t.checked; state.fcEdit = {}; }
-    else if (t.id === 'fc-plan') { state.fcPlan = Math.max(0, Math.round(+t.value || 0)); }
-    else if (t.dataset.b != null) { const v = t.value === '' ? null : +t.value; if (v == null || isNaN(v)) delete state.fcEdit[t.dataset.b]; else state.fcEdit[t.dataset.b] = v; }
-    render();
-  });
-  $('#fc-reset').addEventListener('click', () => { state.fcEdit = {}; state.fcPlan = 0; render(); });
+  $('#fc-plan').addEventListener('change', e => { state.fcPlan = Math.max(0, Math.round(+e.target.value || 0)); render(); });
   $('#fc-copy').addEventListener('click', e => copyTable('#fc-tbl', e.target));
   $('#age-copy').addEventListener('click', e => copyTable('#age-tbl', e.target));
   $('#fcp-q').addEventListener('input', e => { state.fcpQ = e.target.value; renderFcParts(); });
   $('#hubp-q').addEventListener('input', e => { state.hubpQ = e.target.value; renderHubs(); });
   $('#pr-q').addEventListener('input', e => { state.prQ = e.target.value; renderProc(); });
   $('#pr-f-more').addEventListener('click', () => { state.prFlagsAll = !state.prFlagsAll; renderProc(); });
-  $('#fcp-csv').addEventListener('click', () => { const rows = sortRows(fcPartRows(), ['fc', -1]); csv('Spares forecast ' + F.tm.label + '.csv', ['Part', 'Category', 'Group', 'Forecast units ' + F.tm.label, 'Forecast value (Rs)', 'Fitted per month (base months)', '% of deployed vehicles per month'], rows.map(r => [r.n, r.c, r.g, Math.ceil(r.fc), Math.round(r.fx), Math.round(r.avg), r.veh.toFixed(2)])); });
-  $('#hub-csv').addEventListener('click', () => { const rows = sortRows(hubRows(), ['um', -1]); csv('Spares by hub ' + F.tm.label + '.csv', ['Hub', 'City', 'Deployed vehicles per month', 'Spare parts per month', 'Per 100 vehicles', 'Value per month (Rs)', 'Largest group', 'Vehicles ' + F.tm.label, 'Forecast (hub rate)', 'Forecast (network rates)'], rows.map(h => [h.n, h.city, Math.round(h.veh), Math.round(h.um), isNaN(h.rate) ? '' : h.rate.toFixed(1), Math.round(h.vx), h.top, Math.round(h.fcVeh), Math.round(h.fc), Math.round(h.net)])); });
-  $('#hubp-csv').addEventListener('click', () => { const hub = hubRows().find(r => r.i === state.hub); if (!hub) return; const rows = sortRows(hubPartRows(hub), ['fc', -1]); csv('Spares for ' + hub.n + ' ' + F.tm.label + '.csv', ['Part', 'Category', 'Fitted per month', 'Share %', 'Forecast units ' + F.tm.label, 'Forecast value (Rs)'], rows.map(r => [r.n, r.c, Math.round(r.avg), r.share.toFixed(2), Math.ceil(r.fc), Math.round(r.fx)])); });
+  $('#fcp-csv').addEventListener('click', () => { const LA = lastFullActual(), t0 = D.fc2.targets[0], rows = sortRows(fcPartRows(), ['fc', -1]); csv('Spares forecast ' + F.tm.label + '.csv', ['Part', 'Category', 'Forecast units ' + F.tm.label, 'Safe quantity', 'Forecast value (Rs)', LA.label + ' fitted'].concat(t0.soFar != null ? [t0.label + ' fitted so far'] : []), rows.map(r => [r.n, r.c, Math.round(r.fc), r.safe, Math.round(r.fx), Math.round(r.last)].concat(t0.soFar != null ? [Math.round(r.so)] : []))); });
+  $('#hub-csv').addEventListener('click', () => { const rows = sortRows(hubRows(), ['um', -1]); csv('Spares by hub ' + F.tm.label + '.csv', ['Hub', 'City', 'Deployed vehicles per month', 'Spare parts per month', 'Per 100 vehicles', 'Value per month (Rs)', 'Largest group', 'Forecast ' + F.tm.label, 'Safe quantity'], rows.map(h => [h.n, h.city, Math.round(h.veh), Math.round(h.um), isNaN(h.rate) ? '' : h.rate.toFixed(1), Math.round(h.vx), h.top, Math.round(h.fc), Math.round(h.safe)])); });
+  $('#hubp-csv').addEventListener('click', () => { const hub = hubRows().find(r => r.i === state.hub); if (!hub) return; const rows = sortRows(hubPartRows(hub), ['fc', -1]); csv('Spares for ' + hub.n + ' ' + F.tm.label + '.csv', ['Part', 'Category', 'Fitted per month', 'Share %', 'Forecast units ' + F.tm.label, 'Safe quantity', 'Forecast value (Rs)'], rows.map(r => [r.n, r.c, Math.round(r.avg), r.share.toFixed(2), Math.round(r.fc), r.safe, Math.round(r.fx)])); });
   $('#pr-i-csv').addEventListener('click', () => csv('Items bought.csv', ['Item', 'Quantity', 'Spend excl GST (Rs)', 'Average rate', 'Lowest rate', 'Highest rate', 'Last rate', 'Vendors', 'Sheet rows'], (T.prItems || []).map(r => [r.n, r.qty, Math.round(r.amt), isNaN(r.avg) ? '' : r.avg.toFixed(2), isNaN(r.lo) ? '' : r.lo.toFixed(2), isNaN(r.hi) ? '' : r.hi.toFixed(2), isNaN(r.last) ? '' : r.last.toFixed(2), r.nv, r.rows.join(' ')])));
   $('#pr-v-csv').addEventListener('click', () => csv('Vendors.csv', ['Vendor', 'Spend excl GST (Rs)', 'Share %', 'Invoices', 'Items', 'Last purchase'], (T.prVend || []).map(v => [v.n, Math.round(v.amt), v.share.toFixed(2), v.inv, v.items, dayLabel(v.last)])));
   // tooltips on table cells
@@ -1021,8 +1027,9 @@ function defs() {
     ['Repair rate', 'Vehicles that had at least one spare part fitted in the month ÷ deployed vehicles. Labour-only tickets and tickets closed without work do not count.'],
     ['Spare parts per 100 vehicles', 'Parts fitted ÷ deployed vehicles × 100, scaled to 30 days. A part counts in the month its ticket was resolved.'],
     ['Value', 'Quantity × the purchase price on the Cercle OS line. A line without a purchase price takes the median purchase price of the same part.'],
-    ['Forecast', 'For each age band: vehicles expected in the month × that band\'s parts per vehicle in the base months × days in the month ÷ 30, added up. A band with fewer than ' + POOL_N + ' vehicle-months uses the older bands together. The starting vehicles are those on rent at the last refresh, aged to the end of the month; the counts can be changed.'],
-    ['Hub', 'Parts count at the hub on the ticket (where they were fitted). Vehicles count at the hub they were last deployed from in the month. S3 locations are shown together as RSA technicians.'],
+    ['Forecast', 'Spare parts per vehicle on rent per 30 days, by vehicle model and age band, from the last 30 days; × the vehicles on rent now, aged to the end of the month, at the recent pace of new deployments and returns; × the month-on-month rise in parts per vehicle (the median of the last three months, kept between 0% and 8% a month). Each model and age band is split into parts by its mix of the last 14 days. This method was chosen because it missed least when re-run on past months; How accurate it has been shows the record.'],
+    ['Safe quantity', 'The forecast plus 1.28 × √(forecast + (0.3 × forecast)²). In past months it covered nine in ten parts fitted.'],
+    ['Hub', 'Parts count at the hub on the ticket (where they were fitted). Vehicles count at the hub they were last deployed from in the month. A hub\'s forecast is its share of each part fitted in the last 30 days. S3 locations are shown together as RSA technicians.'],
     ['Part groups', 'Consumables (wear parts) = brakes, tyres and wheels, fasteners. Plastic = body and panels. Electrical = electricals, lighting and mirrors. Mechanical = suspension and chassis, other parts. Motor and controller = motor and drivetrain. Names follow the monthly spare parts plan.'],
     ['Procurement', 'Lines of the “Procurement vendor wise data” sheet of the Spares Master Report. Spend = quantity × unit cost, excluding GST; freight is shown apart. Repeated header rows and totals are skipped; an invoice keyed twice, a day and month typed the wrong way round, and a cost that is the line total are corrected and listed under Lines to check.']];
   $('#defs').innerHTML = items.map(([a, b]) => '<dt>' + esc(a) + '</dt><dd>' + esc(b) + '</dd>').join('');
