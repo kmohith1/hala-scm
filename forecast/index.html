@@ -410,6 +410,7 @@ const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAl
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const f0 = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 });
 const f1 = new Intl.NumberFormat('en-IN', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const f2 = new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const n0 = v => v == null || isNaN(v) ? '–' : f0.format(v);
 const n1 = v => v == null || isNaN(v) ? '–' : f1.format(v);
 const pct = v => v == null || isNaN(v) ? '–' : f1.format(v) + '%';
@@ -811,7 +812,7 @@ function fcPartRows() {
   const keys = new Set([...F.sku.keys(), ...LA.by.keys()]);
   for (const k of keys) {
     const f = F.sku.get(k) || 0, r = reuseOf(k), b = buyOf(k, f);
-    out.push({ k, n: D.skus[k][0], c: D.cats[T.skuCat[k]], fc: f, safe: f > 0 ? Math.ceil(SAFE(f)) : 0, r, buy: b, fx: b > 0 && !(PRICE.get(k) > 0) ? NaN : b * (PRICE.get(k) || 0), last: LA.by.get(k) || 0, so: so[k] || 0 });
+    out.push({ k, n: D.skus[k][0], c: D.cats[T.skuCat[k]], fc: f, safe: f > 0 ? Math.ceil(SAFE(f)) : 0, r, buy: b, unit: PRICE.get(k) > 0 ? PRICE.get(k) : NaN, fx: b > 0 && !(PRICE.get(k) > 0) ? NaN : b * (PRICE.get(k) || 0), last: LA.by.get(k) || 0, so: so[k] || 0 });
   }
   return out;
 }
@@ -819,7 +820,7 @@ function renderFcParts() {
   let rows = sortRows(fcPartRows(), state.fcpSort); const q = state.fcpQ.trim().toUpperCase();
   const all = rows.length; if (state.fcpMissing) rows = rows.filter(r => r.fc > 0 && !(PRICE.get(r.k) > 0)); if (q) rows = rows.filter(r => r.n.toUpperCase().includes(q) || r.c.toUpperCase().includes(q));
   const LA = lastFullActual(), t0 = D.fc2.targets[0];
-  const cols = [{ k: 'n', t: 'Part', lab: 1 }, { k: 'c', t: 'Category' }, { k: 'fc', t: 'Forecast', s: 'units, ' + F.tm.label }, { k: 'safe', t: 'Safety target', s: 'forecast + shared margin' }, { k: 'r', t: 'Reuse', s: '% repaired and refitted' }, { k: 'buy', t: 'Demand after reuse', s: 'before inventory / open orders' }, { k: 'fx', t: 'Priced value', s: 'demand after reuse' }, { k: 'last', t: LA.label, s: 'fitted' }];
+  const cols = [{ k: 'n', t: 'Part', lab: 1 }, { k: 'c', t: 'Category' }, { k: 'fc', t: 'Forecast', s: 'units, ' + F.tm.label }, { k: 'safe', t: 'Safety target', s: 'forecast + shared margin' }, { k: 'r', t: 'Reuse', s: '% repaired and refitted' }, { k: 'buy', t: 'Demand after reuse', s: 'before inventory / open orders' }, { k: 'unit', t: 'Unit cost', s: '₹ per item' }, { k: 'fx', t: 'Priced value', s: 'demand after reuse' }, { k: 'last', t: LA.label, s: 'fitted' }];
   if (t0.soFar != null) cols.push({ k: 'so', t: t0.label, s: 'fitted so far' });
   const shown = state.fcpAll || q || state.fcpMissing ? rows : rows.slice(0, 60);
   if (state.fcpOpen != null && !shown.some(r => r.k === state.fcpOpen)) state.fcpOpen = null;
@@ -827,7 +828,7 @@ function renderFcParts() {
   for (const r of shown) {
     const open = state.fcpOpen === r.k;
     h += '<tr class="click" data-fcp="' + r.k + '" aria-expanded="' + open + '" tabindex="0"><td class="lab"><span class="tw" aria-hidden="true">' + (open ? '▾' : '▸') + '</span>' + esc(r.n) + '</td><td style="text-align:left">' + esc(r.c) + '</td><td><b>' + n0(Math.round(r.fc)) + '</b></td><td>' + n0(r.safe) + '</td>' +
-      '<td><input class="reuse' + (r.r > 0 ? ' set' : '') + '" type="number" min="0" max="100" step="5" data-reuse="' + r.k + '" value="' + r.r + '" aria-label="Reuse % for ' + esc(r.n) + '"></td><td><b>' + n0(Math.round(r.buy)) + '</b></td><td>' + pricedValue(r.buy, r.fx) + '</td><td>' + n0(r.last) + '</td>' + (t0.soFar != null ? '<td>' + n0(r.so) + '</td>' : '') + '</tr>';
+      '<td><input class="reuse' + (r.r > 0 ? ' set' : '') + '" type="number" min="0" max="100" step="5" data-reuse="' + r.k + '" value="' + r.r + '" aria-label="Reuse % for ' + esc(r.n) + '"></td><td><b>' + n0(Math.round(r.buy)) + '</b></td><td>' + (Number.isFinite(r.unit) ? '₹' + f2.format(r.unit) : 'Price missing') + '</td><td>' + pricedValue(r.buy, r.fx) + '</td><td>' + n0(r.last) + '</td>' + (t0.soFar != null ? '<td>' + n0(r.so) + '</td>' : '') + '</tr>';
     if (open) h += '<tr class="detail"><td colspan="' + cols.length + '">' + partDetail(r) + '</td></tr>';
   }
   if (!shown.length) h += '<tr><td class="lab" colspan="' + cols.length + '">No parts match these filters.</td></tr>';
@@ -1159,7 +1160,7 @@ function bind() {
   $('#hubp-q').addEventListener('input', e => { state.hubpQ = e.target.value; renderHubs(); });
   $('#pr-q').addEventListener('input', e => { state.prQ = e.target.value; renderProc(); });
   $('#pr-f-more').addEventListener('click', () => { state.prFlagsAll = !state.prFlagsAll; renderProc(); });
-  $('#fcp-csv').addEventListener('click', () => { const LA = lastFullActual(), t0 = D.fc2.targets[0], rows = sortRows(fcPartRows(), ['fc', -1]); csv('Spares forecast ' + F.tm.label + '.csv', ['Part', 'Category', 'Forecast units ' + F.tm.label, 'Safety target', 'Reuse %', 'Demand after reuse units', 'Priced demand value (Rs)', LA.label + ' fitted'].concat(t0.soFar != null ? [t0.label + ' fitted so far'] : []), rows.map(r => [r.n, r.c, Math.round(r.fc), r.safe, r.r, Math.round(r.buy), (Number.isFinite(r.fx) ? Math.round(r.fx) : ''), Math.round(r.last)].concat(t0.soFar != null ? [Math.round(r.so)] : []))); });
+  $('#fcp-csv').addEventListener('click', () => { const LA = lastFullActual(), t0 = D.fc2.targets[0], rows = sortRows(fcPartRows(), ['fc', -1]); csv('Spares forecast ' + F.tm.label + '.csv', ['Part', 'Category', 'Forecast units ' + F.tm.label, 'Safety target', 'Reuse %', 'Demand after reuse units', 'Unit cost (Rs per item)', 'Priced demand value (Rs)', LA.label + ' fitted'].concat(t0.soFar != null ? [t0.label + ' fitted so far'] : []), rows.map(r => [r.n, r.c, Math.round(r.fc), r.safe, r.r, Math.round(r.buy), (Number.isFinite(r.unit) ? r.unit.toFixed(2) : ''), (Number.isFinite(r.fx) ? Math.round(r.fx) : ''), Math.round(r.last)].concat(t0.soFar != null ? [Math.round(r.so)] : []))); });
   $('#hub-csv').addEventListener('click', () => { const rows = sortRows(hubRows(), ['um', -1]); csv('Spares by hub ' + F.tm.label + '.csv', ['Hub', 'City', 'Deployed vehicles per month', 'Spare parts per month', 'Per 100 vehicles', 'Value per month (Rs)', 'Largest group', 'Forecast ' + F.tm.label, 'Safety target'], rows.map(h => [h.n, h.city, Math.round(h.veh), Math.round(h.um), isNaN(h.rate) ? '' : h.rate.toFixed(1), Math.round(h.vx), h.top, Math.round(h.fc), Math.round(h.safe)])); });
   $('#hubp-csv').addEventListener('click', () => { const hub = hubRows().find(r => r.i === state.hub); if (!hub) return; const rows = sortRows(hubPartRows(hub), ['fc', -1]); csv('Spares for ' + hub.n + ' ' + F.tm.label + '.csv', ['Part', 'Category', 'Fitted per month', 'Share %', 'Forecast units ' + F.tm.label, 'Safety target', 'Forecast value (Rs)'], rows.map(r => [r.n, r.c, Math.round(r.avg), r.share.toFixed(2), Math.round(r.fc), r.safe, (Number.isFinite(r.fx) ? Math.round(r.fx) : '')])); });
   $('#pr-i-csv').addEventListener('click', () => csv('Items bought.csv', ['Item', 'Quantity', 'Spend excl GST (Rs)', 'Average rate', 'Lowest rate', 'Highest rate', 'Last rate', 'Vendors', 'Sheet rows'], (T.prItems || []).map(r => [r.n, r.qty, Math.round(r.amt), isNaN(r.avg) ? '' : r.avg.toFixed(2), isNaN(r.lo) ? '' : r.lo.toFixed(2), isNaN(r.hi) ? '' : r.hi.toFixed(2), isNaN(r.last) ? '' : r.last.toFixed(2), r.nv, r.rows.join(' ')])));
