@@ -275,7 +275,6 @@ table.dtbl .z { color: var(--muted); }
       <div class="panel">
         <div class="fcin">
           <label>Additional deployments above the baseline<input type="number" min="0" step="50" id="fc-plan" value="0"></label>
-          <p class="note" style="padding:0 0 6px;max-width:60ch" id="fc-plan-note"></p>
         </div>
         <div class="run" id="fc-run"></div>
       </div>
@@ -782,8 +781,6 @@ function renderForecast() {
   $('#fc-title').textContent = 'Forecast for ' + tg.label;
   $('#fc-sub').textContent = 'Cercle OS data - ' + stamp(fc.made).replace(',', '');
   $('#fc-plan').value = state.fcPlan || 0;
-  const perNew = Object.values(fc.newPer).reduce((a, b) => a + b, 0) * tg.days / (fc.targets[1] || tg).days;
-  $('#fc-plan-note').textContent = 'Vehicles on rent now (' + n0(tg.onRent) + ') are already counted, with new deployments and returns at the recent pace. Add only deployments beyond the usual: each new vehicle adds about ' + n1(perNew) + ' parts in the month.';
   const g = GROUP_LABEL.slice(0, N_SPARE_GRP).map((n, i) => ({ n, u: F.groups[i] })).sort((a, b) => b.u - a.u);
   let run = '<div><b class="num">' + n0(F.total) + '</b><span>spare parts expected</span><small>' + inr(F.value) + ' priced estimate' + (F.buy < F.total - 0.5 ? ' · <b>' + inr(F.buyValue) + '</b> priced demand after planned reuse (' + n0(F.total - F.buy) + ' units)' : '') + (F.missingUnits ? ' · excludes unpriced units' : '') + (F.add ?' · includes ' + n0(F.add) + ' planned deployments' : '') + '</small></div>' +
     (() => { const g = tg.drift, L = tg.lead, hi = D.fc2.driftCap[1], lo = F.total / Math.pow(g, L), up = F.total * Math.pow(hi / g, L);
