@@ -199,11 +199,13 @@ table.dtbl .z { color: var(--muted); }
 .chart-x { position: relative; height: 18px; margin: 4px 0 0 52px; font-size: 12px; color: var(--muted); }
 .chart-x span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
 #grn-record-section { scroll-margin-top: 18px; }
-.grn-items td:not(:first-child), .grn-items th:not(:first-child) { min-width: 110px; white-space: normal; }
-.grn-items .grn-source { min-width: 220px; text-align: left; }
+.grn-items { table-layout: fixed; min-width: 1050px; }
+.grn-items td:not(:first-child), .grn-items th:not(:first-child) { min-width: 0; white-space: normal; }
+.grn-items .grn-source { text-align: left; overflow-wrap: anywhere; }
+.grn-items .grn-source small { display: block; margin-top: 4px; overflow-wrap: anywhere; }
 #grn-record-table > tbody > tr > td.detail, #grn-record-table > tbody > tr.detail > td { padding: 0; }
-#grn-record-table th.lab, #grn-record-table td.lab { min-width: 130px; }
-#grn-record-table th:nth-child(2), #grn-record-table td:nth-child(2), #grn-record-table th:nth-child(3), #grn-record-table td:nth-child(3) { text-align: left; white-space: normal; min-width: 200px; max-width: 420px; }
+#grn-record-table > thead > tr > th.lab, #grn-record-table > tbody > tr > td.lab { min-width: 130px; }
+#grn-record-table > thead > tr > th:nth-child(2), #grn-record-table > tbody > tr > td:nth-child(2), #grn-record-table > thead > tr > th:nth-child(3), #grn-record-table > tbody > tr > td:nth-child(3) { text-align: left; white-space: normal; min-width: 200px; max-width: 420px; }
 .legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13.5px; color: var(--ink2); }
 .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; }
 .tip { position: fixed; z-index: 60; pointer-events: none; background: var(--ink); color: var(--bg); padding: 7px 10px; border-radius: 6px; font-size: 13px; line-height: 1.4; max-width: 300px; white-space: pre-line; box-shadow: 0 6px 18px rgba(0,0,0,.25); }
@@ -1186,7 +1188,7 @@ function grnLowestPrices() {
 function grnInvoiceDetail(invoice) {
   if (!Array.isArray(invoice.lines)) return '<p class="note">Item details were not included in this import.</p>';
   const lowest = grnLowestPrices();
-  let h = '<div class="pad"><h3>' + esc(invoice.invoice) + ' · Items</h3><p class="note">Lowest paid price: same recorded part name and vehicle model, across all imported invoices. Zero prices and zero quantities are excluded from this comparison.</p><div class="tools"><button class="btn" type="button" data-grn-items-csv="' + invoice.record + '">Download item CSV</button>' + (invoice.sourceUrl ? '<a class="btn" href="' + esc(invoice.sourceUrl) + '" target="_blank" rel="noopener noreferrer">Open in Cercle OS</a>' : '') + '</div><div class="scroll"><table class="dtbl grn-items"><thead><tr><th class="lab">Part</th><th>Vehicle model</th><th>Quantity</th><th>Paid Price<small>per item</small></th><th>Line cost</th><th>Lowest paid price<small>all purchases</small></th><th>Lowest-price purchase</th></tr></thead><tbody>';
+  let h = '<div class="pad"><h3>' + esc(invoice.invoice) + ' · Items</h3><p class="note">Lowest paid price: same recorded part name and vehicle model, across all imported invoices. Zero prices and zero quantities are excluded from this comparison.</p><div class="tools"><button class="btn" type="button" data-grn-items-csv="' + invoice.record + '">Download item CSV</button>' + (invoice.sourceUrl ? '<a class="btn" href="' + esc(invoice.sourceUrl) + '" target="_blank" rel="noopener noreferrer">Open in Cercle OS</a>' : '') + '</div><div class="scroll"><table class="dtbl grn-items"><colgroup><col style="width:20%"><col style="width:10%"><col style="width:8%"><col style="width:11%"><col style="width:12%"><col style="width:11%"><col style="width:28%"></colgroup><thead><tr><th class="lab">Part</th><th>Vehicle model</th><th>Quantity</th><th>Paid Price<small>per item</small></th><th>Line cost</th><th>Lowest paid price<small>all purchases</small></th><th>Lowest-price purchase</th></tr></thead><tbody>';
   for (const line of invoice.lines) {
     const best = lowest.get(grnPartKey(line));
     h += '<tr><td class="lab">' + esc(line.part) + '</td><td>' + esc(line.model) + '</td><td>' + (line.quantity == null ? '–' : Number.isInteger(line.quantity) ? n0(line.quantity) : f2.format(line.quantity)) + '</td><td>' + grnUnitMoney(line.paid) + '</td><td>' + (line.paid != null && line.quantity != null ? grnMoney(Math.round(line.quantity * line.paid * 100)) : '–') + '</td><td><b>' + (best ? grnUnitMoney(best.line.paid) : 'No positive price') + '</b></td><td class="grn-source">' + (best ? esc(best.invoice.vendor) + '<small>' + (best.invoice.sourceUrl ? '<a href="' + esc(best.invoice.sourceUrl) + '" target="_blank" rel="noopener noreferrer">' + esc(best.invoice.invoice) + '</a>' : esc(best.invoice.invoice)) + ' · ' + esc(dayLabel(Date.parse(best.invoice.date + 'T00:00:00Z') / DAY)) + '</small>' : '–') + '</td></tr>';
