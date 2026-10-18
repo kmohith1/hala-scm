@@ -201,11 +201,6 @@ table.dtbl .z { color: var(--muted); }
 .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; }
 .tip { position: fixed; z-index: 60; pointer-events: none; background: var(--ink); color: var(--bg); padding: 7px 10px; border-radius: 6px; font-size: 13px; line-height: 1.4; max-width: 300px; white-space: pre-line; box-shadow: 0 6px 18px rgba(0,0,0,.25); }
 
-.planning-checks { padding: 16px 20px; margin-top: 18px; border-left: 4px solid var(--accent); }
-.planning-checks h3 { margin: 0 0 10px; font: 600 20px var(--cond); }
-.planning-checks ul { margin: 0; padding-left: 20px; display: grid; gap: 8px; }
-.planning-checks li { font-size: 14px; color: var(--ink2); }
-.planning-checks b { color: var(--ink); }
 .price-missing { color: var(--warn-ink); background: var(--warn-bg); border-radius: 4px; padding: 2px 5px; font-size: 12px; }
 .mobile-hint { display: none; font-size: 13px; color: var(--muted); }
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
@@ -213,7 +208,6 @@ table.dtbl .z { color: var(--muted); }
   .mobile-hint { display: block; }
   #fcp-tbl > thead > tr > .lab, #fcp-tbl > tbody > tr > .lab { min-width: 140px; max-width: 160px; }
   #fcp-tbl > thead > tr > th:nth-child(2), #fcp-tbl > tbody > tr[data-fcp] > td:nth-child(2) { display: none; }
-  .planning-checks { padding: 14px; }
   .tools { max-width: 100%; flex-wrap: wrap; }
   input[type="search"], input.reuse { font-size: 16px; }
 }
@@ -287,7 +281,6 @@ table.dtbl .z { color: var(--muted); }
         <div class="run" id="fc-run"></div>
       </div>
       <p class="lede" id="fc-lede"></p>
-      <aside class="panel planning-checks" aria-labelledby="checks-title"><h3 id="checks-title">Planning checks</h3><div id="fc-checks" aria-live="polite"></div></aside>
     </section>
     <section class="sec">
       <header>
@@ -800,15 +793,6 @@ function renderForecast() {
   else run += '<div><b class="num">' + n0(g[0].u) + '</b><span>' + esc(g[0].n) + '</span><small>' + pct(F.total ? 100 * g[0].u / F.total : NaN) + ' of the forecast</small></div>';
   run += '<div><b class="num">' + n0(g[1].u) + '</b><span>' + esc(g[1].n) + '</span><small>' + pct(F.total ? 100 * g[1].u / F.total : NaN) + ' of the forecast</small></div>';
   $('#fc-run').innerHTML = run;
-  const latest=fc.track.filter(t=>!t.partial).slice(-1)[0], reuseParts=[...F.sku].filter(([k,f])=>f>0 && reuseOf(k)>0), fullReuse=reuseParts.filter(([k])=>reuseOf(k)===100);
-  const coverage=F.total ? 100*(F.total-F.missingUnits)/F.total : NaN;
-  $('#fc-checks').innerHTML = '<ul>' +
-    '<li><b>Demand after reuse is not an order quantity.</b> Available stock, open orders, supplier lead times and repair capacity are not connected. Reconcile these before ordering.</li>' +
-    '<li><b>Price coverage: ' + pct(coverage) + ' of forecast units.</b> ' + (F.missingUnits ? n0(F.missingUnits) + ' forecast units (' + n0(F.missingBuy) + ' after reuse) have no price. Budget totals include priced units only; missing prices are not zero-cost parts.' : 'All forecast units have a price.') + '</li>' +
-    (reuseParts.length ? '<li><b>Verify planned reuse for ' + n0(reuseParts.length) + (reuseParts.length === 1 ? ' part.</b> ' : ' parts.</b> ') + (fullReuse.length ? fullReuse.slice(0,3).map(([k])=>esc(D.skus[k][0])).join(', ') + (fullReuse.length>3 ? ' and others' : '') + (fullReuse.length === 1 ? ' assumes' : ' assume') + ' 100% reuse. ' : '') + 'Confirm repairable stock, success rate and turnaround time. Reuse percentages are assumptions saved only in this browser.</li>' : '') +
-    (latest ? '<li><b>' + esc(latest.label) + ': network miss ' + pct(latest.err) + '; top-50 part error ' + pct(latest.top50Err) + '.</b> Overall accuracy can hide shortages for individual parts. Compare the longer-horizon results below when planning ahead.</li>' : '') +
-    '<li><b>Demand is based on parts fitted.</b> Stockouts and pending repairs may hide unmet demand. Safety targets use a shared margin; they do not guarantee availability for every part or lead time.</li></ul>';
-
   const la = [...LA.by.values()].reduce((a, b) => a + b, 0), recent = fc.track.filter(t => !t.partial).slice(-3);
   const ch = la ? 100 * (F.total * 30 / tg.days - la * 30 / D.months[lastFullMonth()].days) / (la * 30 / D.months[lastFullMonth()].days) : NaN;
   $('#fc-lede').innerHTML = esc(LA.label) + ' fitted <b>' + n0(la) + '</b> spare parts. ' + esc(tg.label) + ' is forecast at <b>' + n0(F.total) + '</b>, ' + f0.format(Math.abs(ch)) + '% ' + (ch >= 0 ? 'more' : 'fewer') + ' a day: the fleet on rent keeps ageing and parts per vehicle have been rising by about <b>' + f1.format(100 * (tg.drift - 1)) + '%</b> a month.' +
