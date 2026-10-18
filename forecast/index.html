@@ -161,7 +161,9 @@ input.reuse { width: 64px; height: 28px; padding: 0 6px; border: 1px solid var(-
 input.reuse.set { border-color: var(--accent); background: var(--accent-wash); }
 tbody tr[aria-expanded="true"] td { background: var(--accent-wash); }
 tr.detail > td { padding: 0 0 14px; text-align: left; white-space: normal; background: var(--sunk); border-bottom: 1px solid var(--line2); }
-.dhead { padding: 12px 16px 10px; font-size: 14px; position: sticky; left: 0; max-width: calc(100vw - 48px); }
+.dhead { padding: 12px 16px 10px; font-size: 14px; position: sticky; left: 0; max-width: min(1200px, calc(100vw - 48px)); display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: flex-end; justify-content: space-between; }
+.dhead > div:first-child { flex: 1 1 360px; }
+.dseg button { height: 30px; font-size: 13px; }
 .dhead span { display: block; color: var(--muted); font-size: 12.5px; margin-top: 2px; }
 table.dtbl { margin: 0 16px; width: auto; min-width: calc(100% - 32px); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; border-collapse: separate; border-spacing: 0; }
 table.dtbl th, table.dtbl td { padding: 7px 12px; }
@@ -420,7 +422,7 @@ let D = null;                 // the data file
 let T = null;                 // typed arrays and derived indexes
 let R = null, F = null;       // consumption result, forecast for the chosen month
 const state = { tab: 'fc', months: new Set(), two: true, models: null, svc: new Set([0, 1, 2, 3, 4]), city: '', bw: 180, measure: 'rate',
-  open: new Set(), fcT: 1, fcPlan: 0, fcpQ: '', fcpSort: ['fc', -1], fcpAll: false, fcpOpen: null, fcpCity: new Set(),
+  open: new Set(), fcT: 1, fcPlan: 0, fcpQ: '', fcpSort: ['fc', -1], fcpAll: false, fcpOpen: null, fcpCity: new Set(), fcpView: 'city',
   hub: null, hubpAll: false, hubSort: ['um', -1], hubpQ: '', prFrom: null, prTo: null, prVendor: -1, prQ: '', prSort: ['amt', -1], prVSort: ['amt', -1], prFlagsAll: false, prAll: false };
 
 // ---------- data source: the encrypted files the refresh publishes beside the fleet dashboard's, same passphrase
@@ -803,7 +805,7 @@ function renderFcParts() {
     if (open) h += '<tr class="detail"><td colspan="' + cols.length + '">' + partDetail(r) + '</td></tr>';
   }
   $('#fcp-tbl').innerHTML = h + '</tbody>';
-  $('#fcp-sub').textContent = 'Every spare part: the forecast for ' + F.tm.label + ', a safe quantity to hold, how much is met by repair and reuse, what is left to buy, and what was actually fitted. Click a part for its city and hub breakdown.';
+  $('#fcp-sub').textContent = 'Every spare part: the forecast for ' + F.tm.label + ', a safe quantity to hold, how much is met by repair and reuse, what is left to buy, and what was actually fitted. Click a part for its breakdown by city and hub, or by vehicle model.';
   const nSet = Object.keys(REUSE).filter(n => REUSE[n] > 0).length, changed = Object.keys(REUSE).some(n => (REUSE[n] || 0) !== (REUSE_DEFAULT[n] || 0));
   $('#fcp-note').innerHTML = (q ? n0(rows.length) + ' of ' + n0(all) + ' parts match.' : shown.length < rows.length ? 'Showing the top 60 of ' + n0(rows.length) + ' parts. <button class="link" type="button" id="fcp-more">Show all</button>' : n0(rows.length) + ' parts.') +
     ' Safe quantity = forecast plus a margin that, in past months, covered nine in ten parts fitted. A part forecast above zero but rarely fitted can still miss: the margin is wider in proportion for small numbers.' +
@@ -812,46 +814,63 @@ function renderFcParts() {
   const more = $('#fcp-more'); if (more) more.addEventListener('click', () => { state.fcpAll = true; renderFcParts(); });
   const rst = $('#fcp-reuse-reset'); if (rst) rst.addEventListener('click', () => { resetReuse(); render(); });
 }
-// one part, by city and hub: fitted in recent months, new vehicles added, and its share of the forecast
-function partBreakdown(k) {
+// one part, broken down two ways: by city then hub, or by vehicle model then city.
+// Fitted in recent months, new vehicles added, and its share of the forecast.
+function partBreakdown(k, mode) {
   const nM = D.months.length, ms = []; for (let i = Math.max(0, nM - 6); i < nM; i++) ms.push(i);
   const pos = new Int8Array(nM).fill(-1); ms.forEach((m, j) => pos[m] = j);
-  const lf = lastFullMonth(), cur = D.months[nM - 1].partial ? nM - 1 : -1, nH = D.hubs.length;
-  const use = Array.from({ length: nH }, () => new Float64Array(ms.length)), nv = Array.from({ length: nH }, () => [0, 0]), fc = new Float64Array(nH);
-  for (let j = 0; j < T.nPL; j++) { if (T.psku[j] !== k) continue; const i = T.pvm[j]; if (!T.two[i]) continue; const p = pos[T.m[i]]; if (p >= 0) use[T.phub[j]][p] += T.pq[j]; }
+  const lf = lastFullMonth(), cur = D.months[nM - 1].partial ? nM - 1 : -1, byModel = mode === 'model';
+  const cityOf = h => T.cityOfHub[h] || 'Other';
+  // outer / inner keys: city → hub, or model → city
+  const keyOf = (hub, model) => byModel ? [D.models[model] || 'Model not known', cityOf(hub)] : [cityOf(hub), D.hubs[hub]];
+  const nodes = new Map(), node = (o, i) => { let O = nodes.get(o); if (!O) nodes.set(o, O = { n: o, u: new Float64Array(ms.length), nv: [0, 0], fc: 0, w: 0, kids: new Map() }); let I = O.kids.get(i); if (!I) O.kids.set(i, I = { n: i, u: new Float64Array(ms.length), nv: [0, 0], fc: 0, w: 0 }); return [O, I]; };
+  const recent = new Uint8Array(nM); recent[lf] = 1; if (cur >= 0) recent[cur] = 1;
+  for (let j = 0; j < T.nPL; j++) {
+    if (T.psku[j] !== k) continue; const i = T.pvm[j]; if (!T.two[i]) continue; const p = pos[T.m[i]]; if (p < 0) continue;
+    const [o, n] = keyOf(T.phub[j], T.model[i]), [O, I] = node(o, n), q = T.pq[j]; O.u[p] += q; I.u[p] += q;
+    if (recent[T.m[i]]) { O.w += q; I.w += q; }
+  }
   for (let i = 0; i < T.nVM; i++) {
     if (!T.two[i]) continue; const m = T.m[i], a = T.age[i]; if (a < 0) continue;
-    if (m === lf && a < D.months[lf].days) nv[T.hub[i]][0]++;
-    else if (m === cur && a < (D.months[cur].upto || D.months[cur].days)) nv[T.hub[i]][1]++;
+    const s = m === lf && a < D.months[lf].days ? 0 : m === cur && a < (D.months[cur].upto || D.months[cur].days) ? 1 : -1; if (s < 0) continue;
+    const [o, n] = keyOf(T.hub[i], T.model[i]), [O, I] = node(o, n); O.nv[s]++; I.nv[s]++;
   }
-  const f = F.sku.get(k) || 0, sh = (D.fc2.hubShare || {})[k] || [];
-  for (const [h, w] of sh) fc[h] += f * w;
-  const hubs = [];
-  for (let h = 0; h < nH; h++) { const u = use[h], any = u.some(x => x > 0) || fc[h] > 0.05 || nv[h][0] || nv[h][1]; if (any) hubs.push({ h, n: D.hubs[h], city: T.cityOfHub[h] || 'Other', u, nv: nv[h], fc: fc[h] }); }
-  const byCity = new Map();
-  for (const x of hubs) { let c = byCity.get(x.city); if (!c) byCity.set(x.city, c = { n: x.city, u: new Float64Array(ms.length), nv: [0, 0], fc: 0, hubs: [] }); x.u.forEach((v, j) => c.u[j] += v); c.nv[0] += x.nv[0]; c.nv[1] += x.nv[1]; c.fc += x.fc; c.hubs.push(x); }
-  const cities = [...byCity.values()].sort((a, b) => b.fc - a.fc || b.u[b.u.length - 1] - a.u[a.u.length - 1]);
-  cities.forEach(c => c.hubs.sort((a, b) => b.fc - a.fc || b.u.reduce((s, v) => s + v, 0) - a.u.reduce((s, v) => s + v, 0)));
-  const tot = { u: new Float64Array(ms.length), nv: [0, 0], fc: 0 }; for (const c of cities) { c.u.forEach((v, j) => tot.u[j] += v); tot.nv[0] += c.nv[0]; tot.nv[1] += c.nv[1]; tot.fc += c.fc; }
-  return { ms, lf, cur, cities, tot, f };
+  const f = F.sku.get(k) || 0;
+  if (!byModel) {   // forecast split by where the part was fitted in the last 30 days (from the refresh)
+    for (const [h, w] of ((D.fc2.hubShare || {})[k] || [])) { const [O, I] = node(cityOf(h), D.hubs[h]); O.fc += f * w; I.fc += f * w; }
+  } else {          // forecast split by the models it was fitted on in the last full month and this month so far
+    let W = 0; for (const O of nodes.values()) W += O.w;
+    if (W > 0) for (const O of nodes.values()) { O.fc = f * O.w / W; for (const I of O.kids.values()) I.fc = f * I.w / W; }
+  }
+  const sum = x => x.u.reduce((s, v) => s + v, 0), any = x => sum(x) > 0 || x.fc > 0.05 || x.nv[0] || x.nv[1];
+  const groups = [...nodes.values()].filter(any).map(O => ({ n: O.n, u: O.u, nv: O.nv, fc: O.fc, kids: [...O.kids.values()].filter(any).sort((a, b) => b.fc - a.fc || sum(b) - sum(a)) }))
+    .sort((a, b) => b.fc - a.fc || sum(b) - sum(a));
+  const tot = { u: new Float64Array(ms.length), nv: [0, 0], fc: 0 }; for (const g of groups) { g.u.forEach((v, j) => tot.u[j] += v); tot.nv[0] += g.nv[0]; tot.nv[1] += g.nv[1]; tot.fc += g.fc; }
+  return { ms, lf, cur, groups, tot, f };
 }
 function partDetail(r) {
-  const B = partBreakdown(r.k), rr = reuseOf(r.k) / 100, mL = i => D.months[i].label.replace(' 20', ' ’');
+  const mode = state.fcpView, byModel = mode === 'model', B = partBreakdown(r.k, mode), rr = reuseOf(r.k) / 100, mL = i => D.months[i].label.replace(' 20', ' ’');
   const nCols = 1 + B.ms.length + (B.cur >= 0 ? 2 : 1) + 2;
-  let h = '<div class="dhead"><b>' + esc(r.n) + '</b> by city and hub<span>Fitted on 2-wheelers at the hub on the ticket · new vehicles counted at the hub they were deployed from · the forecast split by where the part was fitted in the last 30 days' + (rr > 0 ? ' · ' + n0(rr * 100) + '% met by reuse' : '') + '</span></div>';
-  h += '<table class="dtbl"><thead><tr><th class="lab" rowspan="2">City / hub</th><th colspan="' + B.ms.length + '" class="grp">Fitted, by month</th><th colspan="' + (B.cur >= 0 ? 2 : 1) + '" class="grp">New vehicles added</th><th colspan="2" class="grp">' + esc(F.tm.label) + '</th></tr><tr>';
+  const seg = '<div class="seg dseg" role="group" aria-label="Break down by"><button type="button" data-fcv="city" aria-pressed="' + !byModel + '">City and hub</button><button type="button" data-fcv="model" aria-pressed="' + byModel + '">Vehicle model</button></div>';
+  let h = '<div class="dhead"><div><b>' + esc(r.n) + '</b> by ' + (byModel ? 'vehicle model, then city' : 'city and hub') + '<span>' +
+    (byModel ? 'Model of the vehicle on the ticket · fitted on 2-wheelers · new vehicles by model · the forecast split by the models it was fitted on in ' + esc(mL(B.lf)) + (B.cur >= 0 ? ' and ' + esc(mL(B.cur)) + ' so far' : '')
+      : 'Fitted on 2-wheelers at the hub on the ticket · new vehicles counted at the hub they were deployed from · the forecast split by where the part was fitted in the last 30 days') +
+    (rr > 0 ? ' · ' + n0(rr * 100) + '% met by reuse' : '') + '</span></div>' + seg + '</div>';
+  h += '<table class="dtbl"><thead><tr><th class="lab" rowspan="2">' + (byModel ? 'Model / city' : 'City / hub') + '</th><th colspan="' + B.ms.length + '" class="grp">Fitted, by month</th><th colspan="' + (B.cur >= 0 ? 2 : 1) + '" class="grp">New vehicles added</th><th colspan="2" class="grp">' + esc(F.tm.label) + '</th></tr><tr>';
   B.ms.forEach((m, j) => { h += '<th' + (j === 0 ? ' class="gl0"' : '') + '>' + esc(mL(m)) + (D.months[m].partial ? '<small>1–' + D.months[m].upto + '</small>' : '') + '</th>'; });
   h += '<th class="gl0">' + esc(mL(B.lf)) + '</th>' + (B.cur >= 0 ? '<th>' + esc(mL(B.cur)) + '<small>so far</small></th>' : '') + '<th class="gl0">Forecast</th><th>To buy</th></tr></thead><tbody>';
-  const cellsOf = (x, cls, lab) => '<tr class="' + cls + '"><td class="lab">' + lab + '</td>' + [...x.u].map((v, j) => '<td' + (j === 0 ? ' class="gl0"' : '') + '>' + (v ? n0(v) : '<span class="z">–</span>') + '</td>').join('') +
-    '<td class="gl0">' + (x.nv[0] ? n0(x.nv[0]) : '<span class="z">–</span>') + '</td>' + (B.cur >= 0 ? '<td>' + (x.nv[1] ? n0(x.nv[1]) : '<span class="z">–</span>') + '</td>' : '') +
-    '<td class="gl0"><b>' + (x.fc >= 0.5 ? n0(x.fc) : '<span class="z">–</span>') + '</b></td><td>' + (x.fc * (1 - rr) >= 0.5 ? n0(x.fc * (1 - rr)) : '<span class="z">' + (x.fc >= 0.5 ? '0' : '–') + '</span>') + '</td></tr>';
-  h += cellsOf(B.tot, 'total', 'All cities');
-  for (const c of B.cities) {
-    const key = r.k + '|' + c.n, open = state.fcpCity.has(key);
-    h += cellsOf(c, 'l0', '<button class="tw" type="button" data-fcc="' + esc(key) + '" aria-expanded="' + open + '" aria-label="' + (open ? 'Hide' : 'Show') + ' hubs in ' + esc(c.n) + '">' + (open ? '▾' : '▸') + '</button>' + esc(c.n) + '<small>' + c.hubs.length + ' hub' + (c.hubs.length === 1 ? '' : 's') + '</small>');
-    if (open) for (const x of c.hubs) h += cellsOf(x, 'l1', esc(x.n));
+  const z = '<span class="z">–</span>';
+  const cellsOf = (x, cls, lab) => '<tr class="' + cls + '"><td class="lab">' + lab + '</td>' + [...x.u].map((v, j) => '<td' + (j === 0 ? ' class="gl0"' : '') + '>' + (v ? n0(v) : z) + '</td>').join('') +
+    '<td class="gl0">' + (x.nv[0] ? n0(x.nv[0]) : z) + '</td>' + (B.cur >= 0 ? '<td>' + (x.nv[1] ? n0(x.nv[1]) : z) + '</td>' : '') +
+    '<td class="gl0"><b>' + (x.fc >= 0.5 ? n0(x.fc) : z) + '</b></td><td>' + (x.fc * (1 - rr) >= 0.5 ? n0(x.fc * (1 - rr)) : '<span class="z">' + (x.fc >= 0.5 ? '0' : '–') + '</span>') + '</td></tr>';
+  h += cellsOf(B.tot, 'total', byModel ? 'All models' : 'All cities');
+  const kidWord = byModel ? ['city', 'cities'] : ['hub', 'hubs'];
+  for (const g of B.groups) {
+    const key = mode + '|' + r.k + '|' + g.n, open = state.fcpCity.has(key);
+    h += cellsOf(g, 'l0', '<button class="tw" type="button" data-fcc="' + esc(key) + '" aria-expanded="' + open + '" aria-label="' + (open ? 'Hide ' : 'Show ') + kidWord[1] + ' for ' + esc(g.n) + '">' + (open ? '▾' : '▸') + '</button>' + esc(g.n) + '<small>' + g.kids.length + ' ' + kidWord[g.kids.length === 1 ? 0 : 1] + '</small>');
+    if (open) for (const x of g.kids) h += cellsOf(x, 'l1', esc(x.n));
   }
-  if (!B.cities.length) h += '<tr><td class="lab" colspan="' + nCols + '">Not fitted in the months shown and not in the forecast.</td></tr>';
+  if (!B.groups.length) h += '<tr><td class="lab" colspan="' + nCols + '">Not fitted in the months shown and not in the forecast.</td></tr>';
   return h + '</tbody></table>';
 }
 function renderAccuracy() {
@@ -1090,6 +1109,7 @@ function bind() {
     const m = e.target.closest('[data-measure]'); if (m) { state.measure = m.dataset.measure; render(); return; }
     const bw = e.target.closest('[data-bw]'); if (bw) { state.bw = +bw.dataset.bw; render(); return; }
     const so = e.target.closest('th.sortable'); if (so) { const key = { fcp: 'fcpSort', hub: 'hubSort', pri: 'prSort', prv: 'prVSort' }[so.dataset.tbl], k = so.dataset.sort; state[key] = [k, state[key][0] === k ? -state[key][1] : (['n', 'c', 'city', 'top'].includes(k) ? 1 : -1)]; render(); return; }
+    const fcv = e.target.closest('[data-fcv]'); if (fcv) { state.fcpView = fcv.dataset.fcv; renderFcParts(); return; }
     const fcc = e.target.closest('[data-fcc]'); if (fcc) { const k = fcc.dataset.fcc; if (state.fcpCity.has(k)) state.fcpCity.delete(k); else state.fcpCity.add(k); renderFcParts(); return; }
     const fp = e.target.closest('tr[data-fcp]'); if (fp) { if (e.target.closest('input')) return; const k = +fp.dataset.fcp; state.fcpOpen = state.fcpOpen === k ? null : k; renderFcParts(); return; }
     const hr = e.target.closest('tr[data-hub]'); if (hr) { state.hub = +hr.dataset.hub; state.hubpAll = false; renderHubs(); $('#hubp-sec').scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
@@ -1136,7 +1156,7 @@ function defs() {
     ['Value', 'Quantity × the purchase price on the Cercle OS line. A line without a purchase price takes the median purchase price of the same part.'],
     ['Forecast', 'Spare parts per vehicle on rent per 30 days, by vehicle model and age band, from the last 30 days; × the vehicles on rent now, aged to the end of the month, at the recent pace of new deployments and returns; × the month-on-month rise in parts per vehicle (the median of the last three months, kept between 0% and 8% a month). Each model and age band is split into parts by its mix of the last 14 days. This method was chosen because it missed least when re-run on past months; How accurate it has been shows the record.'],
     ['Reuse and To buy', 'Reuse is the share of a part\'s forecast met by repairing removed units and refitting them, set on the Parts to plan table. To buy = forecast × (100% − reuse). Value and the forecast figure at the top count only what is to be bought. MOTOR starts at 100%; other parts start at 0%. Changes are saved in the browser they were made in.'],
-    ['Part breakdown', 'Click a part in Parts to plan. Fitted = units fitted on 2-wheelers in each month at the hub on the ticket. New vehicles added = 2-wheelers first deployed in that month, at the hub they were deployed from (the same for every part). Forecast = the part\'s network forecast split by where it was fitted in the last 30 days. Open a city to see its hubs.'],
+    ['Part breakdown', 'Click a part in Parts to plan. Fitted = units fitted on 2-wheelers in each month at the hub on the ticket. New vehicles added = 2-wheelers first deployed in that month, at the hub they were deployed from (the same for every part). Forecast = the part\'s network forecast split by where it was fitted in the last 30 days. Open a city to see its hubs. Switch to Vehicle model to see the same figures by the model of the vehicle on each ticket (taken from its vehicle number), opening into cities; there the forecast is split by the models the part was fitted on in the last full month and this month so far.'],
     ['Safe quantity', 'The forecast plus 1.28 × √(forecast + (0.3 × forecast)²). In past months it covered nine in ten parts fitted.'],
     ['Hub', 'Parts count at the hub on the ticket (where they were fitted). Vehicles count at the hub they were last deployed from in the month. A hub\'s forecast is its share of each part fitted in the last 30 days. S3 locations are shown together as RSA technicians.'],
     ['Part groups', 'Consumables (wear parts) = brakes, tyres and wheels, fasteners. Plastic = body and panels. Electrical = electricals, lighting and mirrors. Mechanical = suspension and chassis, other parts. Motor and controller = motor and drivetrain. Names follow the monthly spare parts plan.'],
