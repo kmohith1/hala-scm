@@ -201,6 +201,22 @@ table.dtbl .z { color: var(--muted); }
 .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; }
 .tip { position: fixed; z-index: 60; pointer-events: none; background: var(--ink); color: var(--bg); padding: 7px 10px; border-radius: 6px; font-size: 13px; line-height: 1.4; max-width: 300px; white-space: pre-line; box-shadow: 0 6px 18px rgba(0,0,0,.25); }
 
+.planning-checks { padding: 16px 20px; margin-top: 18px; border-left: 4px solid var(--accent); }
+.planning-checks h3 { margin: 0 0 10px; font: 600 20px var(--cond); }
+.planning-checks ul { margin: 0; padding-left: 20px; display: grid; gap: 8px; }
+.planning-checks li { font-size: 14px; color: var(--ink2); }
+.planning-checks b { color: var(--ink); }
+.price-missing { color: var(--warn-ink); background: var(--warn-bg); border-radius: 4px; padding: 2px 5px; font-size: 12px; }
+.mobile-hint { display: none; font-size: 13px; color: var(--muted); }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+@media (max-width: 600px) {
+  .mobile-hint { display: block; }
+  #fcp-tbl > thead > tr > .lab, #fcp-tbl > tbody > tr > .lab { min-width: 140px; max-width: 160px; }
+  #fcp-tbl > thead > tr > th:nth-child(2), #fcp-tbl > tbody > tr[data-fcp] > td:nth-child(2) { display: none; }
+  .planning-checks { padding: 14px; }
+  .tools { max-width: 100%; flex-wrap: wrap; }
+  input[type="search"], input.reuse { font-size: 16px; }
+}
 /* ---- definitions, lock */
 .defs { margin: 0; display: grid; grid-template-columns: minmax(150px, 220px) 1fr; gap: 10px 22px; font-size: 14px; }
 .defs dt { font-weight: 600; } .defs dd { margin: 0; color: var(--ink2); }
@@ -265,12 +281,13 @@ table.dtbl .z { color: var(--muted); }
       </header>
       <div class="panel">
         <div class="fcin">
-          <label>New deployments planned in the month<input type="number" min="0" step="50" id="fc-plan" value="0"></label>
+          <label>Additional deployments above the baseline<input type="number" min="0" step="50" id="fc-plan" value="0"></label>
           <p class="note" style="padding:0 0 6px;max-width:60ch" id="fc-plan-note"></p>
         </div>
         <div class="run" id="fc-run"></div>
       </div>
       <p class="lede" id="fc-lede"></p>
+      <aside class="panel planning-checks" aria-labelledby="checks-title"><h3 id="checks-title">Planning checks</h3><div id="fc-checks" aria-live="polite"></div></aside>
     </section>
     <section class="sec">
       <header>
@@ -284,10 +301,11 @@ table.dtbl .z { color: var(--muted); }
         <div><h2>Parts to plan</h2><p id="fcp-sub"></p></div>
         <div class="tools">
           <div class="fld"><input type="search" id="fcp-q" placeholder="Search parts" aria-label="Search parts"></div>
+          <button class="btn" id="fcp-missing" type="button" aria-pressed="false">Missing prices</button>
           <button class="btn" id="fcp-csv" type="button">Download CSV</button>
         </div>
       </header>
-      <div class="panel"><div class="scroll"><table id="fcp-tbl"></table></div><p class="note" id="fcp-note"></p></div>
+      <p class="mobile-hint">Swipe the table sideways for more columns. The part name stays visible.</p><div class="panel"><div class="scroll" tabindex="0" role="region" aria-label="Parts planning table"><table id="fcp-tbl"></table></div><p class="note" id="fcp-note"></p></div>
     </section>
     <section class="sec">
       <header>
@@ -422,7 +440,7 @@ let D = null;                 // the data file
 let T = null;                 // typed arrays and derived indexes
 let R = null, F = null;       // consumption result, forecast for the chosen month
 const state = { tab: 'fc', months: new Set(), two: true, models: null, svc: new Set([0, 1, 2, 3, 4]), city: '', bw: 180, measure: 'rate',
-  open: new Set(), fcT: 1, fcPlan: 0, fcpQ: '', fcpSort: ['fc', -1], fcpAll: false, fcpOpen: null, fcpCity: new Set(), fcpView: 'city',
+  open: new Set(), fcT: 1, fcPlan: 0, fcpQ: '', fcpMissing: false, fcpSort: ['fc', -1], fcpAll: false, fcpOpen: null, fcpCity: new Set(), fcpView: 'city',
   hub: null, hubpAll: false, hubSort: ['um', -1], hubpQ: '', prFrom: null, prTo: null, prVendor: -1, prQ: '', prSort: ['amt', -1], prVSort: ['amt', -1], prFlagsAll: false, prAll: false };
 
 // ---------- data source: the encrypted files the refresh publishes beside the fleet dashboard's, same passphrase
@@ -643,6 +661,24 @@ const pooled = (arr, b, off) => { let s = 0; for (const x of R.src[b]) s += arr[
 // ---------- forecast: computed by the refresh (official.py), shown here; planned deployments are added on the page
 const SAFE = q => { const z = D.fc2.safe[0], k = D.fc2.safe[1]; return q + z * Math.sqrt(q + (k * q) * (k * q)); };
 let PRICE = null;
+function allocate(total, entries) {
+  const target = Math.max(0, Math.round(total)), weights = entries.filter(([,w]) => Number.isFinite(w) && w > 0);
+  const sum = weights.reduce((a,[,w]) => a+w,0);
+  if (!sum) return new Map();
+  const rows = weights.map(([key,w],i) => { const n=target*w/sum; return {key,i,n:Math.floor(n),fraction:n-Math.floor(n)}; });
+  let left = target-rows.reduce((a,r)=>a+r.n,0);
+  for (const r of [...rows].sort((a,b)=>b.fraction-a.fraction || a.i-b.i)) { if (left-- <= 0) break; r.n++; }
+  return new Map(rows.map(r=>[r.key,r.n]));
+}
+function hubUnits(k, f) {
+  const weights = new Map();
+  for (const [h,w] of ((D.fc2.hubShare || {})[k] || [])) if (Number.isInteger(h) && D.hubs[h] != null && Number.isFinite(w) && w > 0) weights.set(h,(weights.get(h)||0)+w);
+  const sum=[...weights.values()].reduce((a,b)=>a+b,0);
+  if (sum < 1-1e-8) weights.set(-1,1-sum);
+  return allocate(f,[...weights]);
+}
+const pricedValue = (units, value) => units > 0 && !Number.isFinite(value) ? '<span class="price-missing">Price missing</span>' : inr(value);
+
 
 // ---------- reuse: the share of a part's demand met by repairing and refitting removed units, so not bought.
 // Kept by part name (survives refreshes); defaults below, changes saved in this browser.
@@ -650,19 +686,27 @@ const REUSE_DEFAULT = { 'MOTOR': 100 }, REUSE_KEY = 'hala_fc_reuse';
 const reuseName = k => String(D.skus[k][0]).trim().toUpperCase();
 let REUSE = (() => { let s = {}; try { s = JSON.parse(localStorage.getItem(REUSE_KEY) || '{}') || {}; } catch (e) {} return Object.assign({}, REUSE_DEFAULT, s); })();
 const reuseOf = k => { const v = REUSE[reuseName(k)]; return v > 0 ? Math.min(100, v) : 0; };
-const buyOf = (k, f) => f * (1 - reuseOf(k) / 100);
+const buyOf = (k, f) => Math.round(f * (1 - reuseOf(k) / 100));
 function saveReuse() { try { const o = {}; for (const n in REUSE) if ((REUSE[n] || 0) !== (REUSE_DEFAULT[n] || 0)) o[n] = REUSE[n]; localStorage.setItem(REUSE_KEY, JSON.stringify(o)); } catch (e) {} }
 function setReuse(k, v) { REUSE[reuseName(k)] = Math.max(0, Math.min(100, Math.round(+v || 0))); saveReuse(); }
 function resetReuse() { REUSE = Object.assign({}, REUSE_DEFAULT); try { localStorage.removeItem(REUSE_KEY); } catch (e) {} }
 function forecast() {
   const fc = D.fc2, tg = fc.targets[Math.min(state.fcT, fc.targets.length - 1)];
-  if (!PRICE) { PRICE = new Map(); for (const t of fc.targets) for (const [k, f, sf, v] of t.sku) if (f > 0 && !PRICE.has(k)) PRICE.set(k, v / f); }
-  const sku = new Map(); for (const [k, f] of tg.sku) sku.set(k, f);
-  const ref = fc.targets[1] || tg, add = Math.max(0, state.fcPlan || 0), sc = tg.days / ref.days;
-  if (add) for (const k in fc.newPer) sku.set(+k, (sku.get(+k) || 0) + fc.newPer[k] * add * sc);
-  let total = 0, value = 0, safe = 0, buy = 0, buyValue = 0; const groups = new Float64Array(N_SPARE_GRP), cats = new Float64Array(N_SPARE_CAT);
-  for (const [k, f] of sku) { const p = PRICE.get(k) || 0, b = buyOf(k, f); total += f; value += f * p; buy += b; buyValue += b * p; safe += SAFE(f); const c = T.skuCat[k]; cats[c] += f; groups[GRP[c]] += f; }
-  return { tg, tm: { label: tg.label, days: tg.days }, sku, total, value, safe, buy, buyValue, groups, cats, add };
+  PRICE = new Map();
+  for (const [k,f,,v] of tg.sku) if (f > 0) PRICE.set(k, v/f);
+  const raw = new Map(); for (const [k,f] of tg.sku) raw.set(k,f);
+  const ref=fc.targets[1] || tg, add=Math.max(0,state.fcPlan || 0), sc=tg.days/ref.days;
+  if (add) for (const k in fc.newPer) raw.set(+k,(raw.get(+k)||0)+fc.newPer[k]*add*sc);
+  const sku=allocate([...raw.values()].reduce((a,b)=>a+b,0),[...raw]);
+  let total=0,value=0,safe=0,buy=0,buyValue=0,missingUnits=0,missingBuy=0;
+  const groups=new Float64Array(N_SPARE_GRP), cats=new Float64Array(N_SPARE_CAT);
+  for (const [k,f] of sku) {
+    const p=PRICE.get(k)||0, b=buyOf(k,f);
+    total+=f; value+=f*p; buy+=b; buyValue+=b*p; safe+=Math.ceil(SAFE(f));
+    if (!(p>0)) { missingUnits+=f; missingBuy+=b; }
+    const c=T.skuCat[k]; cats[c]+=f; groups[GRP[c]]+=f;
+  }
+  return {tg,tm:{label:tg.label,days:tg.days},sku,total,value,safe,buy,buyValue,groups,cats,add,missingUnits,missingBuy};
 }
 function lastFullActual() {
   const lm = lastFullMonth(), by = new Map(), on = new Uint8Array(T.nVM);
@@ -693,12 +737,12 @@ function monthTotals(mi) {
 function kpis() {
   const lm = lastFullMonth(), a = monthTotals(lm), b = lm > 0 ? monthTotals(lm - 1) : null, mL = D.months[lm];
   const chg = (x, y, good) => { if (!y) return ''; const d = 100 * (x - y) / y; const cls = (d > 0) === good ? 'g' : 'b'; return ' · <span class="' + cls + '">' + (d >= 0 ? '+' : '') + f1.format(d) + '%</span> on ' + MON[(D.months[lm - 1].ym.slice(5) - 1)]; };
-  const nx = D.fc2 ? (D.fc2.targets[1] || D.fc2.targets[0]) : { label: 'next month', total: NaN, value: NaN };
-  const fcU = nx.total + (D.fc2 && state.fcPlan && state.fcT === D.fc2.targets.indexOf(nx) ? F.total - F.tg.total : 0);
-  const fcX = D.fc2 && nx.sku ? nx.sku.reduce((a, s) => a + s[3] * (1 - reuseOf(s[0]) / 100), 0) : nx.value;
+  const nx = D.fc2 ? F.tg : {label:'next month'};
+  const fcU = D.fc2 ? F.total : NaN, fcX = D.fc2 ? F.buyValue : NaN;
+
   let h ='<div class="kpi"><span class="nm">Deployed vehicles, ' + esc(mL.label) + '</span><b class="num">' + n0(a.n) + '</b><span class="sh">' + (b ? chg(a.n, b.n, true).replace(' · ', '') : '') + '</span></div>';
   h += '<div class="kpi"><span class="nm">Spare parts fitted, ' + esc(mL.label) + '</span><b class="num">' + n0(a.units) + '</b><span class="sh">' + inr(a.val) + ' at purchase price' + (b ? chg(a.units, b.units, false) : '') + '</span></div>';
-  h += '<div class="kpi"><span class="nm">Forecast, ' + esc(nx.label) + '</span><b class="num">' + n0(fcU) + '</b><span class="sh">spare units · ' + inr(fcX) + ' to buy after reuse</span></div>';
+  h += '<div class="kpi"><span class="nm">Forecast, ' + esc(nx.label) + '</span><b class="num">' + n0(fcU) + '</b><span class="sh">spare units · ' + inr(fcX) + ' priced demand after reuse' + (F.missingBuy ? ' · incomplete prices' : '') + '</span></div>';
   if (D.proc) { const k = T.prLastFull, p = procTotals(k, k, true); h += '<div class="kpi"><span class="nm">Bought, ' + MON[k % 12] + ' ' + Math.floor(k / 12) + '</span><b class="num">' + inr(p.amt) + '</b><span class="sh">excl. GST · ' + n0(p.inv) + ' invoices</span></div>'; }
   else h += '<div class="kpi"><span class="nm">Procurement</span><b class="num">–</b><span class="sh">no Spares Master Report in the last refresh</span></div>';
   $('#kpis').innerHTML = h;
@@ -749,20 +793,29 @@ function renderForecast() {
   const perNew = Object.values(fc.newPer).reduce((a, b) => a + b, 0) * tg.days / (fc.targets[1] || tg).days;
   $('#fc-plan-note').textContent = 'Vehicles on rent now (' + n0(tg.onRent) + ') are already counted, with new deployments and returns at the recent pace. Add only deployments beyond the usual: each new vehicle adds about ' + n1(perNew) + ' parts in the month.';
   const g = GROUP_LABEL.slice(0, N_SPARE_GRP).map((n, i) => ({ n, u: F.groups[i] })).sort((a, b) => b.u - a.u);
-  let run = '<div><b class="num">' + n0(F.total) + '</b><span>spare parts expected</span><small>' + inr(F.value) + ' at purchase price' + (F.buy < F.total - 0.5 ? ' · <b>' + inr(F.buyValue) + '</b> to buy after reuse (' + n0(F.total - F.buy) + ' units reused)' : '') + (F.add ?' · includes ' + n0(F.add) + ' planned deployments' : '') + '</small></div>' +
+  let run = '<div><b class="num">' + n0(F.total) + '</b><span>spare parts expected</span><small>' + inr(F.value) + ' priced estimate' + (F.buy < F.total - 0.5 ? ' · <b>' + inr(F.buyValue) + '</b> priced demand after planned reuse (' + n0(F.total - F.buy) + ' units)' : '') + (F.missingUnits ? ' · excludes unpriced units' : '') + (F.add ?' · includes ' + n0(F.add) + ' planned deployments' : '') + '</small></div>' +
     (() => { const g = tg.drift, L = tg.lead, hi = D.fc2.driftCap[1], lo = F.total / Math.pow(g, L), up = F.total * Math.pow(hi / g, L);
-      return '<div><b class="num">' + n0(Math.round(lo / 100) * 100) + '–' + n0(Math.round(up / 100) * 100) + '</b><span>likely range</span><small>low if parts per vehicle stop rising now, high if they rise 8% a month</small></div>'; })();
+      return '<div><b class="num">' + n0(Math.round(lo / 100) * 100) + '–' + n0(Math.round(up / 100) * 100) + '</b><span>Low / high growth scenarios</span><small>0% to 8% monthly growth in parts per vehicle; not a prediction interval</small></div>'; })();
   if (tg.soFar != null) run += '<div><b class="num">' + n0(tg.soFar) + '</b><span>fitted so far</span><small>in the first ' + n1(tg.soFarDays) + ' days · about ' + n0(Math.max(0, F.total - tg.soFar)) + ' still to come</small></div>';
   else run += '<div><b class="num">' + n0(g[0].u) + '</b><span>' + esc(g[0].n) + '</span><small>' + pct(F.total ? 100 * g[0].u / F.total : NaN) + ' of the forecast</small></div>';
   run += '<div><b class="num">' + n0(g[1].u) + '</b><span>' + esc(g[1].n) + '</span><small>' + pct(F.total ? 100 * g[1].u / F.total : NaN) + ' of the forecast</small></div>';
   $('#fc-run').innerHTML = run;
+  const latest=fc.track.filter(t=>!t.partial).slice(-1)[0], reuseParts=[...F.sku].filter(([k,f])=>f>0 && reuseOf(k)>0), fullReuse=reuseParts.filter(([k])=>reuseOf(k)===100);
+  const coverage=F.total ? 100*(F.total-F.missingUnits)/F.total : NaN;
+  $('#fc-checks').innerHTML = '<ul>' +
+    '<li><b>Demand after reuse is not an order quantity.</b> Available stock, open orders, supplier lead times and repair capacity are not connected. Reconcile these before ordering.</li>' +
+    '<li><b>Price coverage: ' + pct(coverage) + ' of forecast units.</b> ' + (F.missingUnits ? n0(F.missingUnits) + ' forecast units (' + n0(F.missingBuy) + ' after reuse) have no price. Budget totals include priced units only; missing prices are not zero-cost parts.' : 'All forecast units have a price.') + '</li>' +
+    (reuseParts.length ? '<li><b>Verify planned reuse for ' + n0(reuseParts.length) + (reuseParts.length === 1 ? ' part.</b> ' : ' parts.</b> ') + (fullReuse.length ? fullReuse.slice(0,3).map(([k])=>esc(D.skus[k][0])).join(', ') + (fullReuse.length>3 ? ' and others' : '') + (fullReuse.length === 1 ? ' assumes' : ' assume') + ' 100% reuse. ' : '') + 'Confirm repairable stock, success rate and turnaround time. Reuse percentages are assumptions saved only in this browser.</li>' : '') +
+    (latest ? '<li><b>' + esc(latest.label) + ': network miss ' + pct(latest.err) + '; top-50 part error ' + pct(latest.top50Err) + '.</b> Overall accuracy can hide shortages for individual parts. Compare the longer-horizon results below when planning ahead.</li>' : '') +
+    '<li><b>Demand is based on parts fitted.</b> Stockouts and pending repairs may hide unmet demand. Safety targets use a shared margin; they do not guarantee availability for every part or lead time.</li></ul>';
+
   const la = [...LA.by.values()].reduce((a, b) => a + b, 0), recent = fc.track.filter(t => !t.partial).slice(-3);
   const ch = la ? 100 * (F.total * 30 / tg.days - la * 30 / D.months[lastFullMonth()].days) / (la * 30 / D.months[lastFullMonth()].days) : NaN;
   $('#fc-lede').innerHTML = esc(LA.label) + ' fitted <b>' + n0(la) + '</b> spare parts. ' + esc(tg.label) + ' is forecast at <b>' + n0(F.total) + '</b>, ' + f0.format(Math.abs(ch)) + '% ' + (ch >= 0 ? 'more' : 'fewer') + ' a day: the fleet on rent keeps ageing and parts per vehicle have been rising by about <b>' + f1.format(100 * (tg.drift - 1)) + '%</b> a month.' +
     (recent.length ? ' Made on the 1st, the forecast missed the last ' + recent.length + ' full months by <b>' + recent.map(t => (t.err >= 0 ? '+' : '') + f1.format(t.err) + '%').join(', ') + '</b>' + (recent.some(t => Math.abs(t.err) > 10) ? ' (the large miss is July\'s sudden jump, explained below).' : '.') : '');
   // groups and categories x months
   const cols = fc.targets.map(t => t.label);
-  const catF = fc.targets.map((t, ti) => { const a = new Float64Array(N_SPARE_CAT); for (const [k, f] of (ti === state.fcT ? [...F.sku] : t.sku)) a[T.skuCat[k]] += f; return a; });
+  const catF = fc.targets.map((t, ti) => { const a = new Float64Array(N_SPARE_CAT); for (const [k, f] of (ti === state.fcT ? [...F.sku] : allocate(t.sku.reduce((sum,s)=>sum+s[1],0),t.sku.map(s=>[s[0],s[1]])))) a[T.skuCat[k]] += f; return a; });
   const catA = new Float64Array(N_SPARE_CAT); for (const [k, q] of LA.by) catA[T.skuCat[k]] += q;
   const catS = new Float64Array(N_SPARE_CAT); const so = fc.targets[0].soFarSku || {}; for (const k in so) catS[T.skuCat[+k]] += so[k];
   let h = '<thead><tr><th class="lab">Part group</th><th>' + esc(LA.label) + '<small>actual</small></th>' + (fc.targets[0].soFar != null ? '<th>' + esc(fc.targets[0].label) + '<small>so far, ' + n1(fc.targets[0].soFarDays) + ' days</small></th>' : '') + cols.map((c, i) => '<th' + (i === state.fcT ? ' style="color:var(--accent)"' : '') + '>' + esc(c) + '<small>forecast</small></th>').join('') + '</tr></thead><tbody>';
@@ -778,38 +831,41 @@ function renderForecast() {
   $('#fcg-sub').textContent = 'Spare parts by group for each forecast month, beside the last full month and this month so far.';
   renderFcParts(); renderAccuracy();
 }
-function sortRows(rows, s) { const [k, d] = s; rows.sort((a, b) => (typeof a[k] === 'string' ? a[k].localeCompare(b[k]) : a[k] - b[k]) * d); return rows; }
-function sortHead(cols, s, id) { return '<thead><tr>' + cols.map(c => '<th class="' + (c.lab ? 'lab ' : '') + 'sortable" data-sort="' + c.k + '" data-tbl="' + id + '"' + (s[0] === c.k ? ' aria-sort="' + (s[1] < 0 ? 'descending' : 'ascending') + '"' : '') + '>' + c.t + (c.s ? '<small>' + c.s + '</small>' : '') + '</th>').join('') + '</tr></thead>'; }
+function sortRows(rows, s) { const [k, d] = s; rows.sort((a, b) => { if (typeof a[k] === 'string') return a[k].localeCompare(b[k]) * d; const x=Number.isFinite(a[k]), y=Number.isFinite(b[k]); return x && y ? (a[k]-b[k])*d : x ? -1 : y ? 1 : 0; }); return rows; }
+function sortHead(cols, s, id) { return '<thead><tr>' + cols.map(c => '<th class="' + (c.lab ? 'lab ' : '') + 'sortable" tabindex="0" data-sort="' + c.k + '" data-tbl="' + id + '"' + (s[0] === c.k ? ' aria-sort="' + (s[1] < 0 ? 'descending' : 'ascending') + '"' : '') + '>' + c.t + (c.s ? '<small>' + c.s + '</small>' : '') + '</th>').join('') + '</tr></thead>'; }
 function fcPartRows() {
   const LA = lastFullActual(), so = D.fc2.targets[0].soFarSku || {}, out = [];
   const keys = new Set([...F.sku.keys(), ...LA.by.keys()]);
   for (const k of keys) {
     const f = F.sku.get(k) || 0, r = reuseOf(k), b = buyOf(k, f);
-    out.push({ k, n: D.skus[k][0], c: D.cats[T.skuCat[k]], fc: f, safe: f > 0 ? Math.ceil(SAFE(f)) : 0, r, buy: b, fx: b * (PRICE.get(k) || 0), last: LA.by.get(k) || 0, so: so[k] || 0 });
+    out.push({ k, n: D.skus[k][0], c: D.cats[T.skuCat[k]], fc: f, safe: f > 0 ? Math.ceil(SAFE(f)) : 0, r, buy: b, fx: b > 0 && !(PRICE.get(k) > 0) ? NaN : b * (PRICE.get(k) || 0), last: LA.by.get(k) || 0, so: so[k] || 0 });
   }
   return out;
 }
 function renderFcParts() {
   let rows = sortRows(fcPartRows(), state.fcpSort); const q = state.fcpQ.trim().toUpperCase();
-  const all = rows.length; if (q) rows = rows.filter(r => r.n.toUpperCase().includes(q) || r.c.toUpperCase().includes(q));
+  const all = rows.length; if (state.fcpMissing) rows = rows.filter(r => r.fc > 0 && !(PRICE.get(r.k) > 0)); if (q) rows = rows.filter(r => r.n.toUpperCase().includes(q) || r.c.toUpperCase().includes(q));
   const LA = lastFullActual(), t0 = D.fc2.targets[0];
-  const cols = [{ k: 'n', t: 'Part', lab: 1 }, { k: 'c', t: 'Category' }, { k: 'fc', t: 'Forecast', s: 'units, ' + F.tm.label }, { k: 'safe', t: 'Safe quantity', s: 'covers 9 in 10' }, { k: 'r', t: 'Reuse', s: '% repaired and refitted' }, { k: 'buy', t: 'To buy', s: 'forecast less reuse' }, { k: 'fx', t: 'Value', s: 'to buy, at purchase price' }, { k: 'last', t: LA.label, s: 'fitted' }];
+  const cols = [{ k: 'n', t: 'Part', lab: 1 }, { k: 'c', t: 'Category' }, { k: 'fc', t: 'Forecast', s: 'units, ' + F.tm.label }, { k: 'safe', t: 'Safety target', s: 'forecast + shared margin' }, { k: 'r', t: 'Reuse', s: '% repaired and refitted' }, { k: 'buy', t: 'Demand after reuse', s: 'before inventory / open orders' }, { k: 'fx', t: 'Priced value', s: 'demand after reuse' }, { k: 'last', t: LA.label, s: 'fitted' }];
   if (t0.soFar != null) cols.push({ k: 'so', t: t0.label, s: 'fitted so far' });
-  const shown = state.fcpAll || q ? rows : rows.slice(0, 60);
+  const shown = state.fcpAll || q || state.fcpMissing ? rows : rows.slice(0, 60);
   if (state.fcpOpen != null && !shown.some(r => r.k === state.fcpOpen)) state.fcpOpen = null;
   let h = sortHead(cols, state.fcpSort, 'fcp') + '<tbody>';
   for (const r of shown) {
     const open = state.fcpOpen === r.k;
     h += '<tr class="click" data-fcp="' + r.k + '" aria-expanded="' + open + '" tabindex="0"><td class="lab"><span class="tw" aria-hidden="true">' + (open ? '▾' : '▸') + '</span>' + esc(r.n) + '</td><td style="text-align:left">' + esc(r.c) + '</td><td><b>' + n0(Math.round(r.fc)) + '</b></td><td>' + n0(r.safe) + '</td>' +
-      '<td><input class="reuse' + (r.r > 0 ? ' set' : '') + '" type="number" min="0" max="100" step="5" data-reuse="' + r.k + '" value="' + r.r + '" aria-label="Reuse % for ' + esc(r.n) + '"></td><td><b>' + n0(Math.round(r.buy)) + '</b></td><td>' + inr(r.fx) + '</td><td>' + n0(r.last) + '</td>' + (t0.soFar != null ? '<td>' + n0(r.so) + '</td>' : '') + '</tr>';
+      '<td><input class="reuse' + (r.r > 0 ? ' set' : '') + '" type="number" min="0" max="100" step="5" data-reuse="' + r.k + '" value="' + r.r + '" aria-label="Reuse % for ' + esc(r.n) + '"></td><td><b>' + n0(Math.round(r.buy)) + '</b></td><td>' + pricedValue(r.buy, r.fx) + '</td><td>' + n0(r.last) + '</td>' + (t0.soFar != null ? '<td>' + n0(r.so) + '</td>' : '') + '</tr>';
     if (open) h += '<tr class="detail"><td colspan="' + cols.length + '">' + partDetail(r) + '</td></tr>';
   }
+  if (!shown.length) h += '<tr><td class="lab" colspan="' + cols.length + '">No parts match these filters.</td></tr>';
   $('#fcp-tbl').innerHTML = h + '</tbody>';
-  $('#fcp-sub').textContent = 'Every spare part: the forecast for ' + F.tm.label + ', a safe quantity to hold, how much is met by repair and reuse, what is left to buy, and what was actually fitted. Click a part for its breakdown by city and hub, or by vehicle model.';
+  $('#fcp-missing').setAttribute('aria-pressed',String(state.fcpMissing));
+  $('#fcp-missing').textContent=state.fcpMissing ? 'Show all prices' : 'Missing prices';
+  $('#fcp-sub').textContent = 'Every spare part: the forecast for ' + F.tm.label + ', a safety target, planned reuse, demand remaining before inventory and open orders, and what was actually fitted. Click a part for its breakdown by city and hub, or by vehicle model.';
   const nSet = Object.keys(REUSE).filter(n => REUSE[n] > 0).length, changed = Object.keys(REUSE).some(n => (REUSE[n] || 0) !== (REUSE_DEFAULT[n] || 0));
-  $('#fcp-note').innerHTML = (q ? n0(rows.length) + ' of ' + n0(all) + ' parts match.' : shown.length < rows.length ? 'Showing the top 60 of ' + n0(rows.length) + ' parts. <button class="link" type="button" id="fcp-more">Show all</button>' : n0(rows.length) + ' parts.') +
-    ' Safe quantity = forecast plus a margin that, in past months, covered nine in ten parts fitted. A part forecast above zero but rarely fitted can still miss: the margin is wider in proportion for small numbers.' +
-    ' Reuse is the share of a part\'s demand met by repairing removed units and refitting them; To buy and Value leave it out. ' + n0(nSet) + ' part' + (nSet === 1 ? ' has' : 's have') + ' a reuse share; MOTOR starts at 100% because motors are repaired, not bought. Reuse shares are saved in this browser.' +
+  $('#fcp-note').innerHTML = (q || state.fcpMissing ? n0(rows.length) + ' of ' + n0(all) + ' parts match.' : shown.length < rows.length ? 'Showing the top 60 of ' + n0(rows.length) + ' parts. <button class="link" type="button" id="fcp-more">Show all</button>' : n0(rows.length) + ' parts.') +
+    ' Safety target = forecast plus a shared uncertainty margin. Historical coverage is shown below; this is not a guarantee for each part or supplier lead time.' +
+    ' Demand after reuse excludes planned repair and refit units, but does not subtract inventory or open orders. ' + n0(nSet) + ' part' + (nSet === 1 ? ' has' : 's have') + ' a planned reuse share. MOTOR defaults to 100%; verify repair capacity before relying on this assumption. Reuse shares are saved only in this browser.' +
     (changed ? ' <button class="link" type="button" id="fcp-reuse-reset">Reset reuse to the defaults</button>' : '');
   const more = $('#fcp-more'); if (more) more.addEventListener('click', () => { state.fcpAll = true; renderFcParts(); });
   const rst = $('#fcp-reuse-reset'); if (rst) rst.addEventListener('click', () => { resetReuse(); render(); });
@@ -837,15 +893,17 @@ function partBreakdown(k, mode) {
   }
   const f = F.sku.get(k) || 0;
   if (!byModel) {   // forecast split by where the part was fitted in the last 30 days (from the refresh)
-    for (const [h, w] of ((D.fc2.hubShare || {})[k] || [])) { const [O, I] = node(cityOf(h), D.hubs[h]); O.fc += f * w; I.fc += f * w; }
+    for (const [h, units] of hubUnits(k,f)) { const [O,I]=node(h<0 ? 'Unallocated' : cityOf(h), h<0 ? 'Hub not known' : D.hubs[h]); O.fc+=units; I.fc+=units; }
   } else {          // forecast split by the models it was fitted on in the last full month and this month so far
     let W = 0; for (const O of nodes.values()) W += O.w;
-    if (W > 0) for (const O of nodes.values()) { O.fc = f * O.w / W; for (const I of O.kids.values()) I.fc = f * I.w / W; }
+    if (W > 0) { const outer=allocate(f,[...nodes].map(([key,O])=>[key,O.w])); for(const [key,O] of nodes) { O.fc=outer.get(key)||0; const inner=allocate(O.fc,[...O.kids].map(([key,I])=>[key,I.w])); for(const [key,I] of O.kids) I.fc=inner.get(key)||0; } } else { const [O,I]=node('Model not known','Unallocated'); O.fc=f; I.fc=f; }
   }
+  const outerBuy=allocate(buyOf(k,f),[...nodes].map(([key,O])=>[key,O.fc]));
+  for (const [key,O] of nodes) { O.buy=outerBuy.get(key)||0; const inner=allocate(O.buy,[...O.kids].map(([key,I])=>[key,I.fc])); for(const [key,I] of O.kids) I.buy=inner.get(key)||0; }
   const sum = x => x.u.reduce((s, v) => s + v, 0), any = x => sum(x) > 0 || x.fc > 0.05 || x.nv[0] || x.nv[1];
-  const groups = [...nodes.values()].filter(any).map(O => ({ n: O.n, u: O.u, nv: O.nv, fc: O.fc, kids: [...O.kids.values()].filter(any).sort((a, b) => b.fc - a.fc || sum(b) - sum(a)) }))
+  const groups = [...nodes.values()].filter(any).map(O => ({ n: O.n, u: O.u, nv: O.nv, fc: O.fc, buy: O.buy, kids: [...O.kids.values()].filter(any).sort((a, b) => b.fc - a.fc || sum(b) - sum(a)) }))
     .sort((a, b) => b.fc - a.fc || sum(b) - sum(a));
-  const tot = { u: new Float64Array(ms.length), nv: [0, 0], fc: 0 }; for (const g of groups) { g.u.forEach((v, j) => tot.u[j] += v); tot.nv[0] += g.nv[0]; tot.nv[1] += g.nv[1]; tot.fc += g.fc; }
+  const tot = { u: new Float64Array(ms.length), nv: [0, 0], fc: 0, buy: 0 }; for (const g of groups) { g.u.forEach((v, j) => tot.u[j] += v); tot.nv[0] += g.nv[0]; tot.nv[1] += g.nv[1]; tot.fc += g.fc; tot.buy += g.buy; }
   return { ms, lf, cur, groups, tot, f };
 }
 function partDetail(r) {
@@ -858,11 +916,11 @@ function partDetail(r) {
     (rr > 0 ? ' · ' + n0(rr * 100) + '% met by reuse' : '') + '</span></div>' + seg + '</div>';
   h += '<table class="dtbl"><thead><tr><th class="lab" rowspan="2">' + (byModel ? 'Model / city' : 'City / hub') + '</th><th colspan="' + B.ms.length + '" class="grp">Fitted, by month</th><th colspan="' + (B.cur >= 0 ? 2 : 1) + '" class="grp">New vehicles added</th><th colspan="2" class="grp">' + esc(F.tm.label) + '</th></tr><tr>';
   B.ms.forEach((m, j) => { h += '<th' + (j === 0 ? ' class="gl0"' : '') + '>' + esc(mL(m)) + (D.months[m].partial ? '<small>1–' + D.months[m].upto + '</small>' : '') + '</th>'; });
-  h += '<th class="gl0">' + esc(mL(B.lf)) + '</th>' + (B.cur >= 0 ? '<th>' + esc(mL(B.cur)) + '<small>so far</small></th>' : '') + '<th class="gl0">Forecast</th><th>To buy</th></tr></thead><tbody>';
+  h += '<th class="gl0">' + esc(mL(B.lf)) + '</th>' + (B.cur >= 0 ? '<th>' + esc(mL(B.cur)) + '<small>so far</small></th>' : '') + '<th class="gl0">Forecast</th><th>Demand after reuse</th></tr></thead><tbody>';
   const z = '<span class="z">–</span>';
   const cellsOf = (x, cls, lab) => '<tr class="' + cls + '"><td class="lab">' + lab + '</td>' + [...x.u].map((v, j) => '<td' + (j === 0 ? ' class="gl0"' : '') + '>' + (v ? n0(v) : z) + '</td>').join('') +
     '<td class="gl0">' + (x.nv[0] ? n0(x.nv[0]) : z) + '</td>' + (B.cur >= 0 ? '<td>' + (x.nv[1] ? n0(x.nv[1]) : z) + '</td>' : '') +
-    '<td class="gl0"><b>' + (x.fc >= 0.5 ? n0(x.fc) : z) + '</b></td><td>' + (x.fc * (1 - rr) >= 0.5 ? n0(x.fc * (1 - rr)) : '<span class="z">' + (x.fc >= 0.5 ? '0' : '–') + '</span>') + '</td></tr>';
+    '<td class="gl0"><b>' + (x.fc >= 0.5 ? n0(x.fc) : z) + '</b></td><td>' + (x.buy >= 0.5 ? n0(x.buy) : '<span class="z">' + (x.fc >= 0.5 ? '0' : '–') + '</span>') + '</td></tr>';
   h += cellsOf(B.tot, 'total', byModel ? 'All models' : 'All cities');
   const kidWord = byModel ? ['city', 'cities'] : ['hub', 'hubs'];
   for (const g of B.groups) {
@@ -877,7 +935,7 @@ function renderAccuracy() {
   const tr = D.fc2.track;
   const pts = tr.map(t => ({ l: t.label.slice(0, 3) + (t.partial ? ' (1–' + Math.floor(t.days) + ')' : ''), p: false, v: [t.fc, t.act], t }));
   lineChart('#acc-chart', '#acc-chart-x', pts, [['Forecast', 'var(--s-new)'], ['Actual', 'var(--s-old)']], v => n0(v), p => p.t.label + (p.t.partial ? ' (first ' + n1(p.t.days) + ' days)' : '') + '\nForecast on the 1st: ' + n0(p.t.fc) + '\nActually fitted: ' + n0(p.t.act) + '\nMiss: ' + (p.t.err >= 0 ? '+' : '') + f1.format(p.t.err) + '%');
-  let h = '<thead><tr><th class="lab">Month</th><th>Forecast<small>made on the 1st</small></th><th>Actually fitted</th><th>Miss<small>total</small></th><th>Miss by group<small>all groups</small></th><th>Miss by part<small>top 50 parts</small></th><th>Safe quantity covered<small>of parts fitted</small></th><th>Forecast<small>made mid month before</small></th><th>Miss</th></tr></thead><tbody>';
+  let h = '<thead><tr><th class="lab">Month</th><th>Forecast<small>made on the 1st</small></th><th>Actually fitted</th><th>Miss<small>total</small></th><th>Miss by group<small>all groups</small></th><th>Miss by part<small>top 50 parts</small></th><th>Safety target covered<small>of parts fitted</small></th><th>Forecast<small>made mid month before</small></th><th>Miss</th></tr></thead><tbody>';
   for (const t of tr.slice().reverse()) h += '<tr><td class="lab">' + esc(t.label) + (t.partial ? '<small>first ' + n1(t.days) + ' days</small>' : '') + '</td><td>' + n0(t.fc) + '</td><td>' + n0(t.act) + '</td><td><b>' + (t.err >= 0 ? '+' : '') + f1.format(t.err) + '%</b></td><td>' + f1.format(t.groupErr) + '%</td><td>' + f1.format(t.top50Err) + '%</td><td>' + f1.format(t.safeCover) + '%</td><td>' + (t.fcMid != null ? n0(t.fcMid) : '–') + '</td><td>' + (t.errMid != null ? (t.errMid >= 0 ? '+' : '') + f1.format(t.errMid) + '%' : '–') + '</td></tr>';
   $('#acc-tbl').innerHTML = h + '</tbody>';
   $('#acc-note').textContent = 'Miss by group and by part add up each group\'s or part\'s miss, over or under, as a share of all parts fitted. July shows what a sudden change does: parts per vehicle jumped by a third that month, which no forecast from June could see. The forecast is most accurate made on the 1st for the month ahead; six weeks out it misses more, so recheck it after each month closes.';
@@ -954,7 +1012,7 @@ function lineChart(sel, xsel, pts, series, fmt, tipFn) {
   series.forEach((s, si) => pts.forEach((p, i) => { if (!isNaN(p.v[si])) h += '<span class="dot" style="left:' + X(i).toFixed(1) + 'px;top:' + Y(p.v[si]).toFixed(1) + 'px;background:' + s[1] + '"></span>'; }));
   // direct labels at the last point
   const li = (() => { for (let i = n - 1; i >= 0; i--) if (pts[i].v.some(v => !isNaN(v))) return i; return -1; })();
-  if (li >= 0) { const ys = series.map((s, si) => ({ si, y: Y(pts[li].v[si]) })).filter(o => !isNaN(o.y)).sort((a, b) => a.y - b.y); for (let k = 1; k < ys.length; k++) if (ys[k].y - ys[k - 1].y < 16) ys[k].y = ys[k - 1].y + 16; ys.forEach(o => { if (X(li) + 60 < w + 50) h += '<span class="lbl" style="left:' + (X(li) + 9).toFixed(1) + 'px;top:' + o.y.toFixed(1) + 'px">' + series[o.si][0] + ' ' + fmt(pts[li].v[o.si]) + '</span>'; }); }
+  if (li >= 0) { const ys = series.map((s, si) => ({ si, y: Y(pts[li].v[si]) })).filter(o => !isNaN(o.y)).sort((a, b) => a.y - b.y); for (let k = 1; k < ys.length; k++) if (ys[k].y - ys[k - 1].y < 16) ys[k].y = ys[k - 1].y + 16; ys.forEach(o => { if (X(li) + 60 < w + 50) h += '<span class="lbl" style="left:' + Math.max(0, Math.min(X(li) + 9, w - 110)).toFixed(1) + 'px;top:' + o.y.toFixed(1) + 'px">' + series[o.si][0] + ' ' + fmt(pts[li].v[o.si]) + '</span>'; }); }
   h += '<div class="hl" hidden></div>';
   el.innerHTML = h;
   $(xsel).innerHTML = pts.map((p, i) => '<span style="left:' + X(i).toFixed(1) + 'px">' + esc(p.l) + '</span>').join('');
@@ -979,13 +1037,13 @@ function placeTip(e) { const tip = $('#tip'), r = tip.getBoundingClientRect(); l
 // ---------- Hubs tab
 function hubRows() {
   const per = R.nMon || 1, monOn = D.months.map((m, i) => state.months.has(i)), d30 = D.months.map(m => m.days / 30), svcOn = [0, 1, 2, 3, 4].map(s => state.svc.has(s));
-  const H = D.hubs.map((n, i) => ({ i, n, city: T.cityOfHub[i] || '', vm: 0, e: 0, units: 0, val: 0, grp: new Float64Array(N_SPARE_GRP), fcVeh: 0, net: 0 }));
+  const H = [...D.hubs, 'Unallocated'].map((n, i) => ({ i, n, city: T.cityOfHub[i] || '', vm: 0, e: 0, units: 0, val: 0, grp: new Float64Array(N_SPARE_GRP), fcVeh: 0, net: 0 }));
   const on = new Uint8Array(T.nVM);
   for (let i = 0; i < T.nVM; i++) { if (!monOn[T.m[i]] || !vmOn(i) || T.age[i] < 0) continue; on[i] = 1; const h = H[T.hub[i]]; h.vm++; h.e += d30[T.m[i]]; }
   for (let j = 0; j < T.nPL; j++) { if (!on[T.pvm[j]] || !svcOn[T.psvc[j]]) continue; const c = T.skuCat[T.psku[j]]; if (c >= N_SPARE_CAT) continue; const h = H[T.phub[j]]; h.units += T.pq[j]; h.val += T.pv[j]; h.grp[GRP[c]] += T.pq[j]; }
   // forecast: each part's network forecast split by where it was fitted in the last 30 days
-  const hs = D.fc2 ? D.fc2.hubShare : {}, fcH = new Float64Array(D.hubs.length), safeH = new Float64Array(D.hubs.length);
-  for (const [k, f] of F.sku) { const sh = hs[k]; if (!sh) continue; for (const [h, w] of sh) { fcH[h] += f * w; safeH[h] += SAFE(f * w); } }
+  const hs = D.fc2 ? D.fc2.hubShare : {}, fcH = new Float64Array(H.length), safeH = new Float64Array(H.length);
+  for(const [k,f] of F.sku) for(const [hub,q] of hubUnits(k,f)) { const h=hub<0 ? D.hubs.length : hub; fcH[h]+=q; safeH[h]+=q>0 ? Math.ceil(SAFE(q)) : 0; }
   for (const h of H) {
     h.veh = h.vm / per; h.um = h.units / per; h.vx = h.val / per; h.top = h.units > 0 ? GROUP_LABEL[h.grp.indexOf(Math.max(...h.grp))] : '';
     h.rate = h.veh >= MIN_N && h.e > 0 ? 100 * h.units / h.e : NaN; h.fc = fcH[h.i]; h.safe = safeH[h.i];
@@ -997,7 +1055,7 @@ function renderHubs() {
   const tot = rows.reduce((a, h) => ({ veh: a.veh + h.veh, um: a.um + h.um, vx: a.vx + h.vx, fc: a.fc + h.fc, safe: a.safe + h.safe }), { veh: 0, um: 0, vx: 0, fc: 0, safe: 0 });
   const mxU = Math.max(1, ...rows.map(h => h.um));
   const cols = [{ k: 'n', t: 'Hub', lab: 1 }, { k: 'city', t: 'City' }, { k: 'veh', t: 'Deployed vehicles', s: 'average per month' }, { k: 'um', t: 'Spare parts fitted', s: 'per month, base months' }, { k: 'rate', t: 'Per 100 vehicles', s: 'per 30 days' },
-    { k: 'vx', t: 'Value', s: 'per month' }, { k: 'fc', t: 'Forecast', s: F.tm.label }, { k: 'safe', t: 'Safe quantity', s: 'sum over its parts' }];
+    { k: 'vx', t: 'Value', s: 'per month' }, { k: 'fc', t: 'Forecast', s: F.tm.label }, { k: 'safe', t: 'Safety target', s: 'sum over its parts' }];
   let h = sortHead(cols, state.hubSort, 'hub') + '<tbody>';
   for (const r of rows) h += '<tr class="click" data-hub="' + r.i + '" aria-selected="' + (state.hub === r.i) + '" tabindex="0"><td class="lab">' + esc(r.n) + '</td><td style="text-align:left">' + esc(r.city) + '</td><td>' + n0(r.veh) + '</td><td><div class="ibar"><b>' + n0(r.um) + '</b><i style="width:' + (100 * r.um / mxU).toFixed(1) + '%"></i></div></td><td>' + n0(r.rate) + '</td><td>' + inr(r.vx) + '</td><td><b>' + n0(r.fc) + '</b></td><td>' + n0(r.safe) + '</td></tr>';
   h += '<tr class="total"><td class="lab">All hubs</td><td></td><td>' + n0(tot.veh) + '</td><td>' + n0(tot.um) + '</td><td>' + n0(tot.veh ? 100 * tot.um / tot.veh : NaN) + '</td><td>' + inr(tot.vx) + '</td><td>' + n0(tot.fc) + '</td><td>' + n0(tot.safe) + '</td></tr>';
@@ -1015,9 +1073,9 @@ function hubPartRows(hub) {
   const u = new Float64Array(D.skus.length); let all = 0;
   for (let j = 0; j < T.nPL; j++) { if (T.phub[j] !== hub.i || !svcOn[T.psvc[j]]) continue; const i = T.pvm[j]; if (!monOn[T.m[i]] || !vmOn(i) || T.age[i] < 0) continue; const k = T.psku[j]; if (T.skuCat[k] >= N_SPARE_CAT) continue; u[k] += T.pq[j]; all += T.pq[j]; }
   const fh = new Map(), hs = D.fc2 ? D.fc2.hubShare : {};
-  for (const [k, f] of F.sku) { const sh = hs[k]; if (!sh) continue; for (const [h, w] of sh) if (h === hub.i) fh.set(k, f * w); }
+  for(const [k,f] of F.sku) { const q=hubUnits(k,f).get(hub.i===D.hubs.length ? -1 : hub.i)||0; if(q) fh.set(k,q); }
   const out = [];
-  for (let k = 0; k < u.length; k++) if (u[k] > 0 || fh.get(k) > 0.05) { const f = fh.get(k) || 0; out.push({ n: D.skus[k][0], c: D.cats[T.skuCat[k]], avg: u[k] / per, share: all ? 100 * u[k] / all : 0, fc: f, safe: f > 0 ? Math.ceil(SAFE(f)) : 0, fx: f * (PRICE.get(k) || 0) }); }
+  for (let k = 0; k < u.length; k++) if (u[k] > 0 || fh.get(k) > 0.05) { const f = fh.get(k) || 0; out.push({ n: D.skus[k][0], c: D.cats[T.skuCat[k]], avg: u[k] / per, share: all ? 100 * u[k] / all : 0, fc: f, safe: f > 0 ? Math.ceil(SAFE(f)) : 0, fx: f>0 && !(PRICE.get(k)>0) ? NaN : f*(PRICE.get(k)||0) }); }
   return out;
 }
 function renderHubParts(hub) {
@@ -1025,9 +1083,9 @@ function renderHubParts(hub) {
   $('#hubp-title').textContent = 'Parts for ' + hub.n;
   $('#hubp-sub').textContent = 'Fitted per month in the base months, and the hub\'s share of each part\'s ' + F.tm.label + ' forecast: ' + n0(hub.fc) + ' units in all.';
   let rows = sortRows(hubPartRows(hub), ['fc', -1]); const q = state.hubpQ.trim().toUpperCase(); if (q) rows = rows.filter(r => r.n.toUpperCase().includes(q) || r.c.toUpperCase().includes(q));
-  let h = '<thead><tr><th class="lab">Part</th><th style="text-align:left">Category</th><th>Fitted<small>per month</small></th><th>Share<small>of the hub\'s parts</small></th><th>Forecast<small>units, ' + esc(F.tm.label) + '</small></th><th>Safe quantity</th><th>Value<small>forecast</small></th></tr></thead><tbody>';
+  let h = '<thead><tr><th class="lab">Part</th><th style="text-align:left">Category</th><th>Fitted<small>per month</small></th><th>Share<small>of the hub\'s parts</small></th><th>Forecast<small>units, ' + esc(F.tm.label) + '</small></th><th>Safety target</th><th>Value<small>forecast</small></th></tr></thead><tbody>';
   const lim = q || state.hubpAll ? rows : rows.slice(0, 40);
-  for (const r of lim) h += '<tr><td class="lab">' + esc(r.n) + '</td><td style="text-align:left">' + esc(r.c) + '</td><td>' + n0(r.avg) + '</td><td>' + pct(r.share) + '</td><td><b>' + n0(Math.round(r.fc)) + '</b></td><td>' + n0(r.safe) + '</td><td>' + inr(r.fx) + '</td></tr>';
+  for (const r of lim) h += '<tr><td class="lab">' + esc(r.n) + '</td><td style="text-align:left">' + esc(r.c) + '</td><td>' + n0(r.avg) + '</td><td>' + pct(r.share) + '</td><td><b>' + n0(Math.round(r.fc)) + '</b></td><td>' + n0(r.safe) + '</td><td>' + pricedValue(r.fc,r.fx) + '</td></tr>';
   if (lim.length < rows.length) h += '<tr><td class="lab" colspan="7"><button class="link" type="button" id="hubp-more">Show all ' + n0(rows.length) + ' parts</button></td></tr>';
   $('#hubp-tbl').innerHTML = h + '</tbody>';
   const more = $('#hubp-more'); if (more) more.addEventListener('click', () => { state.hubpAll = true; renderHubs(); });
@@ -1052,7 +1110,7 @@ function renderProc() {
   }
   const period = MON[state.prFrom % 12] + ' ' + Math.floor(state.prFrom / 12) + (state.prTo !== state.prFrom ? ' – ' + MON[state.prTo % 12] + ' ' + Math.floor(state.prTo / 12) : '');
   const nMon = state.prTo - state.prFrom + 1;
-  $('#pr-run').innerHTML = '<div><b class="num">' + inr(amt) + '</b><span>spent, excluding GST</span><small>' + esc(period) + (nMon > 1 ? ' · ' + inr(amt / nMon) + ' a month' : '') + '</small></div>' +
+  $('#pr-run').innerHTML = '<div><b class="num">' + inr(amt) + '</b><span>priced spend, excluding GST</span><small>' + esc(period) + (nMon > 1 ? ' · ' + inr(amt / nMon) + ' a month' : '') + '</small></div>' +
     '<div><b class="num">' + n0(inv.size) + '</b><span>invoices</span><small>' + n0(rows.length) + ' lines</small></div>' +
     '<div><b class="num">' + n0(vend.size) + '</b><span>vendors</span><small>' + (vend.size ? esc([...vend.values()].sort((a, b) => b.amt - a.amt)[0].n) + ' is the largest' : '') + '</small></div>' +
     '<div><b class="num">' + inr(fr) + '</b><span>freight</span><small>kept out of item spend' + (unpriced ? ' · ' + n0(unpriced) + ' lines have no cost' : '') + '</small></div>';
@@ -1075,7 +1133,7 @@ function renderProc() {
   for (const r of lim) h += '<tr data-tip="' + esc('Rows in the sheet: ' + r.rows.slice(0, 30).join(', ') + (r.rows.length > 30 ? ' …' : '')) + '"><td class="lab">' + esc(r.n) + '</td><td>' + n0(r.qty) + '</td><td>' + inr(r.amt) + '</td><td>' + (isNaN(r.avg) ? '–' : '₹' + n1(r.avg)) + '</td><td>' + (isNaN(r.lo) ? '–' : '₹' + n1(r.lo)) + '</td><td>' + (isNaN(r.hi) ? '–' : '₹' + n1(r.hi)) + '</td><td>' + (isNaN(r.last) ? '–' : '₹' + n1(r.last)) + '</td><td>' + n0(r.nv) + '</td></tr>';
   $('#pr-i-tbl').innerHTML = h + '</tbody>';
   $('#pr-i-sub').textContent = esc(period) + '. Different spellings of the same item are grouped; hover a row to see its rows in the sheet.';
-  $('#pr-i-note').innerHTML = (q ? n0(shown.length) + ' of ' + n0(ir.length) + ' items match.' : lim.length < shown.length ? 'Showing the top 60 of ' + n0(shown.length) + ' items. <button class="link" type="button" id="pr-more">Show all</button>' : n0(shown.length) + ' items.') + ' A wide gap between the lowest and highest rate is worth a look before the next order.';
+  $('#pr-i-note').innerHTML = (q ? n0(shown.length) + ' of ' + n0(ir.length) + ' items match.' : lim.length < shown.length ? 'Showing the top 60 of ' + n0(shown.length) + ' items. <button class="link" type="button" id="pr-more">Show all</button>' : n0(shown.length) + ' items.') + ' Average rate uses priced quantities only; total quantity can include unpriced units. A wide gap between lowest and highest rates needs review before ordering.';
   const more = $('#pr-more'); if (more) more.addEventListener('click', () => { state.prAll = true; renderProc(); });
   // flags for the period
   const inP = new Set(rows.map(r => r[c.row])), fl = P.flags.filter(f => inP.has(f[0]) || /left out/.test(f[1]) && rowInPeriod(f[0]));
@@ -1085,6 +1143,10 @@ function renderProc() {
   $('#pr-f-tbl').innerHTML = h + '</tbody>';
   $('#pr-f-sub').textContent = n0(fl.length) + ' lines in this period were read with care: repeats left out, dates corrected, costs that look like line totals, and lines without a cost. Row numbers are rows of the "Procurement vendor wise data" sheet.';
   $('#pr-f-more').textContent = state.prFlagsAll ? 'Show fewer' : 'Show all';
+  let warning=$('#pr-quality');
+  if(!warning) { warning=document.createElement('p'); warning.id='pr-quality'; warning.className='note'; $('#pr-run').after(warning); }
+  const flaggedRows=new Set(fl.map(f=>f[0])), includedFlaggedValue=rows.filter(r=>flaggedRows.has(r[c.row])&&!r[c.freight]).reduce((a,r)=>a+(r[c.amount]||0),0);
+  warning.textContent=n0(unpriced)+' lines have no recorded spend; totals include priced lines only. '+n0(fl.length)+' import checks in this period; '+inr(includedFlaggedValue)+' of included spend is on flagged rows (not an estimate of the error). Review Lines to check and original invoices. Vendor aliases have not been independently verified.';
 }
 function rowInPeriod(row) { const c = T.pc, rs = D.proc.rows; let best = null; for (const r of rs) { if (r[c.row] < row) best = r; else break; } if (!best) return false; const t = new Date(best[c.day] * DAY), k = t.getUTCFullYear() * 12 + t.getUTCMonth(); return k >= state.prFrom && k <= state.prTo; }
 
@@ -1116,17 +1178,18 @@ function bind() {
     const pd = e.target.closest('details.pop'); $$('details.pop[open]').forEach(d => { if (d !== pd) d.open = false; });
   });
   document.addEventListener('change', e => { const ri = e.target.closest && e.target.closest('input[data-reuse]'); if (!ri) return; setReuse(+ri.dataset.reuse, ri.value); render(); });
-  document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches && e.target.matches('tr[data-fcp]')) { const k = +e.target.dataset.fcp; state.fcpOpen = state.fcpOpen === k ? null : k; renderFcParts(); const t = $('#fcp-tbl tr[data-fcp="' + k + '"]'); if (t) t.focus(); return; } if (e.key === 'Enter') { const hr = e.target.closest && e.target.closest('tr[data-hub]'); if (hr) { state.hub = +hr.dataset.hub; renderHubs(); } } if (e.key === 'Escape') $$('details.pop[open]').forEach(d => d.open = false); });
+  document.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('th.sortable')) { e.preventDefault(); e.target.click(); return; } if (e.key === 'Enter' && e.target.matches && e.target.matches('tr[data-fcp]')) { const k = +e.target.dataset.fcp; state.fcpOpen = state.fcpOpen === k ? null : k; renderFcParts(); const t = $('#fcp-tbl tr[data-fcp="' + k + '"]'); if (t) t.focus(); return; } if (e.key === 'Enter') { const hr = e.target.closest && e.target.closest('tr[data-hub]'); if (hr) { state.hub = +hr.dataset.hub; renderHubs(); } } if (e.key === 'Escape') $$('details.pop[open]').forEach(d => d.open = false); });
   $('#fc-plan').addEventListener('change', e => { state.fcPlan = Math.max(0, Math.round(+e.target.value || 0)); render(); });
   $('#fc-copy').addEventListener('click', e => copyTable('#fc-tbl', e.target));
   $('#age-copy').addEventListener('click', e => copyTable('#age-tbl', e.target));
+  $('#fcp-missing').addEventListener('click', () => { state.fcpMissing=!state.fcpMissing; renderFcParts(); });
   $('#fcp-q').addEventListener('input', e => { state.fcpQ = e.target.value; renderFcParts(); });
   $('#hubp-q').addEventListener('input', e => { state.hubpQ = e.target.value; renderHubs(); });
   $('#pr-q').addEventListener('input', e => { state.prQ = e.target.value; renderProc(); });
   $('#pr-f-more').addEventListener('click', () => { state.prFlagsAll = !state.prFlagsAll; renderProc(); });
-  $('#fcp-csv').addEventListener('click', () => { const LA = lastFullActual(), t0 = D.fc2.targets[0], rows = sortRows(fcPartRows(), ['fc', -1]); csv('Spares forecast ' + F.tm.label + '.csv', ['Part', 'Category', 'Forecast units ' + F.tm.label, 'Safe quantity', 'Reuse %', 'To buy units', 'Value to buy (Rs)', LA.label + ' fitted'].concat(t0.soFar != null ? [t0.label + ' fitted so far'] : []), rows.map(r => [r.n, r.c, Math.round(r.fc), r.safe, r.r, Math.round(r.buy), Math.round(r.fx), Math.round(r.last)].concat(t0.soFar != null ? [Math.round(r.so)] : []))); });
-  $('#hub-csv').addEventListener('click', () => { const rows = sortRows(hubRows(), ['um', -1]); csv('Spares by hub ' + F.tm.label + '.csv', ['Hub', 'City', 'Deployed vehicles per month', 'Spare parts per month', 'Per 100 vehicles', 'Value per month (Rs)', 'Largest group', 'Forecast ' + F.tm.label, 'Safe quantity'], rows.map(h => [h.n, h.city, Math.round(h.veh), Math.round(h.um), isNaN(h.rate) ? '' : h.rate.toFixed(1), Math.round(h.vx), h.top, Math.round(h.fc), Math.round(h.safe)])); });
-  $('#hubp-csv').addEventListener('click', () => { const hub = hubRows().find(r => r.i === state.hub); if (!hub) return; const rows = sortRows(hubPartRows(hub), ['fc', -1]); csv('Spares for ' + hub.n + ' ' + F.tm.label + '.csv', ['Part', 'Category', 'Fitted per month', 'Share %', 'Forecast units ' + F.tm.label, 'Safe quantity', 'Forecast value (Rs)'], rows.map(r => [r.n, r.c, Math.round(r.avg), r.share.toFixed(2), Math.round(r.fc), r.safe, Math.round(r.fx)])); });
+  $('#fcp-csv').addEventListener('click', () => { const LA = lastFullActual(), t0 = D.fc2.targets[0], rows = sortRows(fcPartRows(), ['fc', -1]); csv('Spares forecast ' + F.tm.label + '.csv', ['Part', 'Category', 'Forecast units ' + F.tm.label, 'Safety target', 'Reuse %', 'Demand after reuse units', 'Priced demand value (Rs)', LA.label + ' fitted'].concat(t0.soFar != null ? [t0.label + ' fitted so far'] : []), rows.map(r => [r.n, r.c, Math.round(r.fc), r.safe, r.r, Math.round(r.buy), (Number.isFinite(r.fx) ? Math.round(r.fx) : ''), Math.round(r.last)].concat(t0.soFar != null ? [Math.round(r.so)] : []))); });
+  $('#hub-csv').addEventListener('click', () => { const rows = sortRows(hubRows(), ['um', -1]); csv('Spares by hub ' + F.tm.label + '.csv', ['Hub', 'City', 'Deployed vehicles per month', 'Spare parts per month', 'Per 100 vehicles', 'Value per month (Rs)', 'Largest group', 'Forecast ' + F.tm.label, 'Safety target'], rows.map(h => [h.n, h.city, Math.round(h.veh), Math.round(h.um), isNaN(h.rate) ? '' : h.rate.toFixed(1), Math.round(h.vx), h.top, Math.round(h.fc), Math.round(h.safe)])); });
+  $('#hubp-csv').addEventListener('click', () => { const hub = hubRows().find(r => r.i === state.hub); if (!hub) return; const rows = sortRows(hubPartRows(hub), ['fc', -1]); csv('Spares for ' + hub.n + ' ' + F.tm.label + '.csv', ['Part', 'Category', 'Fitted per month', 'Share %', 'Forecast units ' + F.tm.label, 'Safety target', 'Forecast value (Rs)'], rows.map(r => [r.n, r.c, Math.round(r.avg), r.share.toFixed(2), Math.round(r.fc), r.safe, (Number.isFinite(r.fx) ? Math.round(r.fx) : '')])); });
   $('#pr-i-csv').addEventListener('click', () => csv('Items bought.csv', ['Item', 'Quantity', 'Spend excl GST (Rs)', 'Average rate', 'Lowest rate', 'Highest rate', 'Last rate', 'Vendors', 'Sheet rows'], (T.prItems || []).map(r => [r.n, r.qty, Math.round(r.amt), isNaN(r.avg) ? '' : r.avg.toFixed(2), isNaN(r.lo) ? '' : r.lo.toFixed(2), isNaN(r.hi) ? '' : r.hi.toFixed(2), isNaN(r.last) ? '' : r.last.toFixed(2), r.nv, r.rows.join(' ')])));
   $('#pr-v-csv').addEventListener('click', () => csv('Vendors.csv', ['Vendor', 'Spend excl GST (Rs)', 'Share %', 'Invoices', 'Items', 'Last purchase'], (T.prVend || []).map(v => [v.n, Math.round(v.amt), v.share.toFixed(2), v.inv, v.items, dayLabel(v.last)])));
   // tooltips on table cells
@@ -1134,7 +1197,7 @@ function bind() {
   document.addEventListener('pointerover', e => { const c = e.target.closest && e.target.closest('td[data-tip],tr[data-tip]'); if (!c) return; tip.hidden = false; tip.textContent = c.dataset.tip; placeTip(e); });
   document.addEventListener('pointermove', e => { if (!tip.hidden && e.target.closest && e.target.closest('td[data-tip],tr[data-tip]')) placeTip(e); });
   document.addEventListener('pointerout', e => { const c = e.target.closest && e.target.closest('td[data-tip],tr[data-tip]'); if (c && !c.contains(e.relatedTarget)) tip.hidden = true; });
-  let rt = 0; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (state.tab === 'age') ageChart(); if (state.tab === 'proc') renderProc(); }, 150); });
+  let rt = 0; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (state.tab === 'fc' && D.fc2) renderAccuracy(); if (state.tab === 'age') ageChart(); if (state.tab === 'proc') renderProc(); }, 150); });
   addEventListener('hashchange', () => { const t = location.hash.slice(1); if (['fc', 'age', 'hub', 'proc'].includes(t) && t !== state.tab) setTab(t); });
 }
 function setTab(t) {
@@ -1153,11 +1216,11 @@ function defs() {
     ['Ticket rate', 'Vehicles with at least one vehicle ticket resolved in the month ÷ deployed vehicles.'],
     ['Repair rate', 'Vehicles that had at least one spare part fitted in the month ÷ deployed vehicles. Labour-only tickets and tickets closed without work do not count.'],
     ['Spare parts per 100 vehicles', 'Parts fitted ÷ deployed vehicles × 100, scaled to 30 days. A part counts in the month its ticket was resolved.'],
-    ['Value', 'Quantity × the purchase price on the Cercle OS line. A line without a purchase price takes the median purchase price of the same part.'],
+    ['Value', 'Forecast budgets include priced units only; missing prices are shown explicitly. Historical value = quantity × the purchase price on the Cercle OS line. A line without a purchase price takes the median purchase price of the same part.'],
     ['Forecast', 'Spare parts per vehicle on rent per 30 days, by vehicle model and age band, from the last 30 days; × the vehicles on rent now, aged to the end of the month, at the recent pace of new deployments and returns; × the month-on-month rise in parts per vehicle (the median of the last three months, kept between 0% and 8% a month). Each model and age band is split into parts by its mix of the last 14 days. This method was chosen because it missed least when re-run on past months; How accurate it has been shows the record.'],
-    ['Reuse and To buy', 'Reuse is the share of a part\'s forecast met by repairing removed units and refitting them, set on the Parts to plan table. To buy = forecast × (100% − reuse). Value and the forecast figure at the top count only what is to be bought. MOTOR starts at 100%; other parts start at 0%. Changes are saved in the browser they were made in.'],
+    ['Reuse and demand after reuse', 'Reuse is the share of a part\'s forecast met by repairing removed units and refitting them, set on the Parts to plan table. Demand after reuse = forecast × (100% − planned reuse), rounded to whole units. Inventory, incoming orders and supplier lead times are not deducted. Priced value excludes missing prices. MOTOR starts at an unverified 100% reuse assumption; other parts start at 0%. Changes are saved in the browser they were made in.'],
     ['Part breakdown', 'Click a part in Parts to plan. Fitted = units fitted on 2-wheelers in each month at the hub on the ticket. New vehicles added = 2-wheelers first deployed in that month, at the hub they were deployed from (the same for every part). Forecast = the part\'s network forecast split by where it was fitted in the last 30 days. Open a city to see its hubs. Switch to Vehicle model to see the same figures by the model of the vehicle on each ticket (taken from its vehicle number), opening into cities; there the forecast is split by the models the part was fitted on in the last full month and this month so far.'],
-    ['Safe quantity', 'The forecast plus 1.28 × √(forecast + (0.3 × forecast)²). In past months it covered nine in ten parts fitted.'],
+    ['Safety target', 'The forecast plus 1.28 × √(forecast + (0.3 × forecast)²). Historical coverage is shown in the accuracy table. A shared margin is not a calibrated guarantee for every part or supplier lead time.'],
     ['Hub', 'Parts count at the hub on the ticket (where they were fitted). Vehicles count at the hub they were last deployed from in the month. A hub\'s forecast is its share of each part fitted in the last 30 days. S3 locations are shown together as RSA technicians.'],
     ['Part groups', 'Consumables (wear parts) = brakes, tyres and wheels, fasteners. Plastic = body and panels. Electrical = electricals, lighting and mirrors. Mechanical = suspension and chassis, other parts. Motor and controller = motor and drivetrain. Names follow the monthly spare parts plan.'],
     ['Procurement', 'Lines of the “Procurement vendor wise data” sheet of the Spares Master Report. Spend = quantity × unit cost, excluding GST; freight is shown apart. Repeated header rows and totals are skipped; an invoice keyed twice, a day and month typed the wrong way round, and a cost that is the line total are corrected and listed under Lines to check.']];
