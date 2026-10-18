@@ -473,7 +473,34 @@ async function load() {
 }
 
 // ---------- typed arrays and indexes
+// ---------- parts that Cercle OS lists under more than one name. Each line is one part; the first name found is the one shown.
+// Names match ignoring case and spaces. Add a line here when two names turn out to be the same part.
+const SAME_PART = [
+  ['TYRE 3.00*10', 'TYRE'],
+];
+function mergeParts() {
+  const norm = s => String(s).toUpperCase().replace(/\s+/g, ''), byName = new Map();
+  D.skus.forEach((s, i) => { const n = norm(s[0]); if (!byName.has(n)) byName.set(n, []); byName.get(n).push(i); });
+  const to = D.skus.map((s, i) => i); let any = false;
+  for (const names of SAME_PART) { const ids = names.flatMap(n => byName.get(norm(n)) || []); if (ids.length < 2) continue; ids.forEach(i => to[i] = ids[0]); any = true; }
+  if (!any) return;
+  D.pl.sku = D.pl.sku.map(k => to[k]);
+  const fc = D.fc2; if (!fc) return;
+  const wt = new Map(); for (const [k, f] of (fc.targets[1] || fc.targets[0]).sku) wt.set(k, f);
+  for (const t of fc.targets) {
+    const m = new Map(); for (const s of t.sku) { const k = to[s[0]], o = m.get(k); if (o) { for (let x = 1; x < s.length; x++) o[x] += s[x]; } else m.set(k, [k, ...s.slice(1)]); }
+    t.sku = [...m.values()];
+    if (t.soFarSku) { const o = {}; for (const k in t.soFarSku) { const n = to[+k]; o[n] = (o[n] || 0) + t.soFarSku[k]; } t.soFarSku = o; }
+  }
+  if (fc.newPer) { const o = {}; for (const k in fc.newPer) { const n = to[+k]; o[n] = (o[n] || 0) + fc.newPer[k]; } fc.newPer = o; }
+  if (fc.hubShare) {   // a merged part's hub split = its names' splits weighted by their forecasts
+    const acc = new Map();
+    for (const k in fc.hubShare) { const n = to[+k], w = wt.get(+k) || 1e-9; let a = acc.get(n); if (!a) acc.set(n, a = { w: 0, h: new Map() }); a.w += w; for (const [h, s] of fc.hubShare[k]) a.h.set(h, (a.h.get(h) || 0) + s * w); }
+    const o = {}; for (const [n, a] of acc) o[n] = [...a.h].map(([h, s]) => [h, s / a.w]); fc.hubShare = o;
+  }
+}
 function prepare() {
+  mergeParts();
   const V = D.vm, L = D.pl;
   T = { nVM: V.m.length, nPL: L.vm.length, m: Int8Array.from(V.m), model: Int16Array.from(V.model), hub: Int16Array.from(V.hub), age: Int32Array.from(V.age),
     rent: Uint8Array.from(V.rent), two: Uint8Array.from(V.two), tk: Uint16Array.from(V.tk),
