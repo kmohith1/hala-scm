@@ -89,9 +89,9 @@ button, select, input { font: inherit; color: inherit; }
 .tabs button:hover { color: var(--band-ink); }
 .tabs button[aria-selected="true"] { background: var(--band-ink); color: var(--band); border-color: var(--band-ink); font-weight: 600; }
 .tabs button:focus-visible { outline: 2px solid var(--band-ink); outline-offset: 2px; }
-.kpis { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--band-line); }
-.kpi { padding: 18px 22px 0 0; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-.kpi + .kpi { padding-left: 22px; border-left: 1px solid var(--band-line); }
+.kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); border-top: 1px solid var(--band-line); }
+.kpi { padding: 18px 14px 0 0; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.kpi + .kpi { padding-left: 14px; border-left: 1px solid var(--band-line); }
 .kpi .nm { font-size: 14px; color: var(--band-ink2); }
 .kpi b { font: 600 38px/1.05 var(--cond); letter-spacing: -.005em; }
 .kpi .sh { font-size: 14px; color: var(--band-ink2); }
@@ -251,10 +251,16 @@ table.dtbl .z { color: var(--muted); }
 .lockbox .msg { min-height: 20px; color: var(--warn-ink); font-size: 13px; }
 .loading { padding: 60px 0; text-align: center; color: var(--muted); }
 
+@media (min-width: 901px) and (max-width: 1150px) {
+  .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .kpi:nth-child(4) { padding-left: 0; border-left: 0; }
+  .kpi:nth-child(n+4) { margin-top: 16px; border-top: 1px solid var(--band-line); }
+}
 @media (max-width: 900px) {
   .in { padding-inline: 16px; }
   .kpis { grid-template-columns: repeat(2, 1fr); }
-  .kpi:nth-child(3) { padding-left: 0; border-left: 0; }
+  .kpi:nth-child(odd) { padding-left: 0; border-left: 0; }
+  .kpi:nth-child(n+3) { margin-top: 16px; border-top: 1px solid var(--band-line); }
   .kpi b { font-size: 30px; }
   .run { grid-template-columns: repeat(2, 1fr); }
   .run > div:nth-child(3) { border-left: 0; }
@@ -823,18 +829,57 @@ function monthTotals(mi) {
   for (let j = 0; j < T.nPL; j++) if (on[T.pvm[j]] && state.svc.has(T.psvc[j]) && T.skuCat[T.psku[j]] < N_SPARE_CAT) { units += T.pq[j]; val += T.pv[j]; }
   return { n, units, val };
 }
+// Forecast costs keep the existing demand-after-reuse basis, with no overlap.
+const isTyrePart = name => /\b(?:TYRE|TIRE)S?\b/i.test(String(name).normalize('NFKC')) && !/\b(?:TUBE|LEVER|PATCH|REPAIR|INFLATOR|VALVE)S?\b/i.test(String(name));
+function forecastCosts() {
+  const parts = { value: 0, missing: 0 }, tyres = { value: 0, missing: 0 };
+  if (!D.fc2) return { parts, tyres };
+  for (const [key, units] of F.sku) {
+    const quantity = buyOf(key, units), target = isTyrePart(D.skus[key][0]) ? tyres : parts, price = PRICE.get(key);
+    if (!(quantity > 0)) continue;
+    if (Number.isFinite(price) && price > 0) target.value += quantity * price;
+    else target.missing += quantity;
+  }
+  return { parts, tyres };
+}
+// Calendar cutoff is India time; never fall back silently to an older data month.
+function boughtMonth(now = Date.now()) {
+  const day = new Date(now + IST);
+  const key = day.getUTCFullYear() * 12 + day.getUTCMonth() - (day.getUTCDate() <= 15 ? 1 : 0);
+  const year = Math.floor(key / 12), month = key % 12;
+  return { key, ym: year + '-' + String(month + 1).padStart(2, '0'), label: MON[month] + ' ' + year, current: day.getUTCDate() > 15 };
+}
+let boughtRenderedMonth = null;
+function boughtHeadline(now = Date.now()) {
+  const period = boughtMonth(now); boughtRenderedMonth = period.key;
+  let label = 'Bought, ' + period.label, value = '–', note = 'No purchase records in the latest refresh';
+  if (['grn', 'prices'].includes(state.tab) && GRN) {
+    label = 'GRN spend, ' + period.label;
+    const totals = grnSummary(GRN.records.filter(r => r.date.startsWith(period.ym)));
+    if (totals.count) { value = inr(totals.paise / 100); note = 'Cercle OS · ' + n0(totals.count) + ' purchase records'; }
+  } else if (D.proc) {
+    const totals = procTotals(period.key, period.key, true);
+    if (totals.inv) { value = inr(totals.amt); note = 'excl. GST · ' + n0(totals.inv) + ' invoices'; }
+  } else note = 'No Spares Master Report in the latest refresh';
+  if (period.current && value !== '–') note += ' · month to date';
+  return '<div class="kpi" data-kpi="bought"><span class="nm">' + esc(label) + '</span><b class="num">' + value + '</b><span class="sh">' + esc(note) + '</span></div>';
+}
+function refreshBoughtPeriod() {
+  if (D && boughtMonth().key !== boughtRenderedMonth) kpis();
+}
+
+
 function kpis() {
   const lm = lastFullMonth(), a = monthTotals(lm), b = lm > 0 ? monthTotals(lm - 1) : null, mL = D.months[lm];
   const chg = (x, y, good) => { if (!y) return ''; const d = 100 * (x - y) / y; const cls = (d > 0) === good ? 'g' : 'b'; return ' · <span class="' + cls + '">' + (d >= 0 ? '+' : '') + f1.format(d) + '%</span> on ' + MON[(D.months[lm - 1].ym.slice(5) - 1)]; };
   const nx = D.fc2 ? F.tg : {label:'next month'};
-  const fcU = D.fc2 ? F.total : NaN, fcX = D.fc2 ? F.buyValue : NaN;
+  const fcU = D.fc2 ? F.total : NaN, costs = forecastCosts();
 
   let h ='<div class="kpi"><span class="nm">Deployed vehicles, ' + esc(mL.label) + '</span><b class="num">' + n0(a.n) + '</b><span class="sh">' + (b ? chg(a.n, b.n, true).replace(' · ', '') : '') + '</span></div>';
   h += '<div class="kpi"><span class="nm">Spare parts fitted, ' + esc(mL.label) + '</span><b class="num">' + n0(a.units) + '</b><span class="sh">' + inr(a.val) + ' at purchase price' + (b ? chg(a.units, b.units, false) : '') + '</span></div>';
-  h += '<div class="kpi"><span class="nm">Forecast, ' + esc(nx.label) + '</span><b class="num">' + n0(fcU) + '</b><span class="sh">spare units · ' + inr(fcX) + ' priced demand after reuse' + (F.missingBuy ? ' · incomplete prices' : '') + '</span></div>';
-  if (['grn', 'prices'].includes(state.tab) && GRN) { const t = new Date(GRN.capturedAt + IST), k = t.getUTCFullYear() * 12 + t.getUTCMonth() - 1, ym = Math.floor(k / 12) + '-' + String(k % 12 + 1).padStart(2, '0'), p = grnSummary(GRN.records.filter(r => r.date.startsWith(ym))); h += '<div class="kpi"><span class="nm">GRN spend, ' + grnMonthLabel(ym) + '</span><b class="num">' + inr(p.paise / 100) + '</b><span class="sh">Cercle OS · ' + n0(p.count) + ' purchase records</span></div>'; }
-  else if (D.proc) { const k = T.prLastFull, p = procTotals(k, k, true); h += '<div class="kpi"><span class="nm">Bought, ' + MON[k % 12] + ' ' + Math.floor(k / 12) + '</span><b class="num">' + inr(p.amt) + '</b><span class="sh">excl. GST · ' + n0(p.inv) + ' invoices</span></div>'; }
-  else h += '<div class="kpi"><span class="nm">Procurement</span><b class="num">–</b><span class="sh">no Spares Master Report in the last refresh</span></div>';
+  h += '<div class="kpi" data-kpi="forecast-units"><span class="nm">Forecast, ' + esc(nx.label) + '</span><b class="num">' + n0(fcU) + '</b><span class="sh">Number of parts · includes tyres</span></div>';
+  for (const [key, label, budget, note] of [['parts', 'Parts cost', costs.parts, 'Excludes tyres'], ['tyres', 'Tyre cost', costs.tyres, 'Tyres only']]) h += '<div class="kpi" data-kpi="forecast-' + key + '"><span class="nm">' + label + ', ' + esc(nx.label) + '</span><b class="num">' + (D.fc2 ? inr(budget.value) : '–') + '</b><span class="sh">' + note + ' · after reuse' + (budget.missing ? ' · incomplete prices' : '') + '</span></div>';
+  h += boughtHeadline();
   $('#kpis').innerHTML = h;
   const parts = stamp(D.partsGen), fleet = stamp(D.gen);
   $('#asof').innerHTML = 'Cercle OS data as of <b>' + esc(parts) + '</b>' + (D.partsStale ? ' <span class="flag">parts from an earlier pull</span>' : '') + (Math.abs(D.partsGen - D.gen) > 3 * 3600e3 ? '<br>fleet as of ' + esc(fleet) : '') + (D.proc ? '<br>purchases: ' + esc(D.proc.src) : '') + '<br><a href="../fleet/">Fleet dashboard</a>';
@@ -880,12 +925,14 @@ function renderForecast() {
   $('#fc-title').textContent = 'Forecast for ' + tg.label;
   $('#fc-sub').textContent = 'Cercle OS data - ' + stamp(fc.made).replace(',', '');
   $('#fc-plan').value = state.fcPlan || 0;
+  const costs = forecastCosts();
   const g = GROUP_LABEL.slice(0, N_SPARE_GRP).map((n, i) => ({ n, u: F.groups[i] })).sort((a, b) => b.u - a.u);
   let run = '<div><b class="num">' + n0(F.total) + '</b><span>spare parts expected</span></div>' +
-    '<div><b class="num">' + inr(F.buyValue) + '</b><span>Cost</span></div>';
+    '<div><b class="num">' + inr(costs.parts.value) + '</b><span>Parts cost</span><small>excludes tyres</small></div>' +
+    '<div><b class="num">' + inr(costs.tyres.value) + '</b><span>Tyre cost</span></div>';
   if (tg.soFar != null) run += '<div><b class="num">' + n0(tg.soFar) + '</b><span>fitted so far</span><small>in the first ' + n1(tg.soFarDays) + ' days · about ' + n0(Math.max(0, F.total - tg.soFar)) + ' still to come</small></div>';
   else run += '<div><b class="num">' + n0(g[0].u) + '</b><span>' + esc(g[0].n) + '</span><small>' + pct(F.total ? 100 * g[0].u / F.total : NaN) + ' of the forecast</small></div>';
-  run += '<div><b class="num">' + n0(g[1].u) + '</b><span>' + esc(g[1].n) + '</span><small>' + pct(F.total ? 100 * g[1].u / F.total : NaN) + ' of the forecast</small></div>';
+
   $('#fc-run').innerHTML = run;
   // groups and categories x months
   const cols = fc.targets.map(t => t.label);
@@ -1612,6 +1659,8 @@ function bind() {
   bindGrn();
   bindPrices();
   bindShipments();
+  setInterval(refreshBoughtPeriod, 60000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshBoughtPeriod(); });
   $$('.tabs button').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
   document.addEventListener('click', e => {
     const tw = e.target.closest('[data-tw]'); if (tw) { const k = tw.dataset.tw, set = state.open; if (set.has(k)) set.delete(k); else set.add(k); render(); return; }
