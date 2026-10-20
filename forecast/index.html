@@ -487,7 +487,8 @@ table.dtbl .z { color: var(--muted); }
 
   <dialog id="gst-dialog" aria-labelledby="gst-title">
     <form id="gst-form">
-      <h2 id="gst-title">Edit total unit cost</h2><p id="gst-source" class="note"></p>
+      <h2 id="gst-title">Edit unit cost</h2><p id="gst-source" class="note"></p>
+      <label class="fld" for="gst-product">Product cost (₹, excluding GST)</label><input id="gst-product" type="number" min="0.01" step="0.01" required>
       <label class="fld" for="gst-total">Total unit cost (₹, including GST)</label><input id="gst-total" type="number" min="0.01" step="0.01" required>
       <div class="gst-preview" id="gst-preview"></div><p class="note" id="gst-preview-error"></p>
       <p id="gst-dialog-error" role="alert"></p><p class="note" id="gst-audit"></p>
@@ -817,7 +818,8 @@ const gstPartKey = name => {
 let SOURCE_PRICE = new Map();
 const GST_RATE = 18;
 function gstEffectiveConfig(part, config) {
-  return { version: 1, kind: 'part-price', part, basis: 'inclusive', rate: GST_RATE, netOverridePaise: null, grossOverridePaise: config && config.basis !== 'unknown' && config.grossOverridePaise != null ? config.grossOverridePaise : null };
+  const active = config && config.basis !== 'unknown';
+  return { version: 1, kind: 'part-price', part, basis: 'inclusive', rate: GST_RATE, netOverridePaise: active && config.grossOverridePaise == null ? config.netOverridePaise : null, grossOverridePaise: active && config.grossOverridePaise != null ? config.grossOverridePaise : null };
 }
 function gstValidate(config) {
   if (!config || config.version !== 1 || config.kind !== 'part-price' || typeof config.part !== 'string' || !config.part) throw new Error('Invalid shared cost record.');
@@ -875,14 +877,18 @@ async function gstLoad(redraw = true) {
 function gstConfigFromForm() {
   const editing = gstState.editing;
   if (!editing) throw new Error('Select a part first.');
-  const totalText = $('#gst-total').value.trim();
-  if (!/^\d+(?:\.\d{1,2})?$/.test(totalText)) throw new Error('Enter total unit cost with no more than two decimal places.');
-  return gstValidate({ version: 1, kind: 'part-price', part: editing.part, basis: 'inclusive', rate: GST_RATE, netOverridePaise: null, grossOverridePaise: Math.round(Number(totalText) * 100), updatedAt: new Date().toISOString() });
+  const productMode = editing.mode === 'product';
+  const costText = $(productMode ? '#gst-product' : '#gst-total').value.trim();
+  if (!/^\d+(?:\.\d{1,2})?$/.test(costText)) throw new Error('Enter ' + (productMode ? 'product cost' : 'total unit cost') + ' with no more than two decimal places.');
+  const paise = Math.round(Number(costText) * 100);
+  return gstValidate({ version: 1, kind: 'part-price', part: editing.part, basis: 'inclusive', rate: GST_RATE, netOverridePaise: productMode ? paise : null, grossOverridePaise: productMode ? null : paise, updatedAt: new Date().toISOString() });
 }
 function gstPreview() {
   try {
     const split = gstSplit(gstState.editing.source, gstConfigFromForm());
     if (!Number.isFinite(split.gross)) throw new Error('This part has no source price. Enter a product cost override.');
+    if (gstState.editing.mode === 'product') $('#gst-total').value = split.gross.toFixed(2);
+    else $('#gst-product').value = split.net.toFixed(2);
     $('#gst-preview').innerHTML = '<div><span>Product cost</span><b>' + grnUnitMoney(split.net) + '</b></div><div><span>GST</span><b>' + grnUnitMoney(split.gst) + '</b></div><div><span>Total unit cost</span><b>' + grnUnitMoney(split.gross) + '</b></div>';
     $('#gst-preview-error').textContent = ''; $('#gst-save').disabled = gstState.saving || !gstState.ready || gstState.editing.blocked || gstState.editing.loadingVersion;
   } catch (e) { $('#gst-preview').innerHTML = ''; $('#gst-preview-error').textContent = e.message; $('#gst-save').disabled = true; }
@@ -890,12 +896,13 @@ function gstPreview() {
 async function gstOpen(key) {
   if (gstState.saving) return;
   const part = D.skus[key][0], record = gstState.records.get(gstPartKey(part));
-  gstState.editing = { key, part, source: SOURCE_PRICE.get(key), id: record && record.id, etag: null, loadingVersion: !!record };
+  gstState.editing = { key, part, source: SOURCE_PRICE.get(key), id: record && record.id, etag: null, loadingVersion: !!record, mode: 'total' };
   const editing = gstState.editing;
-  $('#gst-title').textContent = part + ' · Edit total unit cost';
-  $('#gst-source').textContent = 'Total includes 18% GST. Changes are shared with the team.';
+  $('#gst-title').textContent = part + ' · Edit unit cost';
+  $('#gst-source').textContent = 'Edit product cost or total. GST is calculated at 18%. Changes are shared with the team.';
   const current = gstForPart(key);
   $('#gst-total').value = Number.isFinite(current.gross) ? current.gross.toFixed(2) : '';
+  $('#gst-product').value = Number.isFinite(current.net) ? current.net.toFixed(2) : '';
   $('#gst-dialog-error').textContent = ''; $('#gst-reset').hidden = !record || record.config.basis === 'unknown'; $('#gst-reset-confirm').hidden = true;
   $('#gst-audit').textContent = record && record.config.basis !== 'unknown' ? 'Last saved ' + shipTime(record.modified) + (record.by ? ' · ' + record.by : '') : '';
   $('#gst-dialog').showModal(); gstPreview();
@@ -958,7 +965,8 @@ function gstCostCells(row) {
 function bindGst() {
   $('#gst-reload').addEventListener('click', () => gstLoad());
   $('#gst-form').addEventListener('submit', gstSave);
-  $('#gst-total').addEventListener('input', gstPreview);
+  $('#gst-total').addEventListener('input', () => { gstState.editing.mode = 'total'; gstPreview(); });
+  $('#gst-product').addEventListener('input', () => { gstState.editing.mode = 'product'; gstPreview(); });
   $('#gst-cancel').addEventListener('click', () => { if (!gstState.saving) $('#gst-dialog').close(); });
   $('#gst-reset').addEventListener('click', gstReset);
   $('#gst-reset-go').addEventListener('click', gstResetConfirm);
