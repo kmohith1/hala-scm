@@ -488,15 +488,15 @@ table.dtbl .z { color: var(--muted); }
   <dialog id="gst-dialog" aria-labelledby="gst-title">
     <form id="gst-form">
       <h2 id="gst-title">Product cost and GST</h2><p id="gst-source" class="note"></p>
-      <p class="note">Saved for the team, for this part across all forecast months.</p>
+      <p class="note">Buy price + 18% GST = total cost. Cost edits apply to the team after saving.</p>
       <label class="fld">Recorded price basis<select id="gst-basis" required><option value="">Choose GST basis</option><option value="inclusive">Recorded price includes GST</option><option value="exclusive">Recorded price excludes GST</option></select></label>
-      <label class="fld">GST rate (%)<input id="gst-rate" type="number" min="0" max="100" step="0.01" required placeholder="Enter confirmed rate"></label>
+      <label class="fld">GST rate (%)<input id="gst-rate" type="number" value="18" readonly></label>
       <label class="gst-check"><input id="gst-override" type="checkbox"> Override product cost (excluding GST)</label>
       <label class="fld">Product cost override (₹ per item)<input id="gst-product" type="number" min="0.01" step="0.01" disabled placeholder="Use the recorded price"></label>
       <div class="gst-preview" id="gst-preview"></div><p class="note" id="gst-preview-error"></p>
       <p id="gst-dialog-error" role="alert"></p><p class="note" id="gst-audit"></p>
       <div class="tools"><button class="btn" id="gst-cancel" type="button">Cancel</button><button class="btn" id="gst-reset" type="button" hidden>Reset to source</button><button class="btn" id="gst-save" type="submit">Save for team</button></div>
-      <div id="gst-reset-confirm" hidden><p>Clear this part’s shared GST and cost override for the team?</p><div class="tools"><button class="btn" id="gst-reset-no" type="button">Keep settings</button><button class="btn" id="gst-reset-go" type="button">Confirm reset</button></div></div>
+      <div id="gst-reset-confirm" hidden><p>Restore the recorded buy price with automatic 18% GST for the team?</p><div class="tools"><button class="btn" id="gst-reset-no" type="button">Keep settings</button><button class="btn" id="gst-reset-go" type="button">Confirm reset</button></div></div>
     </form>
   </dialog>
   <section class="sec" id="defs-sec" hidden>
@@ -819,6 +819,10 @@ const gstPartKey = name => {
   return key;
 };
 let SOURCE_PRICE = new Map();
+const GST_RATE = 18;
+function gstEffectiveConfig(part, config) {
+  return { version: 1, kind: 'part-price', part, basis: config && config.basis !== 'unknown' ? config.basis : 'exclusive', rate: GST_RATE, netOverridePaise: config && config.netOverridePaise != null ? config.netOverridePaise : null };
+}
 function gstValidate(config) {
   if (!config || config.version !== 1 || config.kind !== 'part-price' || typeof config.part !== 'string' || !config.part) throw new Error('Invalid shared cost record.');
   if (config.basis === 'unknown' && config.rate == null && config.netOverridePaise == null) return config;
@@ -842,11 +846,11 @@ function gstSplit(source, config) {
 }
 function gstForPart(key, source = SOURCE_PRICE.get(key)) {
   const record = gstState.records.get(gstPartKey(D.skus[key][0]));
-  return gstSplit(source, record ? record.config : null);
+  return gstSplit(source, gstEffectiveConfig(D.skus[key][0], record && record.config));
 }
 function gstStatus() {
   const label = $('#gst-shared-status');
-  label.textContent = gstState.loading ? 'Loading shared cost settings…' : gstState.error ? 'Shared cost settings: ' + gstState.error : gstState.ready ? 'Shared cost settings · ' + n0([...gstState.records.values()].filter(row => row.config.basis !== 'unknown').length) + ' parts configured' : 'Shared cost settings not loaded · source prices shown';
+  label.textContent = '18% GST · buy prices exclude GST. ' + (gstState.loading ? 'Loading team cost overrides…' : gstState.error ? 'Team overrides: ' + gstState.error : gstState.ready ? n0([...gstState.records.values()].filter(row => row.config.basis !== 'unknown').length) + ' team overrides' : 'Team cost overrides not loaded');
   $('#gst-signin').hidden = gstState.ready && !gstState.error;
   $('#gst-reload').disabled = gstState.loading || gstState.saving;
 }
@@ -872,8 +876,7 @@ async function gstLoad(redraw = true) {
 function gstConfigFromForm() {
   const editing = gstState.editing;
   if (!editing) throw new Error('Select a part first.');
-  const rateText = $('#gst-rate').value.trim(), netText = $('#gst-product').value.trim();
-  if (!rateText) throw new Error('Enter the GST rate.');
+  const rateText = String(GST_RATE), netText = $('#gst-product').value.trim();
   if ($('#gst-override').checked && !/^\d+(?:\.\d{1,2})?$/.test(netText)) throw new Error('Enter product cost with no more than two decimal places.');
   return gstValidate({ version: 1, kind: 'part-price', part: editing.part, basis: $('#gst-basis').value, rate: Number(rateText), netOverridePaise: $('#gst-override').checked ? Math.round(Number(netText) * 100) : null, updatedAt: new Date().toISOString() });
 }
@@ -892,13 +895,13 @@ async function gstOpen(key) {
   gstState.editing = { key, part, source: SOURCE_PRICE.get(key), id: record && record.id, etag: null, loadingVersion: !!record };
   const editing = gstState.editing;
   $('#gst-title').textContent = part + ' · Cost and GST';
-  $('#gst-source').textContent = 'Recorded unit cost: ' + grnUnitMoney(SOURCE_PRICE.get(key)) + ' · ' + F.tm.label;
-  $('#gst-basis').value = record && record.config.basis !== 'unknown' ? record.config.basis : '';
-  $('#gst-rate').value = record && record.config.rate != null ? record.config.rate : '';
+  $('#gst-source').textContent = 'Recorded buy price: ' + grnUnitMoney(Math.round(SOURCE_PRICE.get(key) * 100) / 100) + ' · ' + F.tm.label;
+  $('#gst-basis').value = gstEffectiveConfig(part, record && record.config).basis;
+  $('#gst-rate').value = GST_RATE;
   $('#gst-override').checked = !!(record && record.config.netOverridePaise != null);
   $('#gst-product').value = record && record.config.netOverridePaise != null ? (record.config.netOverridePaise / 100).toFixed(2) : '';
   $('#gst-dialog-error').textContent = ''; $('#gst-reset').hidden = !record || record.config.basis === 'unknown'; $('#gst-reset-confirm').hidden = true;
-  $('#gst-audit').textContent = record ? 'Last saved ' + shipTime(record.modified) + (record.by ? ' · ' + record.by : '') : 'No shared GST setting for this part yet.';
+  $('#gst-audit').textContent = record ? 'Last saved ' + shipTime(record.modified) + (record.by ? ' · ' + record.by : '') : 'Automatic 18% GST applies. No manual cost override.';
   $('#gst-dialog').showModal(); gstPreview();
   if (!gstState.ready) { $('#gst-dialog-error').textContent = 'Load shared cost settings before saving. Sign in through the Hala workspace if needed.'; return; }
   if (record) {
@@ -1067,7 +1070,7 @@ function kpis() {
   let h ='<div class="kpi"><span class="nm">Deployed vehicles, ' + esc(mL.label) + '</span><b class="num">' + n0(a.n) + '</b><span class="sh">' + (b ? chg(a.n, b.n, true).replace(' · ', '') : '') + '</span></div>';
   h += '<div class="kpi"><span class="nm">Spare parts fitted, ' + esc(mL.label) + '</span><b class="num">' + n0(a.units) + '</b><span class="sh">' + inr(a.val) + ' at purchase price' + (b ? chg(a.units, b.units, false) : '') + '</span></div>';
   h += '<div class="kpi" data-kpi="forecast-units"><span class="nm">Forecast, ' + esc(nx.label) + '</span><b class="num">' + n0(fcU) + '</b><span class="sh">Number of parts · includes tyres</span></div>';
-  for (const [key, label, budget, note] of [['parts', 'Parts cost', costs.parts, 'Excludes tyres'], ['tyres', 'Tyre cost', costs.tyres, 'Tyres only']]) h += '<div class="kpi" data-kpi="forecast-' + key + '"><span class="nm">' + label + ', ' + esc(nx.label) + '</span><b class="num">' + (D.fc2 ? inr(budget.value) : '–') + '</b><span class="sh">' + note + ' · after reuse' + (budget.missing ? ' · incomplete prices' : '') + '</span></div>';
+  for (const [key, label, budget, note] of [['parts', 'Parts cost', costs.parts, 'Excludes tyres'], ['tyres', 'Tyre cost', costs.tyres, 'Tyres only']]) h += '<div class="kpi" data-kpi="forecast-' + key + '"><span class="nm">' + label + ', ' + esc(nx.label) + '</span><b class="num">' + (D.fc2 ? inr(budget.value) : '–') + '</b><span class="sh">' + note + ' · incl. 18% GST · after reuse' + (budget.missing ? ' · incomplete prices' : '') + '</span></div>';
   h += boughtHeadline();
   $('#kpis').innerHTML = h;
   const parts = stamp(D.partsGen), fleet = stamp(D.gen);
@@ -1117,8 +1120,8 @@ function renderForecast() {
   const costs = forecastCosts();
   const g = GROUP_LABEL.slice(0, N_SPARE_GRP).map((n, i) => ({ n, u: F.groups[i] })).sort((a, b) => b.u - a.u);
   let run = '<div><b class="num">' + n0(F.total) + '</b><span>spare parts expected</span></div>' +
-    '<div><b class="num">' + inr(costs.parts.value) + '</b><span>Parts cost</span><small>excludes tyres</small></div>' +
-    '<div><b class="num">' + inr(costs.tyres.value) + '</b><span>Tyre cost</span></div>';
+    '<div><b class="num">' + inr(costs.parts.value) + '</b><span>Parts cost</span><small>excludes tyres · incl. GST</small></div>' +
+    '<div><b class="num">' + inr(costs.tyres.value) + '</b><span>Tyre cost</span><small>incl. GST</small></div>';
   if (tg.soFar != null) run += '<div><b class="num">' + n0(tg.soFar) + '</b><span>fitted so far</span><small>in the first ' + n1(tg.soFarDays) + ' days · about ' + n0(Math.max(0, F.total - tg.soFar)) + ' still to come</small></div>';
   else run += '<div><b class="num">' + n0(g[0].u) + '</b><span>' + esc(g[0].n) + '</span><small>' + pct(F.total ? 100 * g[0].u / F.total : NaN) + ' of the forecast</small></div>';
 
@@ -1156,7 +1159,7 @@ function renderFcParts() {
   let rows = sortRows(fcPartRows(), state.fcpSort); const q = state.fcpQ.trim().toUpperCase();
   const all = rows.length; if (state.fcpMissing) rows = rows.filter(r => r.fc > 0 && !(PRICE.get(r.k) > 0)); if (q) rows = rows.filter(r => r.n.toUpperCase().includes(q) || r.c.toUpperCase().includes(q));
   const LA = lastFullActual(), t0 = D.fc2.targets[0];
-  const cols = [{ k: 'n', t: 'Part', lab: 1 }, { k: 'c', t: 'Category' }, { k: 'fc', t: 'Forecast', s: 'units, ' + F.tm.label }, { k: 'safe', t: 'Safety target', s: 'forecast + shared margin' }, { k: 'r', t: 'Reuse', s: '% repaired and refitted' }, { k: 'buy', t: 'Demand after reuse', s: 'before inventory / open orders' }, { k: 'net', t: 'Product cost', s: 'excl. GST · per item' }, { k: 'gst', t: 'GST', s: '₹ per item' }, { k: 'unit', t: 'Total unit cost', s: '₹ per item' }, { k: 'fx', t: 'Priced value', s: 'demand after reuse' }, { k: 'last', t: LA.label, s: 'fitted' }];
+  const cols = [{ k: 'n', t: 'Part', lab: 1 }, { k: 'c', t: 'Category' }, { k: 'fc', t: 'Forecast', s: 'units, ' + F.tm.label }, { k: 'safe', t: 'Safety target', s: 'forecast + shared margin' }, { k: 'r', t: 'Reuse', s: '% repaired and refitted' }, { k: 'buy', t: 'Demand after reuse', s: 'before inventory / open orders' }, { k: 'net', t: 'Buy price', s: 'excl. GST · per item' }, { k: 'gst', t: 'GST', s: '18% · per item' }, { k: 'unit', t: 'Total unit cost', s: 'incl. GST · per item' }, { k: 'fx', t: 'Priced value', s: 'demand after reuse' }, { k: 'last', t: LA.label, s: 'fitted' }];
   if (t0.soFar != null) cols.push({ k: 'so', t: t0.label, s: 'fitted so far' });
   const shown = state.fcpAll || q || state.fcpMissing ? rows : rows.slice(0, 60);
   if (state.fcpOpen != null && !shown.some(r => r.k === state.fcpOpen)) state.fcpOpen = null;
