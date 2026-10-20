@@ -455,7 +455,7 @@ table.dtbl .z { color: var(--muted); }
   <div class="view" id="v-shipments" hidden>
     <section class="sec">
       <header><div><h2>Shipment tracking</h2><p id="ship-shared"></p></div><span id="ship-count"></span></header>
-      <div class="panel pad"><div class="tools"><b id="ship-connection"></b><a class="btn" href="../motor/" target="_blank" rel="noopener">Open Microsoft sign-in</a><button class="btn" id="ship-reload" type="button">Load shared shipments</button><button class="btn" id="ship-setup" type="button">Create shared tracker</button></div><p class="note">Automatic updates need a connected tracking service. New shipments remain awaiting connection until carrier updates are activated.</p></div>
+      <div class="panel pad"><div class="tools"><b id="ship-connection"></b><a class="btn" href="../motor/" target="_blank" rel="noopener">Open Microsoft sign-in</a><button class="btn" id="ship-reload" type="button">Load shared shipments</button><button class="btn" id="ship-setup" type="button">Create shared tracker</button></div><p class="note">Reply <b>/track</b> to a docket photo on WhatsApp to add it here automatically. V-Xpress dockets are checked with the courier every few hours; other couriers are saved and can be marked delivered by hand.</p></div>
       <p class="ship-notice" role="alert" id="ship-error" hidden></p><p class="ship-notice" role="status" id="ship-message" hidden></p>
       <form id="ship-form" class="panel pad">
         <div class="filters"><label class="fld">Logistics provider<input id="ship-carrier" list="ship-carriers" maxlength="80" required placeholder="e.g. DTDC" autocomplete="off"></label><label class="fld">Tracking ID<input id="ship-number" maxlength="100" required placeholder="Consignment / AWB number" autocomplete="off"></label><label class="fld">Reference (optional)<input id="ship-reference" maxlength="200" placeholder="Invoice, hub or order"></label><button class="btn" id="ship-save" type="submit" disabled>Add shipment</button></div>
@@ -1431,11 +1431,14 @@ function bindPrices() {
 // ---------- Shared shipments, stored in the existing Hala Fleet Ops workspace
 const SHIP = { host: 'https://halamobility.sharepoint.com', site: '/sites/fleetops', list: 'Hala Shipments', authKey: 'hala_motor_auth', clientId: '08269bce-6b5d-4ba2-b718-f01865874803', tenantId: 'cc8957c3-8255-47ab-b223-0fa2bb99e2a3' };
 const shipState = { rows: [], loaded: false, ready: false, busy: false, loading: false, query: '', filter: 'active', open: null, error: '', message: '', refreshed: null, connected: false, workerAt: null };
-const shipStatuses = { Pending: 'Awaiting tracking connection', NotFound: 'Not found', InfoReceived: 'Shipment information received', InTransit: 'In transit', AvailableForPickup: 'Ready for pickup', OutForDelivery: 'Out for delivery', DeliveryFailure: 'Delivery attempted', Exception: 'Delivery issue', Expired: 'Tracking expired', Delivered: 'Delivered' };
+const shipStatuses = { Pending: 'Awaiting tracking connection', NotFound: 'Not found', InfoReceived: 'Shipment information received', InTransit: 'In transit', AvailableForPickup: 'Ready for pickup', Arrived: 'Arrived at destination branch', OutForDelivery: 'Out for delivery', DeliveryFailure: 'Delivery attempted', Exception: 'Delivery issue', Expired: 'Tracking expired', Delivered: 'Delivered' };
 const shipListPath = () => "lists/getbytitle('" + SHIP.list + "')";
 const shipKey = (carrier, number) => [carrier.trim().replace(/\s+/g, ' ').toUpperCase(), number.trim().toUpperCase()].join('|');
 const shipTime = value => value ? new Date(value).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) + ' IST' : '—';
 let shipRefreshing = null;
+const shipToday = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+const shipOverdue = r => !!(r.eta && !['Delivered', 'Expired'].includes(r.status) && r.eta < shipToday());
+const shipDay = value => { if (!value) return '—'; const d = new Date(String(value).length === 10 ? value + 'T00:00:00+05:30' : value); return isNaN(d) ? '—' : d.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short' }); };
 function shipAuth() { try { return JSON.parse(localStorage.getItem(SHIP.authKey) || 'null'); } catch { return null; } }
 async function shipToken() {
   let auth = shipAuth();
@@ -1518,11 +1521,18 @@ async function shipAdd(event) {
 }
 function shipRows() {
   const query = shipState.query.trim().toUpperCase();
-  return shipState.rows.filter(r => (shipState.filter === 'all' || (shipState.filter === 'delivered' ? r.status === 'Delivered' : shipState.filter === 'issues' ? ['Exception','DeliveryFailure','Expired','NotFound'].includes(r.status) : r.status !== 'Delivered')) && (!query || [r.carrier,r.number,r.reference].join(' ').toUpperCase().includes(query)));
+  return shipState.rows.filter(r => (shipState.filter === 'all' || (shipState.filter === 'delivered' ? r.status === 'Delivered' : shipState.filter === 'issues' ? (['Exception','DeliveryFailure','Expired','NotFound'].includes(r.status) || shipOverdue(r)) : r.status !== 'Delivered')) && (!query || [r.carrier,r.number,r.reference].join(' ').toUpperCase().includes(query)));
 }
 function shipDetail(row) {
   const events = [...(row.events || [])].sort((a,b) => String(b.at).localeCompare(String(a.at)));
-  return '<div class="pad"><h3>' + esc(row.carrier) + ' · ' + esc(row.number) + '</h3><p class="note">' + (row.source === 'carrier' ? 'Carrier-reported updates.' : row.source === 'manual' ? 'Delivery was marked manually by the team.' : 'No carrier status has been received yet.') + '</p>' + (events.length ? '<ol class="ship-history">' + events.map(e => '<li><b>' + esc(shipTime(e.at)) + '</b> · ' + esc(e.description || shipStatuses[e.status] || e.status) + (e.location ? ' · ' + esc(e.location) : '') + '</li>').join('') + '</ol>' : '<p class="note">Tracking history will appear here after automatic tracking is connected.</p>') + '<div class="tools">' + (row.status !== 'Delivered' ? '<button class="btn" data-ship-deliver="' + row.id + '" type="button">Mark delivered manually</button>' : '') + '<button class="btn" data-ship-remove="' + row.id + '" type="button">Remove shipment</button></div></div>';
+  const wa = row.whatsapp || {}, facts = [];
+  if (row.origin || row.destination) facts.push(esc([row.origin, row.destination].filter(Boolean).join(' → ')));
+  if (row.bookedAt) facts.push('Booked ' + esc(shipDay(row.bookedAt)));
+  if (row.eta) facts.push('Expected ' + esc(shipDay(row.eta)));
+  if (row.deliveredAt) facts.push('Delivered ' + esc(shipTime(row.deliveredAt)));
+  if (row.carrierStatus) facts.push('Courier status: ' + esc(row.carrierStatus));
+  const via = row.addedVia === 'WhatsApp' ? '<p class="note">Added from WhatsApp' + (wa.chat ? ' · ' + esc(wa.chat) : '') + (wa.from ? ' · sent by ' + esc(wa.from) : '') + (wa.at ? ' · ' + esc(shipTime(wa.at)) : '') + (wa.read === 'barcode' ? ' · docket read from the barcode' : '') + '</p>' : '';
+  return '<div class="pad"><h3>' + esc(row.carrier) + ' · ' + esc(row.number) + '</h3>' + (facts.length ? '<p>' + facts.join(' · ') + '</p>' : '') + via + '<p class="note">' + (row.source === 'carrier' ? 'Carrier-reported updates.' : row.source === 'manual' ? 'Delivery was marked manually by the team.' : 'No carrier status has been received yet.') + '</p>' + (events.length ? '<ol class="ship-history">' + events.map(e => '<li><b>' + esc(shipTime(e.at)) + '</b> · ' + esc(e.description || shipStatuses[e.status] || e.status) + (e.location ? ' · ' + esc(e.location) : '') + '</li>').join('') + '</ol>' : '<p class="note">Tracking history will appear here after automatic tracking is connected.</p>') + '<div class="tools">' + (row.status !== 'Delivered' ? '<button class="btn" data-ship-deliver="' + row.id + '" type="button">Mark delivered manually</button>' : '') + '<button class="btn" data-ship-remove="' + row.id + '" type="button">Remove shipment</button></div></div>';
 }
 function renderShipments() {
   const rows = shipRows(), active = shipState.rows.filter(r => r.status !== 'Delivered').length, delivered = shipState.rows.length - active;
@@ -1534,13 +1544,13 @@ function renderShipments() {
   $('#ship-setup').hidden = shipState.ready; $('#ship-setup').disabled = shipState.busy || shipState.loading;
   $('#ship-reload').disabled = shipState.loading || shipState.busy; $('#ship-save').disabled = !shipState.ready || shipState.busy;
   $('#ship-save').textContent = shipState.busy ? 'Saving…' : 'Add shipment';
-  let html = '<thead><tr><th class="lab">Logistics / tracking ID</th><th>Reference</th><th>Status</th><th>Latest update</th><th>Last carrier check</th></tr></thead><tbody>';
+  let html = '<thead><tr><th class="lab">Logistics / tracking ID</th><th>Reference</th><th>Status</th><th>Expected</th><th>Latest update</th><th>Last carrier check</th></tr></thead><tbody>';
   for (const row of rows) {
     const open = shipState.open === row.id;
-    html += '<tr><td class="lab"><button type="button" class="link" data-ship-open="' + row.id + '" aria-expanded="' + open + '">' + (open ? '▾ ' : '▸ ') + esc(row.carrier) + '</button><small>' + esc(row.number) + '</small></td><td>' + esc(row.reference || '—') + '</td><td><span class="ship-status' + (row.status === 'Delivered' ? ' g' : '') + '">' + esc(shipStatuses[row.status] || 'Unknown') + '</span>' + (row.source === 'manual' ? '<small>Manual update</small>' : '') + '</td><td>' + esc(row.latestDescription || '—') + '</td><td>' + esc(shipTime(row.lastCheckedAt)) + '</td></tr>';
-    if (open) html += '<tr class="detail"><td colspan="5">' + shipDetail(row) + '</td></tr>';
+    html += '<tr><td class="lab"><button type="button" class="link" data-ship-open="' + row.id + '" aria-expanded="' + open + '">' + (open ? '▾ ' : '▸ ') + esc(row.carrier) + '</button><small>' + esc(row.number) + '</small></td><td>' + esc(row.reference || '—') + '</td><td><span class="ship-status' + (row.status === 'Delivered' ? ' g' : '') + '">' + esc(shipStatuses[row.status] || 'Unknown') + '</span>' + (row.source === 'manual' ? '<small>Manual update</small>' : '') + '</td><td>' + esc(shipDay(row.eta)) + (shipOverdue(row) ? ' <span class="flag">Overdue</span>' : '') + '</td><td>' + esc(row.latestDescription || '—') + '</td><td>' + esc(shipTime(row.lastCheckedAt)) + '</td></tr>';
+    if (open) html += '<tr class="detail"><td colspan="6">' + shipDetail(row) + '</td></tr>';
   }
-  if (!rows.length) html += '<tr><td class="lab" colspan="5">' + (shipState.ready ? 'No shipments match this view. Add a provider and tracking ID above.' : 'Load or create the shared tracker to see team shipments.') + '</td></tr>';
+  if (!rows.length) html += '<tr><td class="lab" colspan="6">' + (shipState.ready ? 'No shipments match this view. Add a provider and tracking ID above.' : 'Load or create the shared tracker to see team shipments.') + '</td></tr>';
   $('#ship-table').innerHTML = html + '</tbody>';
 }
 async function shipChange(id, remove = false) {
