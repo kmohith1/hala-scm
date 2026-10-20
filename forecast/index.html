@@ -853,14 +853,11 @@ let boughtRenderedMonth = null;
 function boughtHeadline(now = Date.now()) {
   const period = boughtMonth(now); boughtRenderedMonth = period.key;
   let label = 'Bought, ' + period.label, value = '–', note = 'No purchase records in the latest refresh';
-  if (['grn', 'prices'].includes(state.tab) && GRN) {
-    label = 'GRN spend, ' + period.label;
+  if (GRN) {
     const totals = grnSummary(GRN.records.filter(r => r.date.startsWith(period.ym)));
-    if (totals.count) { value = inr(totals.paise / 100); note = 'Cercle OS · ' + n0(totals.count) + ' purchase records'; }
-  } else if (D.proc) {
-    const totals = procTotals(period.key, period.key, true);
-    if (totals.inv) { value = inr(totals.amt); note = 'excl. GST · ' + n0(totals.inv) + ' invoices'; }
-  } else note = 'No Spares Master Report in the latest refresh';
+    if (totals.count) { value = inr(totals.paise / 100); note = 'GRN · ' + n0(totals.count) + ' purchase records'; }
+    if (GRN.stale) note += ' · previous import';
+  } else note = 'GRN purchase data unavailable';
   if (period.current && value !== '–') note += ' · month to date';
   return '<div class="kpi" data-kpi="bought"><span class="nm">' + esc(label) + '</span><b class="num">' + value + '</b><span class="sh">' + esc(note) + '</span></div>';
 }
