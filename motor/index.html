@@ -1824,7 +1824,7 @@ document.addEventListener("visibilitychange", () => {
    ============================================================ */
 const OCR_DIR = new URL("ocr", location.origin + location.pathname).href;
 const SCAN = {target: "", stream: null, track: null, torchOn: false, worker: null, warming: null, detector: null, loop: 0,
-  frames: null, shot: "", vote: null, label: null, busy: false, mark: null, note: "", session: 0};
+  frames: null, shot: "", vote: null, label: null, busy: false, mark: null, note: "", session: 0, readerStop: null};
 
 /* Fold every lookalike character to one representative, so a misread and the
    real ID collide while genuine nonsense does not. */
@@ -2359,13 +2359,16 @@ const RD_ASK = "This is a photo of a part of an electric two-wheeler in a wareho
   "It is NOT a rating (250W, 48/60V, 30A), a date (12/2025), a model number, a short lot code such as L01-184, or a brand name.\n" +
   "Copy exactly the characters you can see. Never guess and never complete a code: write ? for each character you cannot make out.\n" +
   "Answer with JSON only, in this form: {\"ids\": [\"the unit ID\", \"any other code that could be the unit ID\"], " +
-  "\"text\": \"the other legible text on the part, one line per line\"}. If no unit ID is visible, give an empty list for ids.";
+  "\"text\": \"\"}. Return at most three candidate IDs. If no unit ID is visible, give an empty list for ids.";
+const RD_DETAILS = " For registration, also put the visible brand, part type (motor or controller), and model in text, " +
+  "using a line starting MODEL for the model number. Omit ratings, instructions and other label text. Never invent missing details.";
 const RD_SHAPE = {type: "OBJECT", properties: {ids: {type: "ARRAY", items: {type: "STRING"}}, text: {type: "STRING"}}, required: ["ids"]};
 const readerCfg = () => { const c = lsJson(RD_STORE, null); return c && typeof c.key === "string" && c.key ? c : null; };
 const readerOn = () => !!readerCfg();
 async function readerCall(path, key, body, ms, stop){
   const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), ms || 30000);
-  if(stop){ if(stop.aborted) ctl.abort(); else stop.addEventListener("abort", () => ctl.abort(), {once: true}); }
+  const abort = () => ctl.abort();
+  if(stop){ if(stop.aborted) ctl.abort(); else stop.addEventListener("abort", abort, {once: true}); }
   try{
     /* The key goes in a header, never in the address. Only this site's origin is given as the referrer, which is what a
        key restricted to this website is checked against. */
@@ -2378,7 +2381,7 @@ async function readerCall(path, key, body, ms, stop){
     if(e.name === "AbortError"){ const t = new Error("no answer in time"); t.status = 0; throw t; }
     if(e.status === undefined) e.status = 0;
     throw e;
-  }finally{ clearTimeout(timer); }
+  }finally{ clearTimeout(timer); if(stop) stop.removeEventListener("abort", abort); }
 }
 const badKey = e => /api[ _]?key/i.test(e.message || "") && !/referr?er/i.test(e.message || "");
 /* What went wrong, in words that say what to do about it. */
@@ -2422,49 +2425,85 @@ function readerReply(text){
 const RD_STRICT = {temperature: 0, response_mime_type: "application/json", response_schema: RD_SHAPE, media_resolution: "MEDIA_RESOLUTION_HIGH"};
 const RD_FORMS = [Object.assign({thinkingConfig: {thinkingLevel: "minimal"}}, RD_STRICT), Object.assign({thinkingConfig: {thinkingBudget: 0}}, RD_STRICT), RD_STRICT, {temperature: 0}];
 const readerSave = cfg => lsSet(RD_STORE, JSON.stringify(cfg));
-/* Ask for the ID in a picture. The first model is asked; if it has not answered in five seconds the next is asked
+/* Discover models while the camera is being aimed, never on the capture path. A confirmed model or a changed key
+   takes precedence over an older lookup that happens to finish later. */
+let readerSetup = null;
+const readerReady = cfg => cfg && cfg.v === 2 && Array.isArray(cfg.models) && cfg.models.length;
+function prepareReader(){
+  const cfg = readerCfg();
+  if(!cfg || readerReady(cfg)) return Promise.resolve(cfg);
+  if(readerSetup && readerSetup.key === cfg.key) return readerSetup.promise;
+  const job = {key: cfg.key}; readerSetup = job;
+  job.promise = readerModels(cfg.key).then(models => {
+    const now = readerCfg();
+    if(!now || now.key !== cfg.key || readerReady(now)) return now;
+    const ready = Object.assign({}, now, {v: 2, models: models.length ? models : RD.models, how: now.how || {}});
+    readerSave(ready); return ready;
+  }).catch(() => readerCfg()).finally(() => { if(readerSetup === job) readerSetup = null; });
+  return job.promise;
+}
+function stopReader(){ if(SCAN.readerStop){ SCAN.readerStop.abort(); SCAN.readerStop = null; } }
+/* Ask for the ID in a picture. The first model is asked; if it has not answered in two seconds the next is asked
    as well, and so on — on the free plan any one model can be busy for a while, and waiting it out would make every
-   scan slow. The first answer wins and the rest are dropped. The whole attempt gives up after half a minute so the
-   built-in reader can take over. */
-const RD_WAIT = 5000, RD_GIVE_UP = 32000;
+   scan slow. The first answer containing an ID wins and the rest are dropped; an empty answer must not cancel a
+   useful answer still in flight. The whole attempt keeps its original half-minute limit. */
+const RD_WAIT = 2000, RD_GIVE_UP = 32000;
 async function readerAsk(canvas){
   let cfg = readerCfg(); if(!cfg) throw new Error("no key");
-  if(cfg.v !== 2){                                                              // saved by an earlier version: choose the models afresh
-    let models = []; try{ models = await readerModels(cfg.key); }catch(e){}
-    cfg = Object.assign({v: 2, key: cfg.key, models: models.length ? models : RD.models, how: {}}, cfg.shared ? {shared: true} : {}); readerSave(cfg);
-  }
-  const parts = [{text: RD_ASK}, {inline_data: {mime_type: "image/jpeg", data: readerPicture(canvas, 2000)}}], stop = new AbortController(), asked = [];
+  prepareReader();
+  cfg = Object.assign({}, cfg, {v: 2, models: Array.isArray(cfg.models) && cfg.models.length ? cfg.models : RD.models, how: cfg.how || {}});
+  stopReader();
+  const parts = [{text: RD_ASK + (SCAN.target === "reg" ? RD_DETAILS : "")}, {inline_data: {mime_type: "image/jpeg", data: readerPicture(canvas, 2000)}}], stop = new AbortController(), asked = [];
+  SCAN.readerStop = stop;
   const one = async model => {
     let err = null;
-    for(let form = cfg.how[model] || 0; form < RD_FORMS.length; form++){
+    /* Gemini 2.x uses a thinking budget; starting with a thinking level wastes a rejected request on a new device. */
+    const saved = cfg.how[model], first = Number.isInteger(saved) && saved >= 0 && saved < RD_FORMS.length ? saved : /^gemini-2\./.test(model) ? 1 : 0;
+    for(let form = first; form < RD_FORMS.length && !stop.signal.aborted; form++){
       try{
         const j = await readerCall("/models/" + encodeURIComponent(model) + ":generateContent", cfg.key, {contents: [{parts}], generationConfig: RD_FORMS[form]}, 25000, stop.signal);
-        return {model, form, text: ((((j.candidates || [])[0] || {}).content || {}).parts || []).map(p => p.text || "").join("")};
+        return {model, form, text: ((((j.candidates || [])[0] || {}).content || {}).parts || []).filter(p => !p.thought).map(p => p.text || "").join("")};
       }catch(e){ err = e; if(!(e.status === 400 && !badKey(e))) break; }          // 400: a form this model does not take — try the next form
     }
-    throw err;
+    throw err || new Error("scan cancelled");
   };
   return new Promise((resolve, reject) => {
-    let next = 0, live = 0, over = false, last = null, timer = 0;
-    const end = (fn, v) => { if(over) return; over = true; clearTimeout(timer); clearTimeout(limit); stop.abort(); fn(v); };
+    let next = 0, live = 0, over = false, last = null, empty = null, timer = 0;
+    const end = (fn, v) => {
+      if(over) return; over = true; clearTimeout(timer); clearTimeout(limit);
+      stop.signal.removeEventListener("abort", cancelled); stop.abort();
+      if(SCAN.readerStop === stop) SCAN.readerStop = null;
+      fn(v);
+    };
+    const cancelled = () => end(reject, new DOMException("Scan cancelled", "AbortError"));
+    stop.signal.addEventListener("abort", cancelled, {once: true});
+    const exhausted = () => { if(empty) end(resolve, empty); else end(reject, last || new Error("no answer in time")); };
     const launch = () => {
       clearTimeout(timer);
       if(over || next >= cfg.models.length) return;
       const model = cfg.models[next++]; live++; asked.push(model);
       one(model).then(r => {
-        if(over) return;
+        live--; if(over) return;
+        const got = readerReply(r.text);
+        got.ids = got.ids.filter(id => alnum(id).length >= 4);
+        if(!got.ids.length){
+          empty = got;
+          if(next < cfg.models.length) launch(); else if(!live) exhausted();
+          return;
+        }
         /* the one that answered goes to the front; those asked before it, which failed or were slower, to the back */
         const slow = asked.filter(m => m !== r.model), rest = cfg.models.filter(m => m !== r.model && !slow.includes(m));
-        if(slow.length || cfg.models[0] !== r.model || cfg.how[r.model] !== r.form) readerSave(Object.assign({}, cfg, {models: [r.model].concat(rest, slow), how: Object.assign({}, cfg.how, {[r.model]: r.form})}));
-        end(resolve, readerReply(r.text));
+        const now = readerCfg();
+        if(now && now.key === cfg.key) readerSave(Object.assign({}, cfg, {shared: !!now.shared, models: [r.model].concat(rest, slow), how: Object.assign({}, cfg.how, {[r.model]: r.form})}));
+        end(resolve, got);
       }, e => {
         live--; if(over) return; last = e;
         if(badKey(e) || e.status === 403) return end(reject, e);                // the key itself: no other model will do better
-        if(next < cfg.models.length) launch(); else if(!live) end(reject, last);
+        if(next < cfg.models.length) launch(); else if(!live) exhausted();
       });
       timer = setTimeout(launch, RD_WAIT);
     };
-    const limit = setTimeout(() => { const t = last || new Error("no answer in time"); if(t.status === undefined) t.status = 0; end(reject, t); }, RD_GIVE_UP);
+    const limit = setTimeout(() => { if(!last){ last = new Error("no answer in time"); last.status = 0; } exhausted(); }, RD_GIVE_UP);
     launch();
   });
 }
@@ -2507,7 +2546,7 @@ async function syncSharedKey(){
 
 /* ---------- online reader: the settings sheet ---------- */
 function scanReaderPanel(msg, kind){
-  SCAN.session++; SCAN.busy = false; stopCamera();
+  SCAN.session++; SCAN.busy = false; stopCamera(); stopReader();
   const cfg = readerCfg(), dlg = scanEl(), model = cfg ? esc((cfg.models || RD.models)[0]) : "";
   dlg.innerHTML = '<div class="modal-head"><h2>Online reader</h2><button class="close-btn" data-scan-act="close" aria-label="Close">×</button></div>' +
     '<div class="modal-body"><p style="margin:0 0 10px">Faint, engraved or sideways IDs are read far more reliably by Google\'s Gemini than by the reader built into this page. With a key set, each photo scanned is sent to Google to be read.</p>' +
@@ -2576,6 +2615,7 @@ function scanSay(html, kind){ const m = document.getElementById("scMsg"); if(m){
 function scanButtons(html){ const b = document.getElementById("scBtns"); if(b) b.innerHTML = html; }
 const SCAN_TITLES = {reg: "Scan the unit to register", move: "Scan the unit to move", search: "Scan a unit to find it"};
 async function openScan(target){
+  stopReader(); stopCamera();
   SCAN.target = target || SCAN.target || "search"; SCAN.session++;
   SCAN.frames = null; SCAN.shot = ""; SCAN.vote = null; SCAN.label = null; SCAN.busy = false; SCAN.note = "";
   const dlg = scanEl();
@@ -2588,8 +2628,8 @@ async function openScan(target){
   scanButtons('<button class="primary" data-scan-act="capture" id="scCap" disabled>Capture</button><button data-scan-act="torch" id="scTorch" hidden>Light</button>' +
     '<button data-scan-act="file">Choose photo</button><button data-scan-act="close">Cancel</button>');
   if(!dlg.open) dlg.showModal();
-  /* Fetch the reader while the user is still aiming, so the wait happens then, not after the photo. */
-  ocrWorker().catch(() => {});
+  /* Prepare only the reader being used. Downloading and compiling the local engine competes with the AI upload. */
+  if(readerOn()) prepareReader(); else ocrWorker().catch(() => {});
   const mine = SCAN.session;
   try{
     if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error("this browser gives pages no camera");
@@ -2621,7 +2661,7 @@ function stopCamera(){
   if(SCAN.stream){ SCAN.stream.getTracks().forEach(t => t.stop()); SCAN.stream = null; }
   SCAN.track = null; SCAN.torchOn = false;
 }
-function closeScan(){ SCAN.session++; SCAN.busy = false; stopCamera(); const d = scanEl(); if(d.open) d.close(); }
+function closeScan(){ SCAN.session++; SCAN.busy = false; stopCamera(); stopReader(); const d = scanEl(); if(d.open) d.close(); }
 function scanTorch(){
   if(!SCAN.track) return;
   const on = !SCAN.torchOn;
@@ -2657,27 +2697,31 @@ async function scanCapture(){
   const v = document.getElementById("scVid");
   if(!v || !v.videoWidth) return scanSay("The camera has not started yet.", "err");
   if(SCAN.busy) return;
-  SCAN.busy = true; clearInterval(SCAN.loop);
+  SCAN.busy = true; clearInterval(SCAN.loop); const mine = SCAN.session;
   const full = document.createElement("canvas"); full.width = v.videoWidth; full.height = v.videoHeight;
   full.getContext("2d").drawImage(v, 0, 0);
-  /* Several frames a moment apart: shake and glare differ between them, so a
-     character lost in one is often clean in another. */
+  /* AI reads the full-resolution still immediately. Only local OCR uses a burst for voting. */
   const frames = [cropToGuide(v)];
-  for(let i = 0; i < 2; i++){ await sleep(90); frames.push(cropToGuide(v)); }
+  if(!readerOn()) for(let i = 0; i < 2; i++){
+    await sleep(90); if(mine !== SCAN.session) return;
+    frames.push(cropToGuide(v));
+  }
+  if(mine !== SCAN.session) return;
   /* The whole frame is what is shown and kept: an ID just outside the box can still be marked on it. */
   showShot(full); stopCamera();
   await readFrames(full, frames);
 }
 async function scanFile(file){
   if(!file || SCAN.busy) return;
-  SCAN.busy = true; stopCamera();
+  SCAN.busy = true; stopCamera(); const mine = SCAN.session;
   try{
     const bmp = await createImageBitmap(file), k = Math.min(1, 2200 / Math.max(bmp.width, bmp.height));
+    if(mine !== SCAN.session){ bmp.close(); return; }
     const c = document.createElement("canvas"); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
-    c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+    c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height); bmp.close();
     showShot(c);
     await readFrames(c, [c]);
-  }catch(e){ SCAN.busy = false; scanSay("<b>That photo could not be opened.</b> " + esc(e.message), "err"); }
+  }catch(e){ if(mine === SCAN.session){ SCAN.busy = false; scanSay("<b>That photo could not be opened.</b> " + esc(e.message), "err"); } }
 }
 const SCAN_RETRY = '<button data-scan-act="again">Scan again</button><button data-scan-act="file">Choose photo</button><button data-scan-act="close">Cancel</button>';
 function scanReaderFailed(e){
@@ -2951,7 +2995,7 @@ function scanAct(act){
 document.addEventListener("change", e => { if(e.target.id === "scFile"){ const f = e.target.files && e.target.files[0]; e.target.value = ""; scanFile(f); } });
 document.addEventListener("input", e => { if(e.target.id === "scId") scanKnownNote(); });
 /* Closing the sheet any way at all (button, Esc) must switch the camera off. */
-scanEl().addEventListener("close", () => { SCAN.session++; SCAN.busy = false; stopCamera(); });
+scanEl().addEventListener("close", () => { SCAN.session++; SCAN.busy = false; stopCamera(); stopReader(); });
 
 (async function boot(){
   loadAuth();
