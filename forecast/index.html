@@ -1966,9 +1966,9 @@ const regToday = () => Math.floor((Date.now() + IST) / DAY);
 async function regLoad() {
   if (REG || regLoading) return; regLoading = true;
   try {
-    const el = $('#reg-data'); if (!el || !sealKey) throw new Error('no data');
-    REG = await openSealed(unb64(el.textContent.trim()));
-  } catch (e) { regErr = 'The vehicle registry snapshot could not be opened. Reload the dashboard.'; }
+    try { REG = await getJSON('registry.json'); } catch (e) { REG = null; }   // rebuilt by each refresh
+    if (!REG) { const el = $('#reg-data'); if (!el || !sealKey) throw new Error('no data'); REG = await openSealed(unb64(el.textContent.trim())); }
+  } catch (e) { regErr = 'The vehicle registry could not be opened. Reload the dashboard.'; }
   regLoading = false; if (state.tab === 'reg') renderReg();
 }
 function regWaitFrom(r) { return REG_PRE.includes(r.s) ? r.dd : r.od; }
@@ -1988,7 +1988,9 @@ function renderReg() {
   if (!REG) { $('#reg-asof').textContent = regErr || 'Opening the registry…'; if (!regErr) regLoad(); return; }
   const G = REG.groups, sum = k => G.reduce((n, g) => n + (g[k] || 0), 0);
   const inCercle = sum('dep') + sum('nd30') + sum('ndOld'), pre = sum('transit') + sum('hub') + sum('check'), t = regToday();
-  $('#reg-asof').innerHTML = 'Snapshot of Cercle OS as of <b>' + esc(REG.asofLabel) + '</b>, matched against the OEM dispatch lists. Two-wheelers only. This tab is not changed by the scheduled refresh.';
+  $('#reg-asof').innerHTML = REG.live
+    ? 'Cercle OS as of <b>' + esc(REG.asofLabel) + '</b>, matched against the OEM dispatch lists. Two-wheelers only. Rebuilt with every refresh; E-Sprinto dispatch mails are added as they arrive (' + n0(REG.dispatchFiles || 0) + ' lot files read).'
+    : 'Snapshot of Cercle OS as of <b>' + esc(REG.asofLabel) + '</b>, matched against the OEM dispatch lists. Two-wheelers only. It is replaced by live data after the next refresh.';
   $('#reg-run').innerHTML = '<div><b class="num">' + n0(REG.target) + '</b><span>Fleet target</span><small>From the procurement tracker</small></div>' +
     '<div><b class="num">' + n0(inCercle) + '</b><span>In Cercle OS</span><small>' + pct(100 * inCercle / REG.target) + ' of the target</small></div>' +
     '<div><b class="num">' + n0(REG.target - inCercle) + '</b><span>Still to come</span><small>Not yet in Cercle OS</small></div>' +
@@ -2031,12 +2033,14 @@ function renderReg() {
   $('#reg-plan').innerHTML = h;
 
   const iss = regIssueRows(), open = REG.issues.filter(r => r.s === 'Open').length;
+  const hasFixed = REG.issues.some(r => r.s !== 'Open'); if (!hasFixed) regState.iss = 'Open';
+  $('#reg-iss-f').hidden = !hasFixed;
   $$('#reg-iss-f button').forEach(b => b.setAttribute('aria-pressed', b.dataset.regiss === regState.iss));
   h = '<thead><tr><th class="lab">Chassis no.</th><th>OEM</th><th>Issue</th><th>Vehicle ID</th><th>Detail</th><th>Status</th></tr></thead><tbody>';
   for (const r of regState.issAll ? iss : iss.slice(0, REG_SHOW)) h += '<tr><td class="lab">' + esc(r.c || '–') + '</td><td>' + esc(r.o) + '</td><td>' + esc(r.i) + '</td><td>' + esc(r.v || '–') + '</td><td>' + esc(r.d) + '</td><td>' + (r.s === 'Open' ? '<span class="flag">Open</span>' : esc(r.s)) + '</td></tr>';
   if (!iss.length) h += '<tr><td class="lab" colspan="6">No issues match these filters.</td></tr>';
   $('#reg-iss').innerHTML = h + '</tbody>';
-  $('#reg-iss-count').textContent = n0(open) + ' open · ' + n0(REG.issues.length - open) + ' fixed';
+  $('#reg-iss-count').textContent = n0(open) + ' open' + (hasFixed ? ' · ' + n0(REG.issues.length - open) + ' fixed' : '');
   const im = $('#reg-iss-more'); im.hidden = iss.length <= REG_SHOW; im.textContent = regState.issAll ? 'Show the first ' + REG_SHOW : 'Show all ' + n0(iss.length);
 }
 function bindReg() {
