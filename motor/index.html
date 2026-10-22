@@ -577,7 +577,7 @@ const names = {overview: "Overview", inventory: "All units", inspections: "Inspe
 const paths = {overview: "M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z", inventory: "M3 7l9-4 9 4v10l-9 4-9-4z M3 7l9 4 9-4 M12 11v10",
   inspections: "M9 3h6v4H9z M9 5H5v16h14V5h-4 M8 13l3 3 5-6", claims: "M5 3h14v18H5z M8 8h8 M8 12h8 M8 16h5",
   dc: "M3 6h11v12H3z M14 10h4l3 4v4h-7 M6 18v2 M18 18v2", move: "M4 8h13 M13 4l4 4-4 4 M20 16H7 M11 12l-4 4 4 4",
-  activity: "M3 12h4l3-7 4 14 3-7h4", search: "M10 3a7 7 0 1 0 0 14 7 7 0 0 0 0-14 M15 15l6 6", plus: "M12 5v14 M5 12h14",
+  activity: "M3 12h4l3-7 4 14 3-7h4", search: "M10 3a7 7 0 1 0 0 14 7 7 0 0 0 0-14 M15 15l6 6", plus: "M12 5v14 M5 12h14", download: "M12 4v11 M7 10l5 5 5-5 M5 20h14",
   arrow: "M5 12h14 M13 6l6 6-6 6", check: "M5 12l4 4L19 6", motor: "M5 7h14v10H5z M2 10v4 M22 10v4 M8 3v4 M16 3v4",
   info: "M12 8v1 M12 12v5 M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20",
   scan: "M4 8V5h3 M17 5h3v3 M20 16v3h-3 M7 19H4v-3 M7 12h10 M8 9v6 M11 9v6 M14 9v6 M16.5 9v6"};
@@ -618,6 +618,7 @@ function title(eyebrow, heading, sub, actions){
   return '<div class="page-head"><div><p class="eyebrow">' + eyebrow + '</p><h1>' + heading + '</h1><p class="subtext">' + sub + '</p></div><div class="head-actions">' + (actions || "") + '</div></div>';
 }
 const regButton = () => '<button class="primary" data-action="register">' + icon("plus") + 'Register unit</button>';
+const exportAllButton = () => '<button data-action="export-all" title="Every list as one Excel workbook">' + icon("download") + 'Download all data</button>';
 const families = () => [...new Set(D.units.map(u => u.OEMMake || "No OEM"))].sort();
 const claimOems = () => { const base = D.oems.map(o => o.title); return base.length ? base : families(); };
 
@@ -675,7 +676,7 @@ function overview(){
     ["dcReady", "Ready to ship", "dc"], ["shipped", "At OEM / plant", "shipped"]];
   const order = {dcReady: 0, claimRaised: 1, claimReady: 2, inspection: 3};
   const attention = D.units.filter(u => u.stage in order).sort((a, b) => order[a.stage] - order[b.stage] || new Date(a.LastMovementDate || 0) - new Date(b.LastMovementDate || 0)).slice(0, 7);
-  return title("Warehouse overview", "Every unit. Every movement.", "Your motor and controller operations, in one place.", regButton()) +
+  return title("Warehouse overview", "Every unit. Every movement.", "Your motor and controller operations, in one place.", exportAllButton() + regButton()) +
     '<section class="cards" aria-label="Stock totals">' + metrics.map(([label, n, sub, i], index) => '<div class="metric ' + (index === 0 ? "featured" : "") + '"><div class="metric-head">' + label + icon(i) +
       '</div><div class="number">' + n + '</div><small>' + sub + '</small></div>').join("") + '</section>' +
     '<section class="panel"><div class="panel-head"><div><h2>The warranty journey</h2><p class="subtext">Working units become available. Rejected failures become scrap.</p></div>' +
@@ -723,7 +724,7 @@ function pagedTable(check, withLocation){
     '<button data-page="' + (page - 1) + '"' + (page === 1 ? " disabled" : "") + '>Previous</button><button data-page="' + (page + 1) + '"' + (page === pages ? " disabled" : "") + '>Next</button></div></div>';
 }
 function inventory(){
-  return title("Stock &amp; traceability", "All units", "Find a motor or controller and follow its full history.", regButton()) +
+  return title("Stock &amp; traceability", "All units", "Find a motor or controller and follow its full history.", exportAllButton() + regButton()) +
     '<section class="panel"><div class="panel-head"><h2>Unit register</h2><span class="small-note">' + D.units.length + ' total units · Scrap ' + count("scrap") + '</span></div>' +
     filters(true) + '<div id="unit-table">' + pagedTable(false, true) + '</div><div class="table-footer"><span id="result-count">' + filtered().length + ' matching units</span>' +
     '<button class="text-button" data-action="export">Export this view</button></div></section>';
@@ -975,6 +976,174 @@ function exportView(){
   /* A leading = + - @ would be run as a formula by Excel; neutralise it. */
   const safe = v => { const t = String(v ?? ""); return '"' + (/^[=+@\-\t\r]/.test(t) ? "'" + t : t).replace(/"/g, '""') + '"'; };
   saveBlob(new Blob(["﻿" + rows.map(r => r.map(safe).join(",")).join("\r\n")], {type: "text/csv;charset=utf-8"}), "Hala-units-" + todayIST() + ".csv");
+}
+
+/* ============================================================
+   FULL EXPORT — every list the workspace uses, as one Excel workbook.
+   Columns come from each list's own settings, so a column added in
+   SharePoint later is exported too. The .xlsx is written here (the page
+   loads no outside scripts) and zipped with the browser's own deflate.
+   ============================================================ */
+const EXPORT_LISTS = [["Items", "Units"], ["Movements", "Movements"], ["Inspections", "Inspections"], ["Claims", "Claims & DCs"],
+  ["RepairCycles", "Repair cycles"], ["RefData", "Reference data"]];
+const EXPORT_SKIP = new Set(["Computed", "Attachments", "ContentTypeId", "Guid"]);
+const exportKind = f => f.TypeAsString === "DateTime" ? (f.DisplayFormat === 0 ? "date" : "datetime")
+  : ["Number", "Currency", "Integer", "Counter"].includes(f.TypeAsString) ? "number" : "text";
+const isPerson = t => t === "User" || t === "UserMulti", isLookup = t => t === "Lookup" || t === "LookupMulti";
+function exportCell(v, c){
+  if(v == null || v === "") return null;
+  if(Array.isArray(v)) return v.map(x => exportCell(x, {})).filter(x => x != null && x !== "").join("; ") || null;
+  if(typeof v === "object"){
+    if(Array.isArray(v.results)) return exportCell(v.results, c);
+    const t = v.Title ?? v.Label ?? v.Url ?? (c.lookup ? v[c.lookup] : undefined) ?? v.Description;
+    return t != null ? String(t) : JSON.stringify(v);
+  }
+  if(typeof v === "boolean") return v ? "Yes" : "No";
+  if(c.kind === "date" || c.kind === "datetime"){ const d = new Date(v); return isNaN(d) ? String(v) : d; }
+  return v;
+}
+async function exportList(list){
+  const fields = await listAll(L(list) + "/fields?$filter=Hidden eq false");
+  const own = fields.filter(f => (!f.FromBaseType || f.InternalName === "Title") && !EXPORT_SKIP.has(f.TypeAsString) && f.InternalName !== "ContentType")
+    .sort((a, b) => (b.InternalName === "Title") - (a.InternalName === "Title"));
+  let cols = [{key: "Id", title: "ID", kind: "number"},
+    ...own.map(f => ({key: f.InternalName, title: f.Title || f.InternalName, kind: exportKind(f), type: f.TypeAsString, lookup: f.LookupField || "Title"})),
+    {key: "Created", title: "Created", kind: "datetime"}, {key: "Author", title: "Created by", type: "User"},
+    {key: "Modified", title: "Modified", kind: "datetime"}, {key: "Editor", title: "Modified by", type: "User"}];
+  const sel = [], exp = [];
+  for(const c of cols){
+    if(isPerson(c.type)){ sel.push(c.key + "/Title"); exp.push(c.key); }
+    else if(isLookup(c.type)){ sel.push(c.key + "/" + c.lookup); exp.push(c.key); }
+    else sel.push(c.key);
+  }
+  let items;
+  try{ items = await listAll(L(list) + "/items?$select=" + sel.join(",") + (exp.length ? "&$expand=" + exp.join(",") : "") + "&$top=5000"); }
+  catch(e){
+    if(e instanceof SignedOut) throw e;
+    /* A column SharePoint will not expand: take every row as stored, people and lookups as their IDs. */
+    items = await listAll(L(list) + "/items?$top=5000");
+    cols = cols.map(c => isPerson(c.type) || isLookup(c.type) ? {key: c.key + "Id", title: c.title + " (ID)", kind: "text"} : c);
+  }
+  return {cols, items: items.sort((a, b) => a.Id - b.Id)};
+}
+
+const CRC_TABLE = (() => { const t = new Uint32Array(256); for(let n = 0; n < 256; n++){ let c = n; for(let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function crc32(bytes){ let c = 0xFFFFFFFF; for(let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+async function deflateRaw(bytes){
+  if(typeof CompressionStream !== "function") return null;
+  try{ return new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new CompressionStream("deflate-raw"))).arrayBuffer()); }
+  catch(e){ return null; }
+}
+async function zipFiles(files, type){
+  const enc = new TextEncoder(), parts = [], central = [], now = new Date();
+  const time = (now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1), date = ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
+  let offset = 0;
+  for(const f of files){
+    const name = enc.encode(f.name), raw = enc.encode(f.data), crc = crc32(raw), packed = await deflateRaw(raw);
+    const method = packed && packed.length < raw.length ? 8 : 0, body = method ? packed : raw;
+    const h = new DataView(new ArrayBuffer(30));
+    h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true); h.setUint16(8, method, true); h.setUint16(10, time, true); h.setUint16(12, date, true);
+    h.setUint32(14, crc, true); h.setUint32(18, body.length, true); h.setUint32(22, raw.length, true); h.setUint16(26, name.length, true);
+    const c = new DataView(new ArrayBuffer(46));
+    c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x0800, true); c.setUint16(10, method, true); c.setUint16(12, time, true); c.setUint16(14, date, true);
+    c.setUint32(16, crc, true); c.setUint32(20, body.length, true); c.setUint32(24, raw.length, true); c.setUint16(28, name.length, true); c.setUint32(42, offset, true);
+    parts.push(h, name, body); central.push(c, name);
+    offset += 30 + name.length + body.length;
+  }
+  const e = new DataView(new ArrayBuffer(22));
+  e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true);
+  e.setUint32(12, central.reduce((s, p) => s + p.byteLength, 0), true); e.setUint32(16, offset, true);
+  return new Blob([...parts, ...central, e], {type});
+}
+
+const xmlText = v => String(v).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F￾￿]/g, "").replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+const colName = i => { let s = ""; for(i++; i; i = Math.floor((i - 1) / 26)) s = String.fromCharCode(65 + (i - 1) % 26) + s; return s; };
+const excelDay = d => (d.getTime() + 19800000) / 86400000 + 25569;                // shown in India time
+const XML_HEAD = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n', NS_MAIN = 'xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"';
+const NS_REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships", NS_PKG = "http://schemas.openxmlformats.org/package/2006/relationships";
+const XLSX_STYLES = XML_HEAD + '<styleSheet ' + NS_MAIN + '><numFmts count="2"><numFmt numFmtId="164" formatCode="dd-mmm-yyyy"/><numFmt numFmtId="165" formatCode="dd-mmm-yyyy hh:mm"/></numFmts>' +
+  '<fonts count="3"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font><font><b/><sz val="14"/><color rgb="FF176254"/><name val="Calibri"/></font></fonts>' +
+  '<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF176254"/><bgColor indexed="64"/></patternFill></fill></fills>' +
+  '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
+  '<cellXfs count="5"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/>' +
+  '<xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>' +
+  '<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
+/* sheet = {name, rows: [[…]], kinds: ["date"|"datetime"|…], rowStyle: {rowIndex: styleId}, table: header row frozen and filtered} */
+function sheetXml(sh){
+  const kinds = sh.kinds || [], ncol = sh.rows.reduce((m, r) => Math.max(m, r.length), 1), widths = new Array(ncol).fill(8), out = [];
+  sh.rows.slice(0, 400).forEach(r => r.forEach((v, i) => {
+    const len = v instanceof Date ? (kinds[i] === "date" ? 12 : 17) : String(v ?? "").length;
+    widths[i] = Math.min(50, Math.max(widths[i], len + 2));
+  }));
+  sh.rows.forEach((r, ri) => {
+    const s = sh.rowStyle && sh.rowStyle[ri] ? ' s="' + sh.rowStyle[ri] + '"' : "";
+    let cells = "";
+    r.forEach((v, ci) => {
+      if(v == null || v === "") return;
+      const ref = ' r="' + colName(ci) + (ri + 1) + '"';
+      if(v instanceof Date){ if(!isNaN(v)) cells += '<c' + ref + ' s="' + (kinds[ci] === "date" ? 2 : 3) + '"><v>' + excelDay(v) + '</v></c>'; }
+      else if(typeof v === "number" && isFinite(v)) cells += '<c' + ref + s + '><v>' + v + '</v></c>';
+      else cells += '<c' + ref + s + ' t="inlineStr"><is><t xml:space="preserve">' + xmlText(String(v).slice(0, 32767)) + '</t></is></c>';
+    });
+    out.push('<row r="' + (ri + 1) + '">' + cells + '</row>');
+  });
+  sh.range = "$A$1:$" + colName(ncol - 1) + "$" + Math.max(1, sh.rows.length);
+  return XML_HEAD + '<worksheet ' + NS_MAIN + '>' +
+    (sh.table ? '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>' : '') +
+    '<cols>' + widths.map((w, i) => '<col min="' + (i + 1) + '" max="' + (i + 1) + '" width="' + w + '" customWidth="1"/>').join("") + '</cols>' +
+    '<sheetData>' + out.join("") + '</sheetData>' + (sh.table ? '<autoFilter ref="' + sh.range.replace(/\$/g, "") + '"/>' : '') + '</worksheet>';
+}
+function xlsxBlob(sheets){
+  const body = sheets.map(sheetXml), n = sheets.length;
+  const filters = sheets.map((s, i) => s.table ? '<definedName name="_xlnm._FilterDatabase" localSheetId="' + i + '" hidden="1">\'' + xmlText(s.name.replace(/'/g, "''")) + '\'!' + s.range + '</definedName>' : "").join("");
+  return zipFiles([
+    {name: "[Content_Types].xml", data: XML_HEAD + '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+      '<Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
+      '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' +
+      body.map((x, i) => '<Override PartName="/xl/worksheets/sheet' + (i + 1) + '.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>').join("") + '</Types>'},
+    {name: "_rels/.rels", data: XML_HEAD + '<Relationships xmlns="' + NS_PKG + '"><Relationship Id="rId1" Type="' + NS_REL + '/officeDocument" Target="xl/workbook.xml"/></Relationships>'},
+    {name: "xl/workbook.xml", data: XML_HEAD + '<workbook ' + NS_MAIN + ' xmlns:r="' + NS_REL + '"><bookViews><workbookView/></bookViews><sheets>' +
+      sheets.map((s, i) => '<sheet name="' + xmlText(s.name) + '" sheetId="' + (i + 1) + '" r:id="rId' + (i + 1) + '"/>').join("") + '</sheets>' + (filters ? '<definedNames>' + filters + '</definedNames>' : '') + '</workbook>'},
+    {name: "xl/_rels/workbook.xml.rels", data: XML_HEAD + '<Relationships xmlns="' + NS_PKG + '">' +
+      body.map((x, i) => '<Relationship Id="rId' + (i + 1) + '" Type="' + NS_REL + '/worksheet" Target="worksheets/sheet' + (i + 1) + '.xml"/>').join("") +
+      '<Relationship Id="rId' + (n + 1) + '" Type="' + NS_REL + '/styles" Target="styles.xml"/></Relationships>'},
+    {name: "xl/styles.xml", data: XLSX_STYLES},
+    ...body.map((x, i) => ({name: "xl/worksheets/sheet" + (i + 1) + ".xml", data: x}))
+  ], "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+}
+
+async function exportAll(){
+  await withBusy("Downloading every list…", async prog => {
+    let done = 0; prog(0, EXPORT_LISTS.length);
+    const results = await Promise.all(EXPORT_LISTS.map(async ([list, name]) => {
+      let r;
+      try{ r = await exportList(list); }
+      catch(e){ if(e instanceof SignedOut) throw e; r = {error: explain(e, "Could not read this list")}; }
+      prog(++done, EXPORT_LISTS.length);
+      return Object.assign(r, {list, name});
+    }));
+    const sheets = [], summary = [];
+    for(const r of results){
+      if(r.error){ summary.push([r.name, r.list, null, r.error]); continue; }
+      if(r.list === "Items"){                                                   // the status the site shows, beside the stored one
+        const at = r.cols.findIndex(c => c.key === "Title") + 1 || 1;
+        r.cols.splice(at, 0, {key: "_status", title: "Status (site)", kind: "text"});
+      }
+      const rows = r.items.map(it => r.cols.map(c => {
+        if(c.key !== "_status") return exportCell(it[c.key], c);
+        const s = stageOf(it); return s === "other" ? (it.Availability || "") : STAGES[s];
+      }));
+      sheets.push({name: r.name, table: true, rowStyle: {0: 1}, kinds: r.cols.map(c => c.kind), rows: [r.cols.map(c => c.title), ...rows]});
+      summary.push([r.name, r.list, rows.length, ""]);
+    }
+    if(!sheets.length) throw new Error(summary.map(s => s[0] + ": " + s[3]).join(" · "));
+    const now = new Date(), when = fmt(now) + " " + fmtTime(now) + " IST";
+    sheets.unshift({name: "Summary", rowStyle: {0: 4, 5: 1}, rows: [["Hala Motor Tracker · all data"], [],
+      ["Exported", when], ["Exported by", AUTH.name || AUTH.upn || ""], [], ["Sheet", "SharePoint list", "Rows", "Note"], ...summary]});
+    saveBlob(await xlsxBlob(sheets), "Hala-Motor-Tracker-all-data-" + todayIST() + ".xlsx");
+    const missed = summary.filter(s => s[3]);
+    toast(missed.length ? "Downloaded. Not included: " + missed.map(s => s[0]).join(", ") + " (see the Summary sheet)." : "Downloaded all " + (sheets.length - 1) + " lists as one Excel workbook.", !!missed.length);
+  });
 }
 
 /* ============================================================
@@ -1718,6 +1887,7 @@ document.addEventListener("click", async e => {
     case "dismiss": notice = null; render(); break;
     case "refresh": if(D.loaded) toast("Refreshing records…"); await loadAll(); break;
     case "export": exportView(); break;
+    case "export-all": await exportAll(); break;
     case "register": askRegister(); break;
     case "fix-types": askFixTypes(); break;
     case "fix-types-confirm": await actFixTypes(); break;
