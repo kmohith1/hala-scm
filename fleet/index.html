@@ -127,7 +127,28 @@ button, select, input { font: inherit; color: inherit; }
 .ibar { display: grid; grid-template-columns: 48px minmax(70px, 190px); align-items: center; gap: 10px; }
 .ibar b { text-align: right; font-weight: 600; }
 .ibar i { display: block; height: 12px; min-width: 2px; background: var(--s-um); border-radius: 0 4px 4px 0; }
-#ti-t tr[aria-selected="true"] td { background: var(--accent-wash); }
+#ti-t tr[aria-selected="true"] td, #dp-t tr[aria-selected="true"] td { background: var(--accent-wash); }
+#app[data-tab="deps"] .st-fld { display: none; }
+#app[data-tab="deps"].tv2 .te-only { display: flex; }
+#app[data-tab="deps"] .filters { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+#app[data-tab="deps"].tv2 .filters { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.pareto-wrap { min-width: 680px; padding: 16px 20px 6px; display: flex; flex-direction: column; gap: 10px; }
+.pareto { position: relative; height: 220px; margin: 8px 8px 0 44px; border-bottom: 1px solid var(--line2); }
+.pareto .gl { position: absolute; left: 0; right: 0; border-top: 1px solid var(--line); pointer-events: none; }
+.pareto .gl span { position: absolute; left: -44px; top: -8px; width: 38px; text-align: right; font-size: 12px; color: var(--muted); }
+.pareto .gl.p80 { border-top: 1px dashed var(--ink2); } .pareto .gl.p80 span { color: var(--ink2); font-weight: 600; }
+.pareto .bars { position: absolute; inset: 0; display: flex; gap: 2px; align-items: flex-end; }
+.pareto .bars .c { flex: 1; height: 100%; display: flex; align-items: flex-end; justify-content: center; min-width: 0; }
+.pareto .bars .c[data-k] { cursor: pointer; }
+.pareto .bars .c > i { display: block; width: 100%; max-width: 44px; border-radius: 4px 4px 0 0; background: var(--s-um); min-height: 1px; }
+.pareto .bars .c.rest > i { background: var(--s-oth); }
+.pareto .bars .c:hover > i { filter: brightness(.92); }
+.pareto .bars .c[aria-selected="true"] > i { outline: 2px solid var(--accent); outline-offset: 1px; }
+.pareto svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.pareto .pt { position: absolute; width: 8px; height: 8px; border-radius: 50%; background: var(--ink2); box-shadow: 0 0 0 2px var(--surface); transform: translate(-50%, -50%); pointer-events: none; }
+.pareto-x { display: flex; gap: 2px; margin: 0 8px 0 44px; }
+.pareto-x span { flex: 1; min-width: 0; font-size: 12px; line-height: 1.25; color: var(--ink2); text-align: center; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+.hdr-ctl { display: flex; flex-wrap: wrap; gap: 8px; }
 .btn { height: 36px; padding: 0 14px; background: var(--surface); border: 1px solid var(--line2); border-radius: 6px; cursor: pointer; white-space: nowrap; font-size: 14px; }
 .btn:hover { background: var(--sunk); }
 .btn[disabled] { opacity: .45; cursor: default; }
@@ -254,7 +275,7 @@ tr.rowlink[data-v] .vid { color: var(--accent); text-decoration: underline; text
 a { color: var(--accent); }
 
 @media (max-width: 980px) {
-  .filters, #app[data-tab="techs"].tv2 .filters, #app[data-tab="hubs"].tv2 .filters, #app[data-tab="tickets"].tv2 .filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .filters, #app[data-tab="techs"].tv2 .filters, #app[data-tab="hubs"].tv2 .filters, #app[data-tab="tickets"].tv2 .filters, #app[data-tab="deps"] .filters, #app[data-tab="deps"].tv2 .filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .two { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 720px) {
@@ -266,7 +287,7 @@ a { color: var(--accent); }
   .kpi:nth-child(even) { padding-left: 14px; border-left: 1px solid var(--band-line); }
   .kpi:nth-child(n+3) { border-top: 1px solid var(--band-line); }
   .kpi b { font-size: 31px; }
-  .filters, #app[data-tab="techs"] .filters, #app[data-tab="techs"].tv2 .filters, #app[data-tab="hubs"].tv2 .filters, #app[data-tab="tickets"].tv2 .filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .filters, #app[data-tab="techs"] .filters, #app[data-tab="techs"].tv2 .filters, #app[data-tab="hubs"].tv2 .filters, #app[data-tab="tickets"].tv2 .filters, #app[data-tab="deps"] .filters, #app[data-tab="deps"].tv2 .filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hrow { grid-template-columns: 1fr max-content; grid-template-areas: "nm tot" "bar bar"; }
   .run { grid-template-columns: repeat(2, 1fr); }
   .run > div + div { border-left: 0; }
@@ -292,6 +313,7 @@ a { color: var(--accent); }
       <button type="button" role="tab" data-tab="tickets" aria-selected="false">Repeat tickets</button>
       <button type="button" role="tab" data-tab="hubs" aria-selected="false" id="tab-hubs" hidden>Hubs</button>
       <button type="button" role="tab" data-tab="techs" aria-selected="false" id="tab-techs" hidden>Technicians</button>
+      <button type="button" role="tab" data-tab="deps" aria-selected="false" id="tab-deps" hidden>Deployments</button>
     </div>
     <div class="kpis" id="kpis" aria-label="Headline numbers"></div>
   </div>
@@ -301,7 +323,7 @@ a { color: var(--accent); }
   <section class="filters" aria-label="Filters">
     <label class="fld">City<select id="f-city"></select></label>
     <label class="fld">Hub<select id="f-lhub"></select></label>
-    <label class="fld veh-only">Status<select id="f-tag"></select></label>
+    <label class="fld veh-only st-fld">Status<select id="f-tag"></select></label>
     <label class="fld veh-only">Model<select id="f-model"></select></label>
     <label class="fld veh-only">Client<select id="f-ten"></select></label>
     <label class="fld veh-only">Vehicle number<input id="f-q" type="search" placeholder="e.g. HGR-701" autocomplete="off"></label>
@@ -402,6 +424,33 @@ a { color: var(--accent); }
     </section>
   </div>
 
+  <div class="view" id="v-deps" hidden>
+    <section class="sec">
+      <header><h2 id="dp-h">Pareto of tickets after deployment</h2>
+        <div class="hdr-ctl">
+          <div class="seg" id="dp-win" role="group" aria-label="Window after deployment"><button type="button" data-w="24">Within 24 hours</button><button type="button" data-w="48">Within 48 hours</button></div>
+          <div class="seg" id="dp-dim" role="group" aria-label="Break down by"><button type="button" data-d="cat">Issue</button><button type="button" data-d="hub">Hub</button><button type="button" data-d="model">Model</button><button type="button" data-d="ten">Client</button><button type="button" data-d="city">City</button></div>
+        </div></header>
+      <div class="panel">
+        <div class="scroll"><div class="pareto-wrap"><div class="legend" id="dp-leg"></div><div class="pareto" id="dp-chart"></div><div class="pareto-x" id="dp-x"></div></div></div>
+        <p class="fig-note" id="dp-note" style="padding:4px 20px 16px"></p>
+      </div>
+    </section>
+    <section class="sec">
+      <header><h2>Pareto table</h2><p id="dp-tnote"></p></header>
+      <div class="panel"><div class="scroll"><table id="dp-t"></table></div></div>
+      <button class="btn" id="dp-more" type="button" hidden style="align-self:flex-start"></button>
+    </section>
+    <section class="sec">
+      <header><h2>Deployments with a ticket</h2><p class="num" id="dp-count"></p></header>
+      <div class="panel">
+        <div class="tools"><div class="chips" id="dp-views" role="group" aria-label="Views"></div><button class="btn" id="dp-csv" type="button">Download CSV</button></div>
+        <div class="scroll"><table id="dp-l"></table></div>
+        <div class="pager"><span id="dp-range" class="num"></span><div><button class="btn" id="dp-prev" type="button">Previous</button><button class="btn" id="dp-next" type="button">Next</button></div></div>
+      </div>
+    </section>
+  </div>
+
   <section class="sec">
     <header><h2>Definitions</h2></header>
     <div class="panel pad"><dl class="defs" id="defs"></dl></div>
@@ -452,6 +501,7 @@ const KM_CAP = 400, DAY = 864e5;
 
 let D, C, SER = null, rows = [], view = [], filt = { city: '', lhub: '', tag: '', model: '', ten: '', q: '' }, quick = 'all', sort = { k: 'km7', dir: -1 }, page = 0, bdDim = 'city', bdAll = false;
 const PER = 50, shards = new Map();
+let DP = null, dpWin = 24, dpDim = 'cat', dpSel = null, dpQuick = 'w24', dpPage = 0, dpAll = false;   // Deployments tab
 let TK = null, tab = 'fleet', tkDim = 'hub', tkAll = false, tkQuick = 'all', tkPage = 0, vixMap = null, tkIssue = null, tiAll = false;   // tkIssue: issue picked in the by-issue table
 let teQuick = 'ranked', teSort = { k: 'rank', dir: 1 }, tePage = 0, teQ = '', teRange = null, TT = null, HT = null, huQuick = 'all', huSort = { k: 'rank', dir: 1 }, repHubs = null;   // teRange: [first, last] day index, null = the whole period
 const dictOf = { city: 'city', lhub: 'hub', tag: 'tag', model: 'model', ten: 'ten' };
@@ -534,8 +584,9 @@ async function load() {
   C = {}; D.cols.forEach((c, i) => C[c] = i); rows = D.rows; rows.forEach((r, i) => { r.ix = i; });
   header(); options(); views(); bind(); defs(); apply();
   vixMap = new Map(rows.map(r => [r[C.vid], r.ix]));
-  const h = decodeURIComponent(location.hash.slice(1)); if (h === 'tickets') setTab('tickets'); else if (h && h !== 'technicians' && h !== 'hubs') openVehicle(h);
-  getJSON('tickets.json').catch(() => null).then(t => { if (t && t.rows) { TK = t; if (t.techs && (t.techs.names || (t.techs.rows && t.techs.rows.length))) { TT = null; $('#app').classList.toggle('tv2', techV2()); perInit(); $('#tab-techs').hidden = false; if (location.hash === '#technicians') setTab('techs'); if (techV2()) { HT = null; repHubs = null; $('#tab-hubs').hidden = false; if (location.hash === '#hubs') setTab('hubs'); } } defs(); if (tab === 'tickets') tickets(); } }).catch(() => {});
+  const h = decodeURIComponent(location.hash.slice(1)); if (h === 'tickets') setTab('tickets'); else if (h && h !== 'technicians' && h !== 'hubs' && h !== 'deployments') openVehicle(h);
+  getJSON('tickets.json').catch(() => null).then(t => { if (t && t.rows) { TK = t; if (t.techs && (t.techs.names || (t.techs.rows && t.techs.rows.length))) { TT = null; $('#app').classList.toggle('tv2', techV2()); perInit(); $('#tab-techs').hidden = false; if (location.hash === '#technicians') setTab('techs'); if (techV2()) { HT = null; repHubs = null; $('#tab-hubs').hidden = false; if (location.hash === '#hubs') setTab('hubs'); } } defs(); if (tab === 'tickets') tickets(); else if (tab === 'deps') deps(); } }).catch(() => {});
+  getJSON('deployments.json').catch(() => null).then(p => { if (!p || !p.rows || !p.days || p.gen !== D.meta.gen) return; DP = p; $('#tab-deps').hidden = false; defs(); if (location.hash === '#deployments') setTab('deps'); else if (tab === 'deps') deps(); }).catch(() => {});
   getJSON('series.json').catch(() => null).then(async s => { if (s && !s.f && SITE) { const dates = await getJSON('onboarding.b64'); if (dates.gen !== D.meta.gen) throw new Error('Fleet dates do not match this refresh'); s.onboarding = rows.map(r => dates.dates[r[C.vid]]); if (s.onboarding.some(day => !/^\d{4}-\d{2}-\d{2}$/.test(day || ''))) throw new Error('Fleet onboarding dates are incomplete'); s.f = s.onboarding.map(born => s.tdays.map(day => day >= born ? '1' : '.').join('')); } if (s && s.s && s.f && s.onboarding && s.s.length === rows.length && s.f.length === rows.length && s.onboarding.length === rows.length) { SER = s; if (tab === 'fleet') kpis(); running(); } }).catch(() => {});
 }
 
@@ -585,7 +636,7 @@ function bind() {
   });
   for (const dim of Object.keys(dictOf)) $('#f-' + dim).addEventListener('change', e => { filt[dim] = e.target.value; page = 0; tkPage = 0; apply(); });
   let tm; $('#f-q').addEventListener('input', e => { clearTimeout(tm); tm = setTimeout(() => { filt.q = e.target.value.trim().toUpperCase(); page = 0; tkPage = 0; apply(); }, 150); });
-  $('#f-clear').addEventListener('click', () => { for (const k in filt) filt[k] = ''; for (const dim of Object.keys(dictOf)) $('#f-' + dim).value = ''; $('#f-q').value = ''; if (techV2()) perSet('all'); tkIssue = null; page = 0; tkPage = 0; tePage = 0; apply(); });
+  $('#f-clear').addEventListener('click', () => { for (const k in filt) filt[k] = ''; for (const dim of Object.keys(dictOf)) $('#f-' + dim).value = ''; $('#f-q').value = ''; if (techV2()) perSet('all'); tkIssue = null; dpSel = null; page = 0; tkPage = 0; tePage = 0; dpPage = 0; apply(); });
   $('#views').addEventListener('click', e => { const b = e.target.closest('[data-q]'); if (!b) return; quick = b.dataset.q; const s = QUICK[quick].s; sort = { k: s[0], dir: s[1] }; page = 0; views(); table(); });
   $('#bd-dim').addEventListener('click', e => { const b = e.target.closest('[data-d]'); if (!b) return; bdDim = b.dataset.d; bdAll = false; breakdown(); });
   $('#bd-more').addEventListener('click', () => { bdAll = !bdAll; breakdown(); });
@@ -615,33 +666,46 @@ function bind() {
   const inDrawer = e => { const tr = e.target.closest('tr[data-dt], tr[data-dv]'); if (!tr) return; if (tr.dataset.dt != null) openTech(+tr.dataset.dt); else openVehicle(tr.dataset.dv); };
   $('#drawer').addEventListener('click', inDrawer);
   $('#drawer').addEventListener('keydown', e => { if (e.key === 'Enter') inDrawer(e); });
-  $('#f-per').addEventListener('change', e => { if (e.target.value === 'c') return; perSet(e.target.value); tePage = 0; tkPage = 0; render(); });
+  $('#f-per').addEventListener('change', e => { if (e.target.value === 'c') return; perSet(e.target.value); tePage = 0; tkPage = 0; dpPage = 0; render(); });
   for (const id of ['f-from', 'f-to']) $('#' + id).addEventListener('change', e => {
     const last = TK.days.length - 1; let a = TK.days.indexOf($('#f-from').value), b = TK.days.indexOf($('#f-to').value);
     if (a < 0 || b < 0) { perSync($('#f-per').value); return; }   // a date outside the period on record: put the fields back
     if (a > b) { if (id === 'f-from') b = a; else a = b; }
     teRange = a === 0 && b === last ? null : [a, b];
-    perSync(!teRange ? 'all' : b === last && $('#f-per').querySelector('option[value="' + (b - a + 1) + '"]') ? String(b - a + 1) : a === b && b === last ? 't' : a === b && b === last - 1 ? 'y' : 'c'); tePage = 0; tkPage = 0; render();
+    perSync(!teRange ? 'all' : b === last && $('#f-per').querySelector('option[value="' + (b - a + 1) + '"]') ? String(b - a + 1) : a === b && b === last ? 't' : a === b && b === last - 1 ? 'y' : 'c'); tePage = 0; tkPage = 0; dpPage = 0; render();
   });
   $('#te-prev').addEventListener('click', () => { tePage--; techs(); });
   $('#te-next').addEventListener('click', () => { tePage++; techs(); });
   $('#tk-prev').addEventListener('click', () => { tkPage--; tickets(); });
   $('#tk-next').addEventListener('click', () => { tkPage++; tickets(); });
+  $('#dp-win').addEventListener('click', e => { const b = e.target.closest('[data-w]'); if (!b) return; dpWin = +b.dataset.w; dpQuick = dpWin === 24 ? 'w24' : 'w48'; dpPage = 0; deps(); });
+  $('#dp-dim').addEventListener('click', e => { const b = e.target.closest('[data-d]'); if (!b) return; dpDim = b.dataset.d; dpSel = null; dpAll = false; dpPage = 0; deps(); });
+  $('#dp-more').addEventListener('click', () => { dpAll = !dpAll; deps(); });
+  const pickDp = el => { const k = +el.dataset.k; dpSel = dpSel === k ? null : k; dpPage = 0; deps(); };
+  $('#dp-chart').addEventListener('click', e => { const c = e.target.closest('[data-k]'); if (c) pickDp(c); });
+  $('#dp-t').addEventListener('click', e => { const tr = e.target.closest('tr[data-k]'); if (tr) pickDp(tr); });
+  $('#dp-t').addEventListener('keydown', e => { if (e.key !== 'Enter' && e.key !== ' ') return; const tr = e.target.closest('tr[data-k]'); if (tr) { e.preventDefault(); pickDp(tr); } });
+  $('#dp-views').addEventListener('click', e => { const b = e.target.closest('[data-q]'); if (!b) return; if (b.dataset.q === 'nosel') dpSel = null; else dpQuick = b.dataset.q; dpPage = 0; deps(); });
+  $('#dp-l').addEventListener('click', e => { const tr = e.target.closest('tr[data-v]'); if (tr) openVehicle(tr.dataset.v); });
+  $('#dp-l').addEventListener('keydown', e => { if (e.key !== 'Enter') return; const tr = e.target.closest('tr[data-v]'); if (tr) openVehicle(tr.dataset.v); });
+  $('#dp-prev').addEventListener('click', () => { dpPage--; deps(); });
+  $('#dp-next').addEventListener('click', () => { dpPage++; deps(); });
+  $('#dp-csv').addEventListener('click', () => { if (DP) dpCsv(); });
   $('#scrim').addEventListener('click', closeVehicle);
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#drawer').hidden) closeVehicle(); });
 }
 
 function setTab(t) {
   tab = t; document.querySelectorAll('#tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === t));
-  $('#v-fleet').hidden = t !== 'fleet'; $('#v-tickets').hidden = t !== 'tickets'; $('#v-techs').hidden = t !== 'techs'; $('#v-hubs').hidden = t !== 'hubs'; $('#app').dataset.tab = t;
+  $('#v-fleet').hidden = t !== 'fleet'; $('#v-tickets').hidden = t !== 'tickets'; $('#v-techs').hidden = t !== 'techs'; $('#v-hubs').hidden = t !== 'hubs'; $('#v-deps').hidden = t !== 'deps'; $('#app').dataset.tab = t;
   try { history.replaceState(null, '', tabHash() || location.pathname + location.search); } catch (e) {}
   render();
 }
-const tabHash = () => tab === 'tickets' ? '#tickets' : tab === 'techs' ? '#technicians' : tab === 'hubs' ? '#hubs' : '';
-function render() { if (tab === 'tickets') tickets(); else if (tab === 'techs') techs(); else if (tab === 'hubs') hubs(); else kpis(); }
+const tabHash = () => tab === 'tickets' ? '#tickets' : tab === 'techs' ? '#technicians' : tab === 'hubs' ? '#hubs' : tab === 'deps' ? '#deployments' : '';
+function render() { if (tab === 'tickets') tickets(); else if (tab === 'techs') techs(); else if (tab === 'hubs') hubs(); else if (tab === 'deps') deps(); else kpis(); }
 function apply() {
   view = rows.filter(r => (filt.city === '' || r[C.city] == filt.city) && (filt.lhub === '' || r[C.lhub] == filt.lhub) && (filt.tag === '' || r[C.tag] == filt.tag) && (filt.model === '' || r[C.model] == filt.model) && (filt.ten === '' || r[C.ten] == filt.ten) && (!filt.q || r[C.vid].toUpperCase().includes(filt.q)));
-  running(); cityChart(); umChart(); breakdown(); table();
+  running(); cityChart(); umChart(); breakdown(); table(); dpPage = 0;
   render();
 }
 
@@ -829,6 +893,97 @@ function tickets() {
   $('#tk-count').textContent = N(rl.length) + ' tickets' + (nd === n ? '' : nd === 1 ? ', ' + dM(TK.days[d0]) : ', ' + dM(TK.days[d0]) + ' to ' + dM(TK.days[d1]));
   $('#tk-range').textContent = rl.length ? N(tkPage * PER + 1) + ' to ' + N(Math.min(rl.length, tkPage * PER + PER)) + ' of ' + N(rl.length) : '';
   $('#tk-prev').disabled = tkPage <= 0; $('#tk-next').disabled = tkPage >= pages - 1;
+}
+
+// ---------- deployments: vehicle tickets raised within 24 or 48 hours of a vehicle going on rent
+// DP.rows: [vehicle row, day, deployed at (s), hub, client, hours to first ticket (-1 none in 48 h), its issue, its ticket, tickets in 24 h, tickets in 48 h, its hub]
+const DPQ = { w24: ['Within 24 hours', x => x[8] > 0], w48: ['Within 48 hours', x => x[9] > 0], mid: ['In 24 to 48 hours', x => x[9] > 0 && x[8] === 0] };
+const DPDIM = { cat: 'Issue', hub: 'Hub', model: 'Model', ten: 'Client', city: 'City' };
+function dpScope() {   // deployments the filters and period select; Hub is the hub the vehicle was deployed from, Client the client it went to
+  const r0 = TK && teRange ? TK.days[teRange[0]] : null, r1 = TK && teRange ? TK.days[teRange[1]] : null, vf = filt.city !== '' || filt.model !== '' || !!filt.q;
+  return DP.rows.filter(x => {
+    const day = DP.days[x[1]]; if (r0 && (day < r0 || day > r1)) return false;
+    if (filt.lhub !== '' && x[3] != filt.lhub) return false; if (filt.ten !== '' && x[4] != filt.ten) return false;
+    if (!vf) return true; const r = x[0] >= 0 ? rows[x[0]] : null; if (!r) return false;
+    return (filt.city === '' || r[C.city] == filt.city) && (filt.model === '' || r[C.model] == filt.model) && (!filt.q || r[C.vid].toUpperCase().includes(filt.q));
+  });
+}
+const dpKey = { cat: x => x[6], hub: x => x[3], ten: x => x[4], model: x => x[0] >= 0 ? rows[x[0]][C.model] : -1, city: x => x[0] >= 0 ? rows[x[0]][C.city] : -1 };
+const dpName = (dim, i) => dim === 'cat' ? ((D.dicts.tcat || [])[i] || 'Not classified') : i < 0 ? 'Vehicle no longer in the fleet list' : dim === 'hub' ? hubName(i) : label(dim, i);
+function deps() {
+  if (!DP) { $('#kpis').innerHTML = '<div class="kpi"><span class="sh">Loading deployment data…</span></div>'; return; }
+  const now = DP.gen / 1000, days = DP.days, list = dpScope();
+  let a0 = 0, a1 = days.length - 1; if (TK && teRange) { a0 = Math.max(0, days.indexOf(TK.days[teRange[0]])); a1 = days.indexOf(TK.days[teRange[1]]); if (a1 < 0) a1 = days.length - 1; }
+  const nd = a1 - a0 + 1, full = (x, h) => x[2] + h * 3600 <= now;
+  // ---- band
+  const n = days.length, Z = () => new Array(n).fill(0), dep = Z(), f24 = Z(), h24 = Z(), f48 = Z(), h48 = Z();
+  const a = { n: 0, veh: new Set(), h24: 0, h48: 0, f24: 0, f24h: 0, f48: 0, f48h: 0, hrs: [], tk: 0 };
+  for (const x of list) {
+    const d = x[1]; dep[d]++; a.n++; a.veh.add(x[0] >= 0 ? x[0] : 'x' + x[2]); if (x[8] > 0) a.h24++; if (x[9] > 0) { a.h48++; a.hrs.push(x[5]); a.tk += x[9]; }
+    if (full(x, 24)) { f24[d]++; a.f24++; if (x[8] > 0) { h24[d]++; a.f24h++; } }
+    if (full(x, 48)) { f48[d]++; a.f48++; if (x[9] > 0) { h48[d]++; a.f48h++; } }
+  }
+  const rate = (h, f) => f.map((v, i) => v >= 20 ? h[i] / v * 100 : null), r24 = rate(h24, f24), r48 = rate(h48, f48);
+  const sum = (arr, i0, i1) => { let s = 0; for (let i = Math.max(0, i0); i <= i1; i++) s += arr[i]; return s; };
+  const wk = (h, f) => { let e = a1; while (e >= a0 && !f[e]) e--; if (e - a0 + 1 < 14) return null; const w1 = sum(f, e - 6, e), w0 = sum(f, e - 13, e - 7); if (w1 < 50 || w0 < 50) return null; const d = sum(h, e - 6, e) / w1 * 100 - sum(h, e - 13, e - 7) / w0 * 100; return Math.abs(d) < .05 ? 'Rate unchanged on the week before' : '<span class="' + (d > 0 ? 'b' : 'g') + '">' + (d > 0 ? '▲' : '▼') + ' ' + Math.abs(d).toFixed(1) + ' pts</span> on the week before'; };
+  const wait24 = a.n - a.f24, wait48 = a.n - a.f48, med = median(a.hrs);
+  const K = (key, name, val, sh, dlt, id) => '<div class="kpi' + (id ? '' : ' plain') + '"><span class="nm">' + (key ? '<i style="background:var(--b-' + key + ')"></i>' : '') + name + '</span><b class="num">' + val + '</b><span class="sh">' + sh + '</span><span class="dl">' + dlt + '</span><div class="spark" id="sp-' + id + '"></div><div class="spark-x"><span>' + dayLab(days[a0]) + '</span><span>' + dayLab(days[a1]) + '</span></div></div>';
+  $('#kpis').innerHTML =
+    K('rgf', 'Deployments, ' + (nd === 1 ? dM(days[a0]) : nd + ' days'), N(a.n), N(a.veh.size) + ' vehicles put on rent', nd > 1 ? N(a.n / nd) + ' a day on average' : '&nbsp;', 'da') +
+    K('um', 'Ticket within 24 hours', N(a.h24), P1(a.f24h, a.f24) + ' of deployments', wk(h24, f24) || (wait24 ? N(wait24) + ' deployed under 24 hours ago, not in the rate yet' : '&nbsp;'), 'd24') +
+    K('um', 'Ticket within 48 hours', N(a.h48), P1(a.f48h, a.f48) + ' of deployments', N(a.h48 - a.h24) + ' of them in 24 to 48 hours' + (wait48 ? '; ' + N(wait48) + ' still inside 48 hours' : ''), 'd48') +
+    K('', 'Time to the first ticket', med == null ? '–' : N1(med) + ' h', 'Median, deployment to first ticket within 48 hours', a.tk ? N(a.tk) + ' tickets raised in those 48 hours' : '&nbsp;', '');
+  const cut = arr => arr.slice(a0, a1 + 1), spark = (id, arr, o) => { if (nd >= 3) line($('#sp-' + id), cut(arr), o); else $('#sp-' + id).parentNode.classList.add('plain'); }, dl2 = i => dayLab(days[a0 + i]);
+  spark('da', dep, { color: 'var(--b-rgf)', labels: i => dl2(i) + '\n' + N(dep[a0 + i]) + ' deployments' });
+  spark('d24', r24, { color: 'var(--b-um)', labels: i => dl2(i) + '\n' + r24[a0 + i].toFixed(1) + '% with a ticket within 24 hours\n' + N(h24[a0 + i]) + ' of ' + N(f24[a0 + i]) + ' deployments' });
+  spark('d48', r48, { color: 'var(--b-um)', labels: i => dl2(i) + '\n' + r48[a0 + i].toFixed(1) + '% with a ticket within 48 hours\n' + N(h48[a0 + i]) + ' of ' + N(f48[a0 + i]) + ' deployments' });
+  // ---- Pareto: deployments that had a ticket in the window, grouped by the chosen dimension, largest first
+  document.querySelectorAll('#dp-win button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.w === dpWin));
+  document.querySelectorAll('#dp-dim button').forEach(b => b.setAttribute('aria-pressed', b.dataset.d === dpDim));
+  const hit = x => dpWin === 24 ? x[8] > 0 : x[9] > 0, key = dpKey[dpDim], G = new Map();
+  for (const x of list) { const k = key(x); let g = G.get(k); if (!g) G.set(k, g = { n: 0, dep: 0, f: 0, fh: 0 }); g.dep++; if (hit(x)) g.n++; if (full(x, dpWin)) { g.f++; if (hit(x)) g.fh++; } }
+  const tot = a[dpWin === 24 ? 'h24' : 'h48'], win = dpWin === 24 ? '24 hours' : '48 hours', what = { cat: 'issues', hub: 'hubs', model: 'models', ten: 'clients', city: 'cities' }[dpDim];
+  let cum = 0, vital = 0; const L = [...G.entries()].filter(e => e[1].n > 0).sort((x, y) => y[1].n - x[1].n || y[1].dep - x[1].dep).map(([k, g]) => { const before = cum; cum += g.n; if (before < tot * .8) vital++; return { k, g, sh: g.n / tot * 100, cum: cum / tot * 100 }; });
+  if (dpSel != null && !L.some(e => e.k === dpSel)) dpSel = null;
+  $('#dp-h').textContent = 'Pareto of tickets within ' + win + ' of deployment, by ' + DPDIM[dpDim].toLowerCase();
+  const TOP = 15, shown = L.length > TOP + 1 ? L.slice(0, TOP) : L, rest = L.length > TOP + 1 ? L.slice(TOP) : [];
+  const bars = shown.map((e, i) => ({ name: dpName(dpDim, e.k), n: e.g.n, sh: e.sh, cum: e.cum, k: e.k, v: i < vital })).concat(rest.length ? [{ name: 'All other ' + N(rest.length) + ' ' + what, n: rest.reduce((s, e) => s + e.g.n, 0), sh: rest.reduce((s, e) => s + e.sh, 0), cum: 100, k: null, v: false }] : []);
+  const ch = $('#dp-chart'), nb = bars.length;
+  if (!nb) { ch.innerHTML = '<div class="empty" style="padding-top:80px">No deployment in this selection had a ticket within ' + win + '.</div>'; $('#dp-x').innerHTML = ''; $('#dp-leg').innerHTML = ''; $('#dp-note').textContent = ''; }
+  else {
+    const X = i => (i + .5) / nb * 100;
+    ch.innerHTML = [0, 25, 50, 100].map(g => '<div class="gl" style="top:' + (100 - g) + '%"><span class="num">' + g + '%</span></div>').join('') + '<div class="gl p80" style="top:20%"><span class="num">80%</span></div>' +
+      '<div class="bars">' + bars.map(b => '<div class="c' + (b.v ? '' : ' rest') + '"' + (b.k != null ? ' data-k="' + b.k + '" aria-selected="' + (dpSel === b.k) + '"' : '') + ' data-tip="' + esc(b.name + '\n' + N(b.n) + ' deployments with a ticket, ' + b.sh.toFixed(1) + '%\nCumulative ' + b.cum.toFixed(1) + '%' + (b.k != null ? '\nSelect to list them below' : '')) + '"><i style="height:' + Math.max(.4, b.sh).toFixed(2) + '%"></i></div>').join('') + '</div>' +
+      '<svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path d="' + bars.map((b, i) => (i ? 'L' : 'M') + X(i).toFixed(2) + ' ' + (100 - b.cum).toFixed(2)).join(' ') + '" style="fill:none;stroke:var(--ink2);stroke-width:2;stroke-linejoin:round" vector-effect="non-scaling-stroke"></path></svg>' +
+      bars.map((b, i) => '<span class="pt" style="left:' + X(i) + '%;top:' + (100 - b.cum) + '%"></span>').join('');
+    $('#dp-x').innerHTML = bars.map(b => '<span title="' + esc(b.name) + '">' + esc(b.name) + '</span>').join('');
+    $('#dp-leg').innerHTML = '<span><i style="background:var(--s-um)"></i>Make up the first 80%</span><span><i style="background:var(--s-oth)"></i>The rest</span><span><i style="background:var(--ink2);height:2px;width:16px;vertical-align:middle;border-radius:0"></i>Cumulative share</span>';
+    $('#dp-note').textContent = N(vital) + ' of ' + N(L.length) + ' ' + what + ' account for 80% of the ' + N(tot) + ' deployments that had a ticket within ' + win + '. Bars are each one\'s share; the line adds them up. Select a bar or row to list those deployments below.';
+  }
+  const showR = dpDim !== 'cat', tl = dpAll ? L : L.slice(0, 12), rmax = Math.max(1, ...L.map(e => e.g.n));
+  $('#dp-t').innerHTML = '<thead><tr><th class="l">#</th><th class="l">' + DPDIM[dpDim] + '</th><th class="l">Deployments with a<br>ticket within ' + win + '</th><th>Share</th><th>Cumulative<br>share</th>' + (showR ? '<th>Deployments</th><th>Ticket rate</th>' : '') + '</tr></thead><tbody>' +
+    (tl.length ? tl.map((e, i) => '<tr class="rowlink" tabindex="0" data-k="' + e.k + '" aria-selected="' + (dpSel === e.k) + '" data-tip="' + esc(dpSel === e.k ? 'Show every ' + DPDIM[dpDim].toLowerCase() + ' again' : 'List these deployments below') + '"><td class="l num">' + (i + 1) + '</td><td class="l">' + (i < vital ? '<b style="font-weight:600">' + esc(dpName(dpDim, e.k)) + '</b>' : esc(dpName(dpDim, e.k))) + '</td><td class="l"><div class="ibar num"><b>' + N(e.g.n) + '</b><i style="width:' + (e.g.n / rmax * 100).toFixed(1) + '%' + (i < vital ? '' : ';background:var(--s-oth)') + '"></i></div></td><td class="num">' + e.sh.toFixed(1) + '%</td><td class="num">' + e.cum.toFixed(1) + '%</td>' + (showR ? '<td class="num">' + N(e.g.dep) + '</td><td class="num">' + P1(e.g.fh, e.g.f) + '</td>' : '') + '</tr>').join('') : '<tr><td class="empty" colspan="7" style="text-align:center">Nothing to show for this selection.</td></tr>') + '</tbody>';
+  $('#dp-tnote').textContent = showR ? 'Ticket rate: deployments with a ticket within ' + win + ' as a share of that ' + DPDIM[dpDim].toLowerCase() + '\'s deployments.' : 'Issue of the first ticket raised after the deployment.';
+  const more = $('#dp-more'); more.hidden = L.length <= 12; more.textContent = dpAll ? 'Show the largest 12' : 'Show all ' + L.length;
+  // ---- the deployments themselves, newest first
+  $('#dp-views').innerHTML = Object.entries(DPQ).map(([k, v]) => '<button type="button" class="chip" data-q="' + k + '" aria-pressed="' + (k === dpQuick) + '">' + v[0] + '</button>').join('') + (dpSel != null ? '<button type="button" class="chip" data-q="nosel" aria-pressed="true">' + esc(dpName(dpDim, dpSel)) + ' only. Show all</button>' : '');
+  const dl = dpList(list), pages = Math.max(1, Math.ceil(dl.length / PER)); dpPage = Math.min(Math.max(0, dpPage), pages - 1);
+  const sl = dl.slice(dpPage * PER, dpPage * PER + PER);
+  $('#dp-l').innerHTML = '<thead><tr><th class="l">Vehicle</th><th class="l">Deployed</th><th class="l">From hub</th><th class="l">Client</th><th class="l">First ticket</th><th class="l">Raised</th><th>Hours after<br>deployment</th><th class="l">Issue</th><th class="l">Ticket hub</th><th>Tickets in<br>48 hours</th></tr></thead><tbody>' +
+    (sl.length ? sl.map(x => { const v = x[0] >= 0 ? rows[x[0]][C.vid] : ''; return '<tr' + (v ? ' class="rowlink" tabindex="0" data-v="' + esc(v) + '"' : '') + '><td class="l"><span class="vid">' + esc(v || '–') + '</span></td><td class="l">' + dt(x[2] * 1000) + '</td><td class="l">' + esc(hubName(x[3])) + '</td><td class="l">' + esc(label('ten', x[4])) + '</td><td class="l num">' + esc(x[7]) + '</td><td class="l">' + dt((x[2] + x[5] * 3600) * 1000) + '</td><td class="num">' + N1(x[5]) + '</td><td class="l">' + esc(dpName('cat', x[6])) + '</td><td class="l">' + esc(x[10] >= 0 ? hubName(x[10]) : '–') + '</td><td class="num">' + N(x[9]) + '</td></tr>'; }).join('') : '<tr><td class="empty" colspan="10" style="text-align:center">No deployments match.</td></tr>') + '</tbody>';
+  $('#dp-count').textContent = N(dl.length) + ' deployments' + (nd === n ? '' : nd === 1 ? ', ' + dM(days[a0]) : ', ' + dM(days[a0]) + ' to ' + dM(days[a1]));
+  $('#dp-range').textContent = dl.length ? N(dpPage * PER + 1) + ' to ' + N(Math.min(dl.length, dpPage * PER + PER)) + ' of ' + N(dl.length) : '';
+  $('#dp-prev').disabled = dpPage <= 0; $('#dp-next').disabled = dpPage >= pages - 1;
+}
+const dpList = list => list.filter(x => DPQ[dpQuick][1](x) && (dpSel == null || dpKey[dpDim](x) === dpSel)).sort((x, y) => y[2] - x[2]);
+function dpCsv() {
+  const dl = dpList(dpScope()), q = s => { s = String(s == null ? '' : s); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  const ist = sec => new Date(sec * 1000 + 19800000).toISOString().slice(0, 16).replace('T', ' ');
+  const out = [['Vehicle', 'Model', 'City', 'Deployed (IST)', 'From hub', 'Client', 'First ticket', 'Raised (IST)', 'Hours after deployment', 'Issue', 'Ticket hub', 'Tickets in 24 hours', 'Tickets in 48 hours']].concat(dl.map(x => { const r = x[0] >= 0 ? rows[x[0]] : null;
+    return [r ? r[C.vid] : '', r ? label('model', r[C.model]) : '', r ? label('city', r[C.city]) : '', ist(x[2]), hubName(x[3]), label('ten', x[4]), x[7], ist(x[2] + x[5] * 3600), x[5], dpName('cat', x[6]), x[10] >= 0 ? hubName(x[10]) : '', x[8], x[9]]; }));
+  const url = URL.createObjectURL(new Blob(['﻿' + out.map(r => r.map(q).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' })), lnk = document.createElement('a');
+  lnk.href = url; const r = TK && teRange ? [TK.days[teRange[0]], TK.days[teRange[1]]] : [DP.days[0], DP.days[DP.days.length - 1]];
+  lnk.download = 'Deployment tickets ' + DPQ[dpQuick][0].toLowerCase() + ', ' + r[0] + (r[1] !== r[0] ? ' to ' + r[1] : '') + '.csv'; document.body.appendChild(lnk); lnk.click(); lnk.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 // ---------- technician scorecard: same rules as the workbook's Technician Scorecard sheet
@@ -1220,9 +1375,13 @@ function defs() {
     ...(TK && TK.techs ? [
     ['Technician', 'The service engineer who held the ticket last. Tickets with no engineer on them are grouped together and not ranked.'],
     ['Comeback and repeat rate', 'A comeback is a vehicle raising a new ticket within 48 hours of a technician resolving the previous one; it counts against that technician. Repeat rate is his comebacks divided by the tickets he serviced. Technicians who serviced ' + (TK.techs.fleet || TK.techs).min + ' or more tickets in 30 days are ranked, highest rate first' + (techV2() ? '; for a shorter period the bar drops in proportion, never below 5' : '') + '.'],
-    ...(techV2() ? [['Period', 'The Repeat tickets, Hubs and Technicians tabs can be narrowed to one day or a range within the ' + TK.days.length + ' days on record. A ticket belongs to the day it was resolved, India time. On the Hubs and Technicians tabs a comeback belongs to the day the service that came back was closed. The overall rate and medians are worked out again for the dates chosen, across all hubs. Services closed in the last three days can still come back, so their repeat rate is not final.']] : []),
+    ...(techV2() ? [['Period', 'The Repeat tickets, Hubs, Technicians and Deployments tabs can be narrowed to one day or a range within the ' + TK.days.length + ' days on record. A ticket belongs to the day it was resolved, India time, and a deployment to the day it happened. On the Hubs and Technicians tabs a comeback belongs to the day the service that came back was closed. The overall rate and medians are worked out again for the dates chosen, across all hubs. Services closed in the last three days can still come back, so their repeat rate is not final.']] : []),
     ['Technician flags', 'High repeat rate: ' + (TK.techs.fleet || TK.techs).mult + ' times the overall rate or more. Slow to close: median time from allocation to resolution at least twice the overall median and at least 2 hours longer. Closes by hub referral: he himself closed ' + Math.round((TK.techs.fleet || TK.techs).hubPct * 100) + '% or more of his tickets by sending the rider to a hub, at least 3 tickets. Often not acknowledging: 5 or more tickets moved off him unacknowledged, a quarter or more of his load.']] : []),
     ...(TK && techV2() ? [['Hub scorecard', 'The technician scorecard added up by hub: every ticket goes to the hub it was assigned to, and a comeback counts against the hub that closed the previous ticket, wherever the vehicle went next. Repeat rate is a hub\'s comebacks divided by the tickets it serviced. Hubs that serviced ' + HUB_MIN + ' or more tickets in 30 days are ranked, highest rate first; for a shorter period the bar drops in proportion, never below 10. High repeat rate: ' + HUB_MULT + ' times the overall rate or more. Slow to close: median time from a ticket being raised to resolved at least twice the overall median and at least 2 hours longer. Repeat tickets it received counts the returning tickets the hub handled, whichever hub closed the service before. The S3 locations are the roadside-assistance teams; they are added together and shown as RSA technicians, with each location listed in that row\'s panel. Tickets with no hub on them are shown together and not ranked.']] : []),
+    ...(DP ? [
+    ['Deployment', 'A vehicle\'s tag changing to on rent (RGF) in Cercle OS, at the time of that change, India time. Every move onto rent counts, so a vehicle put back on rent after a repair is a new deployment. The ' + DP.days.length + ' days from ' + dayLab(DP.days[0]) + ' to ' + dayLab(DP.days[DP.days.length - 1]) + ' are on record. On the Deployments tab, Hub is the hub the vehicle was deployed from and Client the client it went to.'],
+    ['Ticket within 24 or 48 hours', 'A deployment counts when a vehicle ticket is raised on that vehicle within 24, or 48, hours of the deployment. Within 48 hours includes the ones within 24 hours. Return-service, block or unblock and non-vehicle tickets are left out. Only resolved tickets are on record, so a ticket still open is counted once it is closed. The rate is worked out on deployments that have had the full 24 or 48 hours by the time of the data; newer ones are listed but not yet in the rate. The issue is the issue of the first ticket raised after the deployment.'],
+    ['Pareto', 'Deployments that had a ticket in the window, grouped by issue, hub, model, client or city and ranked largest first. Each bar is that group\'s share and the line adds the shares up; the groups in colour together make up the first 80%. Ticket rate, for hubs, models, clients and cities, is that group\'s deployments with a ticket as a share of its deployments, so large and small groups can be compared.']] : []),
     ['Hub', 'On the Fleet tab, the hub on the vehicle\'s latest tag change: where it was deployed from if it is on rent, or where it is parked otherwise. On the Repeat tickets and Hubs tabs, the hub the ticket was assigned to.'],
     ['Gaps in the record', N(nolog) + ' vehicles have no tag history in Cercle OS and ' + N(mis) + ' have a current tag that differs from the last recorded change. They are counted at their current status, and their days in status are left blank.']
   ];
