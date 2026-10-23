@@ -51,6 +51,9 @@
 .modal-body form .field{margin-bottom:0}
 .kv{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:12px;margin:10px 0 16px}
 .kv dt{color:var(--muted)}.kv dd{margin:0;color:#2f483a}
+.undo-box{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border:1px solid var(--line);background:#fafcf8;border-radius:9px;padding:12px 14px;margin:0 0 12px;font-size:12px;line-height:1.5}
+.undo-box .small-note{display:block}.undo-box button{font-size:12px;padding:7px 12px}
+.unit-actions{display:flex;gap:4px;flex-wrap:wrap;margin:0 0 14px}
 .side-link{display:block;font-size:11px;color:var(--muted);text-decoration:none;margin-top:8px}
 .side-link:hover{color:var(--green)}
 td.wrap{white-space:normal;min-width:220px}
@@ -718,9 +721,20 @@ function unitTable(units, check, withLocation){
     '</tbody></table></div>';
 }
 const pageUnits = () => filtered().slice((page - 1) * 50, page * 50);
+/* Searching the inspection queue for a unit that is at Jeedimetla but not in the queue
+   (Scrap, Ready for warranty claim, Available…) points to the re-test list instead of a blank table. */
+function retestHint(){
+  const q = search.trim().toLowerCase();
+  if(view !== "inspections" || F.insp.scope !== "queue" || !q) return "";
+  const out = D.units.filter(u => u.AtJeedimetla && u.stage !== "inspection" && [u.Title, u.SerialNo, u.OEMMake, u.ItemType, u.CurrentLocation].join(" ").toLowerCase().includes(q));
+  if(!out.length) return "";
+  const eg = out.slice(0, 3).map(u => u.Title + " (" + (u.stage === "other" ? u.Availability : STAGES[u.stage]) + ")").join(", ");
+  return '<div class="inline-info">' + out.length + (out.length === 1 ? " matching unit is" : " matching units are") + ' at Jeedimetla but not awaiting inspection: ' + esc(eg) + (out.length > 3 ? "…" : "") +
+    '. <button class="text-button" data-action="scope-all">Show for re-test →</button></div>';
+}
 function pagedTable(check, withLocation){
   const total = filtered().length, pages = Math.max(1, Math.ceil(total / 50)); page = Math.min(page, pages);
-  return unitTable(pageUnits(), check, withLocation) + '<div class="table-footer"><span>Page ' + page + ' of ' + pages + ' · ' + total + ' matching units</span><div class="head-actions">' +
+  return retestHint() + unitTable(pageUnits(), check, withLocation) + '<div class="table-footer"><span>Page ' + page + ' of ' + pages + ' · ' + total + ' matching units</span><div class="head-actions">' +
     '<button data-page="' + (page - 1) + '"' + (page === 1 ? " disabled" : "") + '>Previous</button><button data-page="' + (page + 1) + '"' + (page === pages ? " disabled" : "") + '>Next</button></div></div>';
 }
 function inventory(){
@@ -884,15 +898,17 @@ function dc(){
       (d.ready.length ? '<button class="primary" data-ship="' + esc(d.number) + '">Mark shipped →</button>' : '') + '</div></td></tr>').join("")
     : '<tr><td colspan="5"><div class="empty">' + icon("dc") + '<h3>Your DC documents will appear here</h3><p>Raise a warranty claim, then generate its delivery challan.</p></div></td></tr>') + '</tbody></table></div></section>';
 }
-function activityList(list){
-  return list.length ? list.map(a => '<div class="activity-item"><span class="activity-dot"></span><div><strong>' + esc(a.unit || "Workspace") + ' · ' + esc(a.action) + '</strong><p>' + esc(a.details) +
-    '</p><span class="small-note">' + esc(a.actor || "") + '</span></div><time>' + fmt(a.at) + '<br>' + (a.dateOnly ? "" : fmtTime(a.at)) + '</time></div>').join("")
+function activityList(list, withOpen){
+  return list.length ? list.map(a => { const u = withOpen && a.unit && D.byTitle.get(a.unit);
+    return '<div class="activity-item"><span class="activity-dot"></span><div><strong>' + esc(a.unit || "Workspace") + ' · ' + esc(a.action) + '</strong><p>' + esc(a.details) +
+    '</p><span class="small-note">' + esc(a.actor || "") + '</span>' + (u ? ' <button class="text-button" data-history="' + u.Id + '">Open unit · undo →</button>' : '') +
+    '</div><time>' + fmt(a.at) + '<br>' + (a.dateOnly ? "" : fmtTime(a.at)) + '</time></div>'; }).join("")
     : '<div class="empty"><h3>No history recorded yet</h3></div>';
 }
 function activity(){
   return title("Traceability", "Activity log", "Inspection results, claims, movements and dispatches in one timeline.") +
     '<section class="panel"><div class="panel-head"><h2>Recent activity</h2><span class="small-note">Latest records across the lists · open a unit for its full history</span></div>' +
-    (D.activity ? activityList(D.activity) : '<div class="empty"><h3>' + (D.activityError ? esc(D.activityError) : "Loading recent activity…") + '</h3></div>') + '</section>';
+    (D.activity ? activityList(D.activity, true) : '<div class="empty"><h3>' + (D.activityError ? esc(D.activityError) : "Loading recent activity…") + '</h3></div>') + '</section>';
 }
 const actorOf = r => (r.Author && r.Author.Title) || "";
 const inspEvent = r => ({unit: r.ItemID, action: "Inspection", details: [r.TestResult, r.OEMDecision && ("Warranty " + r.OEMDecision), r.FaultObserved, r.NextAction && ("Next: " + r.NextAction)].filter(Boolean).join(" · "),
@@ -902,8 +918,8 @@ const moveEvent = r => ({unit: r.ItemID, action: (r.Direction || "") + " movemen
 const claimEvent = r => ({unit: r.ItemID, action: "Warranty claim", details: [r.ClaimStatus, r.OEMSupplier, r.DC_x0020_Number, r.FaultReported && String(r.FaultReported).slice(0, 140)].filter(Boolean).join(" · "),
   actor: actorOf(r) ? "recorded by " + actorOf(r) : "", at: r.Created});
 const INSP_Q = "$select=Id,ItemID,InspectionDate,TestedBy,TechnicianName,TestResult,OEMDecision,FaultObserved,NextAction,Created,Author/Title&$expand=Author";
-const MOVE_Q = "$select=Id,ItemID,MovementDate,Direction,FromLocation,ToLocation,Reason,DocketNo,Remarks,Created,Author/Title&$expand=Author";
-const CLAIM_Q = "$select=Id,ItemID,OEMSupplier,ClaimStatus,FaultReported,DC_x0020_Number,Created,Author/Title&$expand=Author";
+const MOVE_Q = "$select=Id,Title,ItemID,MovementDate,Direction,FromLocation,ToLocation,Reason,DocketNo,Remarks,Created,Author/Title&$expand=Author";
+const CLAIM_Q = "$select=Id,ItemID,OEMSupplier,ClaimStatus,FaultReported,DC_x0020_Number,DC_x0020_Generated_x0020_Date,DateSentToOEM,DocketNo,Created,Author/Title&$expand=Author";
 async function loadActivity(){
   D.activityError = "";
   try{
@@ -917,13 +933,183 @@ async function openHistory(id){
   const u = D.units.find(x => x.Id === id); if(!u) return;
   modal(u.Title, '<p>' + esc(u.ItemType) + ' · ' + esc(u.OEMMake || "No OEM") + (u.Model ? ' · ' + esc(u.Model) : '') + '</p><p>' + badge(u) + '</p>' +
     '<dl class="kv"><dt>Location</dt><dd>' + esc(u.CurrentLocation || "—") + '</dd><dt>Stored status</dt><dd>' + esc(u.Availability || "—") + '</dd><dt>Serial</dt><dd>' + esc(u.SerialNo || "—") +
-    '</dd><dt>First received</dt><dd>' + fmt(u.DateFirstReceived) + '</dd><dt>Inspected / claimed</dt><dd>' + (u.TimesInspected || 0) + ' / ' + (u.TimesClaimed || 0) + '</dd></dl><p><button class="text-button" data-edit-unit="' + u.Id + '">Correct details</button></p><div id="history-body"><p class="small-note">Loading history…</p></div>');
+    '</dd><dt>First received</dt><dd>' + fmt(u.DateFirstReceived) + '</dd><dt>Inspected / claimed</dt><dd>' + (u.TimesInspected || 0) + ' / ' + (u.TimesClaimed || 0) + '</dd></dl>' +
+    '<div class="unit-actions"><button class="text-button" data-edit-unit="' + u.Id + '">Correct details</button>' +
+    (u.AtJeedimetla ? '<button class="text-button" data-retest="' + u.Id + '">' + (u.stage === "inspection" ? "Inspect this unit" : "Re-test this unit") + '</button>' : '') + '</div>' +
+    '<div id="history-body"><p class="small-note">Loading history…</p></div>');
+  HIST.unit = u; HIST.steps = [];
   try{
-    const f = "&" + filterEq("ItemID", u.Title) + "&$top=500";
-    const [i, m, c] = await Promise.all([spQuery("Inspections", INSP_Q + f), spQuery("Movements", MOVE_Q + f), spQuery("Claims", CLAIM_Q + f)]);
+    const {i, m, c, steps} = await loadSteps(u);
+    if(HIST.unit !== u) return;                                                  // another unit was opened meanwhile
+    HIST.steps = steps;
     const list = [...i.map(inspEvent), ...m.map(moveEvent), ...c.map(claimEvent)].sort((a, b) => new Date(b.at) - new Date(a.at));
-    const box = $("#history-body"); if(box) box.innerHTML = activityList(list);
+    const box = $("#history-body"); if(box) box.innerHTML = undoBox(u, steps) + activityList(list);
   }catch(e){ const box = $("#history-body"); if(box) box.innerHTML = '<div class="banner err">' + esc(explain(e, "Could not load history")) + '</div>'; }
+}
+
+/* ============================================================
+   UNDO THE LAST CHANGE ON A UNIT
+   Every change to a unit leaves a record: an inspection, a movement, a
+   warranty claim (raised, then its DC) or a warranty dispatch. The newest
+   of these is the unit's last change, and it can be undone: the record is
+   sent to the SharePoint recycle bin (or, for a DC, taken off the claim)
+   and the unit goes back to how that step found it. Undo again to step
+   further back — e.g. Ready for warranty claim → Scrap → Awaiting bench test.
+   ============================================================ */
+const HIST = {unit: null, steps: []};
+const ALL_STATES = [AV.bench, AV.oemInsp, AV.availBench, AV.availOem, AV.claimReady, AV.claimRaised, AV.dcReady, AV.away, AV.scrap];
+const tms = v => { const t = new Date(v || 0).getTime(); return isNaN(t) ? 0 : t; };
+const STEP_RANK = {reg: 0, move: 1, insp: 2, claim: 3, dc: 4, ship: 5};
+const stepKey = st => st ? st.kind + ":" + st.rec.Id : "";
+function unitSteps(i, m, c){
+  const s = [];
+  for(const r of i) s.push({kind: "insp", rec: r, at: tms(r.Created)});
+  for(const r of m){ const t = String(r.Title || ""); s.push({kind: startsCI(t, "SHIP-CLAIM-") ? "ship" : startsCI(t, "REG-RECEIPT-") ? "reg" : "move", rec: r, at: tms(r.Created)}); }
+  for(const r of c){
+    s.push({kind: "claim", rec: r, at: tms(r.Created)});
+    if(r.DC_x0020_Number) s.push({kind: "dc", rec: r, at: Math.max(tms(r.DC_x0020_Generated_x0020_Date), tms(r.Created) + 1)});
+  }
+  return s.sort((a, b) => b.at - a.at || STEP_RANK[b.kind] - STEP_RANK[a.kind] || b.rec.Id - a.rec.Id);
+}
+async function loadSteps(u){
+  const f = "&" + filterEq("ItemID", u.Title) + "&$top=500";
+  const [i, m, c] = await Promise.all([spQuery("Inspections", INSP_Q + f), spQuery("Movements", MOVE_Q + f), spQuery("Claims", CLAIM_Q + f)]);
+  return {i, m, c, steps: unitSteps(i, m, c)};
+}
+/* The status a step leaves the unit in. */
+function statusAfter(st, u){
+  const r = st.rec;
+  switch(st.kind){
+    case "insp": return r.NextAction || (r.TestResult === "Working" ? AV.availBench : r.OEMDecision === "Approved" ? AV.claimReady : r.OEMDecision === "Rejected" ? AV.scrap : AV.bench);
+    case "reg": return ["New", "Repaired"].includes(u.Condition) ? AV.availOem : AV.bench;
+    case "move": return !startsCI(r.ToLocation, "Jeedimetla") ? AV.away : EX_OEM_REASONS.includes(r.Reason) ? AV.availOem : AV.bench;
+    case "claim": return AV.claimRaised;
+    case "dc": return AV.dcReady;
+    case "ship": return AV.away;
+  }
+  return "";
+}
+/* The status the unit most likely had just before its last step. */
+function statusBefore(steps, u){
+  const st = steps[0];
+  if(st.kind === "claim") return AV.claimReady;
+  if(st.kind === "dc") return AV.claimRaised;
+  if(st.kind === "ship") return AV.dcReady;
+  if(st.kind === "move"){ const snap = movedBefore(st.rec.Id); if(snap && snap.Availability) return snap.Availability; }
+  return steps[1] ? statusAfter(steps[1], u) : AV.bench;
+}
+function stepText(st){
+  const r = st.rec;
+  switch(st.kind){
+    case "insp": return "Inspection · " + [r.TestResult, r.OEMDecision && ("warranty " + r.OEMDecision), r.NextAction && ("→ " + r.NextAction)].filter(Boolean).join(" · ");
+    case "move": return (r.Direction || "") + " movement · " + (r.FromLocation || "—") + " → " + (r.ToLocation || "—") + (r.Reason ? " (" + r.Reason + ")" : "");
+    case "reg": return "Registration receipt from " + (r.FromLocation || "—");
+    case "claim": return "Warranty claim raised" + (r.OEMSupplier ? " · " + r.OEMSupplier : "");
+    case "dc": return "Delivery challan " + (r.DC_x0020_Number || "") + " generated";
+    case "ship": return "Shipped to " + (r.ToLocation || PLANT) + (r.Remarks ? " · " + r.Remarks : "");
+  }
+  return "";
+}
+/* "" when the step can be undone; otherwise why not. */
+function undoBlock(st, u){
+  const r = st.rec;
+  if(st.kind === "reg") return "The last record is the unit's registration receipt. Registrations are not undone here — use Correct details to fix the unit.";
+  if((st.kind === "move" || st.kind === "ship") && u.CurrentLocation !== r.ToLocation)
+    return u.Title + " is no longer at " + r.ToLocation + " (now " + (u.CurrentLocation || "—") + "), so this movement cannot be undone.";
+  if(st.kind === "claim" && r.ClaimStatus !== CS.raised) return "This claim is now “" + (r.ClaimStatus || "no status") + "”. Only a claim still awaiting its DC can be undone here.";
+  if(st.kind === "dc" && r.ClaimStatus !== CS.dc) return "This claim is now “" + (r.ClaimStatus || "no status") + "”. A DC can be undone only before the unit is shipped.";
+  return "";
+}
+function undoBox(u, steps){
+  if(!steps.length) return '<div class="undo-box"><span class="small-note">Nothing has been recorded for this unit yet, so there is nothing to undo.</span></div>';
+  const st = steps[0], why = undoBlock(st, u);
+  return '<div class="undo-box"><div><span class="small-note">Last change · ' + fmt(st.at) + ' ' + fmtTime(st.at) + '</span><strong>' + esc(stepText(st)) + '</strong>' +
+    (why ? '<span class="small-note">' + esc(why) + '</span>' : '') + '</div>' +
+    (why ? '' : '<button data-undo-step="' + esc(stepKey(st)) + '">↶ Undo last change</button>') + '</div>';
+}
+function askUndoStep(key){
+  const u = HIST.unit, steps = HIST.steps, st = steps[0];
+  if(!u || !st || stepKey(st) !== key) return toast("Open the unit again and check its last change.", true);
+  const why = undoBlock(st, u); if(why) return toast(why, true);
+  const guess = statusBefore(steps, u), list = ALL_STATES.includes(guess) ? ALL_STATES : [guess].concat(ALL_STATES);
+  const r = st.rec, left = statusAfter(st, u), warn = [];
+  let what;
+  switch(st.kind){
+    case "insp": what = "This inspection is removed and the unit's last test goes back to the one before it."; break;
+    case "move": what = "This movement is removed and the unit goes back to <strong>" + esc(r.FromLocation || "—") + "</strong>.";
+      if(r.Direction === "Outward" && !startsCI(r.ToLocation, "Jeedimetla") && !startsCI(r.ToLocation, "OEM")) warn.push("Also delete its row on the " + r.ToLocation + " tab of Spares sent to Hub's.");
+      break;
+    case "claim": what = "This warranty claim is removed and the unit leaves the DC queue."; break;
+    case "dc": what = "The challan " + esc(r.DC_x0020_Number) + " is taken off this claim, which goes back to <strong>Claim raised · DC pending</strong>.";
+      if(D.claims.some(c => c.Id !== r.Id && c.DC_x0020_Number === r.DC_x0020_Number)) warn.push("The challan PDF still lists this unit with the rest of its batch. If the batch has not gone yet, undo the DC on the other units too and generate a fresh challan.");
+      break;
+    case "ship": what = "The dispatch is removed: the unit goes back to <strong>" + esc(r.FromLocation || HOME) + "</strong> and its claim back to <strong>DC generated - ready to ship</strong>."; break;
+  }
+  if(["insp", "claim", "dc"].includes(st.kind) && u.Availability !== left) warn.push("Its status is now “" + (u.Availability || "none") + "”, not “" + left + "” as this step left it — something else may have changed it since.");
+  modal("Undo last change · " + u.Title,
+    '<p><strong>' + esc(stepText(st)) + '</strong><br><span class="small-note">' + fmt(st.at) + ' ' + fmtTime(st.at) + '</span></p><p>' + what +
+    ' Removed records go to the SharePoint recycle bin, so they can still be recovered there.</p>' +
+    (warn.length ? '<div class="warnlist">' + warn.map(w => '<p>' + esc(w) + '</p>').join("") + '</div>' : '') +
+    '<label class="field" style="margin-top:12px">Status it goes back to<select id="undo-step-status">' + options(list, guess) + '</select></label>' +
+    '<p class="small-note" style="margin-top:8px">Worked out from the record before this one — check it before you undo.</p>',
+    '<button class="primary" data-undo-step-confirm="' + esc(key) + '">Undo this change</button>');
+}
+async function actUndoStep(key, status){
+  const u0 = HIST.unit; if(!u0 || !status) return;
+  let done = "";
+  await withBusy("Undoing the last change…", async () => {
+    /* As it is right now: someone may have changed it since the history was opened. */
+    const live = await sp(L("Items") + "/items(" + Number(u0.Id) + ")?$select=" + ITEM_COLS);
+    if(!live || live.Title !== u0.Title) throw new Error(u0.Title + " is no longer on the register. Nothing was changed.");
+    const u = Object.assign(u0, live); u.stage = stageOf(u);
+    const {i, m, c, steps} = await loadSteps(u), st = steps[0];
+    if(!st || stepKey(st) !== key) throw new Error(u.Title + " has changed since you opened it. Open it again and check its last change. Nothing was changed.");
+    const why = undoBlock(st, u); if(why) throw new Error(why + " Nothing was changed.");
+    const r = st.rec, newest = (rows, skip) => rows.filter(x => x.Id !== skip).sort((a, b) => tms(b.Created) - tms(a.Created) || b.Id - a.Id)[0] || null;
+    const recycle = (list, id) => sp(L(list) + "/items(" + Number(id) + ")/recycle()", {method: "POST"});
+    if(st.kind === "insp"){
+      await recycle("Inspections", r.Id);
+      const prev = newest(i, r.Id);
+      await patchUnit(u, {Availability: status, LastTestDate: prev ? prev.InspectionDate || null : null, LatestTestResult: prev ? prev.TestResult || null : null,
+        TimesInspected: Math.max(0, (Number(u.TimesInspected) || 0) - 1)});
+      done = "Inspection undone. " + u.Title + " is back to " + status + ".";
+    }else if(st.kind === "move" || st.kind === "ship"){
+      if(st.kind === "ship"){
+        const claimId = Number(String(r.Title).slice("SHIP-CLAIM-".length)), cl = c.find(x => x.Id === claimId);
+        if(cl && cl.ClaimStatus === CS.sent){
+          const cp = {ClaimStatus: CS.dc, DateSentToOEM: null}; if(r.DocketNo && cl.DocketNo === r.DocketNo) cp.DocketNo = null;
+          await spMerge("Claims", cl.Id, cp);
+        }
+      }
+      await recycle("Movements", r.Id);
+      const snap = movedBefore(r.Id), prev = newest(m, r.Id), from = r.FromLocation || HOME;
+      await patchUnit(u, {CurrentLocation: from, AtJeedimetla: startsCI(from, "Jeedimetla"), Availability: status,
+        LastMovementReason: snap ? snap.LastMovementReason || null : prev ? prev.Reason || null : null,
+        LastMovementDate: snap ? snap.LastMovementDate || null : prev ? prev.MovementDate || null : null});
+      const all = lsJson(MOVE_SNAP, {}); delete all[r.Id]; lsSet(MOVE_SNAP, JSON.stringify(all));
+      done = (st.kind === "ship" ? "Dispatch undone. " : "Movement undone. ") + u.Title + " is back at " + from + " (" + status + ")." +
+        (st.kind === "move" && r.Direction === "Outward" && !startsCI(r.ToLocation, "Jeedimetla") && !startsCI(r.ToLocation, "OEM") ? " Also delete its row on the " + r.ToLocation + " tab of Spares sent to Hub's." : "");
+    }else if(st.kind === "claim"){
+      await recycle("Claims", r.Id);
+      await patchUnit(u, {Availability: status, TimesClaimed: Math.max(0, (Number(u.TimesClaimed) || 0) - 1)});
+      done = "Claim undone. " + u.Title + " is back to " + status + ".";
+    }else if(st.kind === "dc"){
+      await spMerge("Claims", r.Id, {DC_x0020_Number: null, DC_x0020_URL: null, DC_x0020_Generated_x0020_Date: null, ClaimStatus: CS.raised});
+      await patchUnit(u, {Availability: status});
+      done = "DC undone. " + u.Title + " is back to " + status + " and waits for a new challan.";
+    }
+    D.activity = null; D.recentMoves = null;
+  });
+  if(done){ toast(done); if(view === "move") loadRecentMoves(); if(view === "activity") loadActivity(); openHistory(u0.Id); }
+}
+/* From a unit's record straight to an inspection of it — including a re-test of a unit that is
+   not in the queue (Scrap, Ready for warranty claim, Available…). */
+function retestUnit(id){
+  const u = D.units.find(x => x.Id === id); if(!u) return;
+  $("#modal").open && $("#modal").close();
+  nav("inspections");
+  F.insp.mode = "batch"; F.insp.scope = u.stage === "inspection" ? "queue" : "all"; search = u.Title; selected.add(u.Id);
+  render();
 }
 /* Correct a unit's registration details. The ID stays as it is, because every
    movement, inspection and claim is filed under it. A changed item type is also
@@ -1862,6 +2048,9 @@ document.addEventListener("click", async e => {
   if(d.editUnit){ askEditUnit(Number(d.editUnit)); return; }
   if(d.undoMove){ askUndo(Number(d.undoMove)); return; }
   if(d.undoConfirm){ const st = $("#undo-status").value; $("#modal").close(); await actUndo(Number(d.undoConfirm), st); return; }
+  if(d.undoStep){ askUndoStep(d.undoStep); return; }
+  if(d.undoStepConfirm){ const st = $("#undo-step-status").value; $("#modal").close(); await actUndoStep(d.undoStepConfirm, st); return; }
+  if(d.retest){ retestUnit(Number(d.retest)); return; }
   if(d.download){ downloadDC(d.download); return; }
   if(d.ship){ askShip(d.ship); return; }
   if(d.confirmShip){ const day = $("#ship-date").value, ref = $("#ship-reference").value.trim(); $("#modal").close(); await actShip(d.confirmShip, day, ref); return; }
@@ -1899,6 +2088,7 @@ document.addEventListener("click", async e => {
     case "print-clear": F.lot.picked.clear(); redrawTable(); break;
     case "select-matching": filtered().forEach(u => selected.add(u.Id)); redrawTable(); break;
     case "clear-selection": selected.clear(); redrawTable(); break;
+    case "scope-all": F.insp.scope = "all"; page = 1; render(); break;
     case "claim": await askClaim(); break;
     case "claim-confirm": { const fault = $("#claim-fault").value.trim(); $("#modal").close(); await actClaim(fault); break; }
     case "dc": await actDC(); break;
