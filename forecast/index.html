@@ -372,7 +372,7 @@ table.dtbl .z { color: var(--muted); }
     </section>
     <section class="sec">
       <header><div><h2>Requirements by vehicle model</h2><p>Estimated from recent fitment history. These are spare-parts forecasts, not fixed quantities per vehicle. Shared parts are split across models; totals reconcile to the forecast and demand after reuse.</p></div>
-      <div class="tools"><label class="fld">Vehicle model<select id="req-model"></select></label><button class="btn" id="req-csv" type="button">Download model CSV</button></div></header>
+      <div class="tools"><label class="fld">Vehicle model<select id="req-model"></select></label><button class="btn" id="req-csv" type="button">Download RFQ CSV</button></div></header>
       <p class="note">Part IDs from HALA PARTS ID (002). Matching uses part name and vehicle model, with Common IDs as fallback. Unmatched names show Not mapped; model-specific IDs require a matching model.</p>
       <div class="panel"><div class="scroll"><table id="req-table"></table></div><p class="note" id="req-note"></p></div>
     </section>
@@ -1357,7 +1357,7 @@ function renderModelRequirements() {
   for (const r of fcPartRows()) {
     if (!r.fc) continue;
     for (const g of partBreakdown(r.k, 'model').groups) {
-      if (g.fc || g.buy) requirementRows.push({ model: g.n, id: forecastPartId(r.k, g.n), part: r.n, fc: g.fc, buy: g.buy });
+      if (g.fc || g.buy) requirementRows.push({ model: g.n, id: forecastPartId(r.k, g.n), part: r.n, price: r.net, fc: g.fc, buy: g.buy });
     }
   }
   requirementRows.sort((a,b) => a.model.localeCompare(b.model) || b.fc-a.fc || a.part.localeCompare(b.part));
@@ -1368,10 +1368,14 @@ function renderModelRequirements() {
   renderModelRequirementTable();
 }
 function selectedRequirements() { return requirementRows.filter(r=>!$('#req-model').value || r.model === $('#req-model').value); }
+const RFQ_HEADERS = ['Part ID', 'Part Name', 'Model', 'Purchase price', 'Required Qty'];
+function rfqRows() { return selectedRequirements().filter(r=>r.buy > 0); }
+function rfqExportRows() { return rfqRows().map(r=>[r.id || 'Not mapped', r.part, r.model, Number.isFinite(r.price) ? r.price.toFixed(2) : '', r.buy]); }
 function renderModelRequirementTable() {
-  const rows = selectedRequirements();
-  $('#req-table').innerHTML = '<thead><tr><th class="lab">Vehicle model</th><th>Part ID</th><th>Part</th><th>Forecast requirement</th><th>Demand after reuse</th></tr></thead><tbody>' + rows.map(r=>'<tr><td class="lab">'+esc(r.model)+'</td><td>'+esc(r.id || 'Not mapped')+'</td><td>'+esc(r.part)+'</td><td>'+n0(r.fc)+'</td><td>'+n0(r.buy)+'</td></tr>').join('') + (rows.length ? '<tr class="total"><td class="lab" colspan="3">Total</td><td>'+n0(rows.reduce((n,r)=>n+r.fc,0))+'</td><td>'+n0(rows.reduce((n,r)=>n+r.buy,0))+'</td></tr>' : '<tr><td colspan="5">No requirements for this selection.</td></tr>') + '</tbody>';
-  $('#req-note').textContent = F.tm.label + ' · ' + rows.length + ' model / part requirements. Demand after reuse is before inventory and open orders.';
+  const rows = rfqRows();
+  $('#req-table').innerHTML = '<thead><tr>' + RFQ_HEADERS.map((h,i)=>'<th'+(i===0?' class="lab"':'')+'>'+h+'</th>').join('') + '</tr></thead><tbody>' + rows.map(r=>'<tr><td class="lab">'+esc(r.id || 'Not mapped')+'</td><td style="text-align:left">'+esc(r.part)+'</td><td style="text-align:left">'+esc(r.model)+'</td><td>'+ (Number.isFinite(r.price) ? '₹'+r.price.toFixed(2) : 'Price missing') +'</td><td>'+n0(r.buy)+'</td></tr>').join('') + (rows.length ? '<tr class="total"><td class="lab" colspan="4">Total required quantity</td><td>'+n0(rows.reduce((n,r)=>n+r.buy,0))+'</td></tr>' : '<tr><td colspan="5">No purchase requirements for this selection.</td></tr>') + '</tbody>';
+  const missingIds = rows.filter(r=>!r.id || r.id === 'Model-specific IDs').length, missingPrices = rows.filter(r=>!Number.isFinite(r.price)).length;
+  $('#req-note').textContent = F.tm.label + ' · ' + rows.length + ' RFQ lines. Purchase price: current reference price in INR per item, excluding GST. Required Qty: demand after reuse, before inventory and open orders. Zero-quantity lines excluded.' + (missingIds || missingPrices ? ' Review before sending: ' + missingIds + ' lines need Part ID mapping; ' + missingPrices + ' lines have no reference price (blank in CSV).' : '');
 }
 function renderAccuracy() {
   const tr = D.fc2.track;
@@ -2147,7 +2151,7 @@ function bind() {
   $('#fc-copy').addEventListener('click', e => copyTable('#fc-tbl', e.target));
   $('#age-copy').addEventListener('click', e => copyTable('#age-tbl', e.target));
   $('#req-model').addEventListener('change', renderModelRequirementTable);
-  $('#req-csv').addEventListener('click', () => csv('Model requirements ' + F.tm.label + '.csv', ['Vehicle model','Part ID','Part','Forecast requirement','Demand after reuse'], selectedRequirements().map(r=>[r.model,r.id,r.part,r.fc,r.buy])));
+  $('#req-csv').addEventListener('click', () => csv('RFQ ' + ($('#req-model').value || 'All models') + ' ' + F.tm.label + ' INR excl GST.csv', RFQ_HEADERS, rfqExportRows()));
   $('#fcp-missing').addEventListener('click', () => { state.fcpMissing=!state.fcpMissing; renderFcParts(); });
   $('#fcp-q').addEventListener('input', e => { state.fcpQ = e.target.value; renderFcParts(); });
   $('#hubp-q').addEventListener('input', e => { state.hubpQ = e.target.value; renderHubs(); });
