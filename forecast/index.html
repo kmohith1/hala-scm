@@ -607,6 +607,7 @@ table.dtbl .z { color: var(--muted); }
       <p><b>Vehicle registry only</b><br>Registry team members sign in with their Hala Microsoft account instead of the passphrase.</p>
       <a class="btn alt" href="../motor/?return=%2Fhala-scm%2Fforecast%2F%23reg">Sign in with Microsoft</a>
       <button class="btn alt" id="lk-reg" type="button" hidden>Open the vehicle registry</button>
+      <button class="btn alt" id="lk-test" type="button" hidden>Test the team's registry-only view</button>
       <p class="msg" id="lk-reg-msg" role="status"></p>
     </div>
   </form>
@@ -666,9 +667,10 @@ async function unlock() {
   if (saved) { let raw = null; try { raw = unb64(saved); } catch (e) {} if (raw && await tryKey(raw)) return 'key'; }
   if (await regCheck() && regUser !== REG_OWNER) return 'reg';   // registry-only people never need the passphrase; the owner always unlocks so the shared copy gets made
   $('#lock').hidden = false; document.documentElement.style.overflow = 'hidden'; $('#lk-in').focus();
-  if (regUser === REG_OWNER) $('#lk-reg-msg').textContent = 'Signed in as the owner. Enter the passphrase above; that also shares the latest registry with the team.';
+  if (regUser === REG_OWNER) $('#lk-test').hidden = false;
   else if (location.hash === '#reg' && (shipAuth() || {}).refresh) $('#lk-reg-msg').textContent = 'This Microsoft account does not have access to the vehicle registry.';
-  return await new Promise(done => { $('#lk-reg').addEventListener('click', async () => {
+  return await new Promise(done => { $('#lk-test').addEventListener('click', () => { $('#lock').hidden = true; document.documentElement.style.overflow = ''; done('reg'); });
+  $('#lk-reg').addEventListener('click', async () => {
     const m = $('#lk-reg-msg'); m.textContent = 'Checking';
     if (await regCheck() && regUser !== REG_OWNER) { $('#lock').hidden = true; document.documentElement.style.overflow = ''; done('reg'); return; }
     m.textContent = shipAuth() ? 'This Microsoft account does not have access to the vehicle registry.' : 'Sign in with Microsoft first.';
