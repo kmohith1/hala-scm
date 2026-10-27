@@ -324,7 +324,7 @@ table.dtbl .z { color: var(--muted); }
       <button role="tab" id="tab-prices" aria-selected="false" data-tab="prices">Item vs vendor prices</button>
       <button role="tab" id="tab-shipments" aria-selected="false" data-tab="shipments">Shipment tracking</button>
       <button role="tab" id="tab-notes" aria-selected="false" data-tab="notes">Notes</button>
-      <button role="tab" id="tab-reg" aria-selected="false" data-tab="reg">Vehicle registry</button>
+      <button role="tab" id="tab-reg" aria-selected="false" data-tab="reg" hidden>Vehicle registry</button>
     </div>
     <div class="kpis" id="kpis"></div>
   </div>
@@ -694,7 +694,8 @@ async function load() {
   }
   prepare(); readHash(); buildFilters(); bind(); defs(); render();
   $('#loading').hidden = true; $('#filters').hidden = ['fc', 'grn', 'prices', 'shipments', 'notes', 'reg'].includes(state.tab); $('#defs-sec').hidden = false;
-  gstLoad();
+  gstLoad(); regAccess();
+  addEventListener('focus', () => { if (!regAllowed) regAccess(); });   // picks up a sign-in done in the other tab
 }
 
 // ---------- typed arrays and indexes
@@ -2184,7 +2185,7 @@ function bind() {
   document.addEventListener('pointermove', e => { if (!tip.hidden && e.target.closest && e.target.closest('td[data-tip],tr[data-tip]')) placeTip(e); });
   document.addEventListener('pointerout', e => { const c = e.target.closest && e.target.closest('td[data-tip],tr[data-tip]'); if (c && !c.contains(e.relatedTarget)) tip.hidden = true; });
   let rt = 0; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (state.tab === 'fc' && D.fc2) renderAccuracy(); if (state.tab === 'age') ageChart(); if (state.tab === 'proc') renderProc(); if (state.tab === 'grn') renderGrn(); }, 150); });
-  addEventListener('hashchange', () => { const t = location.hash.slice(1); if (['fc', 'age', 'hub', 'proc', 'grn', 'prices', 'shipments', 'notes', 'reg'].includes(t) && t !== state.tab) setTab(t); });
+  addEventListener('hashchange', () => { const t = location.hash.slice(1); if (['fc', 'age', 'hub', 'proc', 'grn', 'prices', 'shipments', 'notes'].concat(regAllowed ? ['reg'] : []).includes(t) && t !== state.tab) setTab(t); });
 }
 function setTab(t) {
   const wasProc = state.tab === 'proc'; state.tab = t; $('#app').dataset.tab = t;
@@ -2192,17 +2193,30 @@ function setTab(t) {
   if (wasProc !== (t === 'proc')) buildFilters();
   render();
 }
-function readHash() { const t = location.hash.slice(1); if (['fc', 'age', 'hub', 'proc', 'grn', 'prices', 'shipments', 'notes', 'reg'].includes(t)) { state.tab = t; $('#app').dataset.tab = t; $$('.tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === t)); } }
+function readHash() { const t = location.hash.slice(1); if (['fc', 'age', 'hub', 'proc', 'grn', 'prices', 'shipments', 'notes'].includes(t)) { state.tab = t; $('#app').dataset.tab = t; $$('.tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === t)); } }
 function writeHash() { const h = '#' + state.tab; if (location.hash !== h) history.replaceState(null, '', h); }
 
 // ---------- Vehicle registry tab: a fixed snapshot sealed into the page (reg-data), opened with the same key
 let REG = null, regErr = '', regLoading = false;
+// Only these Hala Microsoft accounts see the registry tab (lower case). Add or remove addresses here.
+const REG_ALLOW = ['__EMAILS__'];
+let regAllowed = false;
+async function regAccess() {
+  try {
+    if (!shipAuth()) return;
+    const u = await shipRequest('currentuser?$select=Email,UserPrincipalName');
+    const ids = [u.Email, u.UserPrincipalName].filter(Boolean).map(x => String(x).trim().toLowerCase());
+    regAllowed = ids.some(x => REG_ALLOW.includes(x));
+  } catch (e) { regAllowed = false; }
+  $('#tab-reg').hidden = !regAllowed;
+  if (regAllowed && location.hash === '#reg' && state.tab !== 'reg') setTab('reg');
+}
 const regState = { view: 'all', oem: '', q: '', iss: 'Open', issQ: '', all: false, issAll: false };
 const REG_SHOW = 25;
 const REG_PRE = ['Needs check', 'In transit', 'At hub - not onboarded'];
 const regToday = () => Math.floor((Date.now() + IST) / DAY);
 async function regLoad() {
-  if (REG || regLoading) return; regLoading = true;
+  if (REG || regLoading || !regAllowed) return; regLoading = true;
   try {
     try { REG = await getJSON('registry.json'); } catch (e) { REG = null; }   // rebuilt by each refresh
     if (!REG) { const el = $('#reg-data'); if (!el || !sealKey) throw new Error('no data'); REG = await openSealed(unb64(el.textContent.trim())); }
@@ -2223,6 +2237,7 @@ function regIssueRows() {
     && (!q || [r.o, r.i, r.c, r.v, r.d].some(x => x && String(x).toLowerCase().includes(q))));
 }
 function renderReg() {
+  if (!regAllowed) { setTab('fc'); writeHash(); return; }
   if (!REG) { $('#reg-asof').textContent = regErr || 'Opening the registry…'; if (!regErr) regLoad(); return; }
   const G = REG.groups, sum = k => G.reduce((n, g) => n + (g[k] || 0), 0);
   const inCercle = sum('dep') + sum('nd30') + sum('ndOld'), pre = sum('transit') + sum('hub') + sum('check'), t = regToday();
