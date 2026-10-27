@@ -664,12 +664,13 @@ async function tryKey(raw) {
 async function unlock() {
   let saved = null; try { saved = localStorage.getItem(KEYNAME); } catch (e) {}
   if (saved) { let raw = null; try { raw = unb64(saved); } catch (e) {} if (raw && await tryKey(raw)) return 'key'; }
-  if (await regCheck()) return 'reg';   // registry-only people never need the passphrase
+  if (await regCheck() && regUser !== REG_OWNER) return 'reg';   // registry-only people never need the passphrase; the owner always unlocks so the shared copy gets made
   $('#lock').hidden = false; document.documentElement.style.overflow = 'hidden'; $('#lk-in').focus();
-  if (location.hash === '#reg' && (shipAuth() || {}).refresh) $('#lk-reg-msg').textContent = 'This Microsoft account does not have access to the vehicle registry.';
+  if (regUser === REG_OWNER) $('#lk-reg-msg').textContent = 'Signed in as the owner. Enter the passphrase above; that also shares the latest registry with the team.';
+  else if (location.hash === '#reg' && (shipAuth() || {}).refresh) $('#lk-reg-msg').textContent = 'This Microsoft account does not have access to the vehicle registry.';
   return await new Promise(done => { $('#lk-reg').addEventListener('click', async () => {
     const m = $('#lk-reg-msg'); m.textContent = 'Checking';
-    if (await regCheck()) { $('#lock').hidden = true; document.documentElement.style.overflow = ''; done('reg'); return; }
+    if (await regCheck() && regUser !== REG_OWNER) { $('#lock').hidden = true; document.documentElement.style.overflow = ''; done('reg'); return; }
     m.textContent = shipAuth() ? 'This Microsoft account does not have access to the vehicle registry.' : 'Sign in with Microsoft first.';
   });
   $('#lk-form').addEventListener('submit', async e => {
