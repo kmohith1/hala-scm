@@ -281,6 +281,8 @@ table.dtbl .z { color: var(--muted); }
 .lockbox input { height: 42px; padding: 0 12px; border: 1px solid var(--line2); border-radius: 6px; background: var(--surface); font-size: 16px; letter-spacing: .06em; }
 .lockbox .btn { height: 42px; background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
 .lockbox .msg { min-height: 20px; color: var(--warn-ink); font-size: 13px; }
+.lk-alt { border-top: 1px solid var(--line2); padding-top: 14px; margin-top: 4px; display: flex; flex-direction: column; gap: 8px; }
+.lockbox .btn.alt { background: var(--surface); color: var(--accent); display: flex; align-items: center; justify-content: center; text-decoration: none; }
 .loading { padding: 60px 0; text-align: center; color: var(--muted); }
 
 @media (min-width: 901px) and (max-width: 1150px) {
@@ -601,6 +603,12 @@ table.dtbl .z { color: var(--muted); }
     <input id="lk-in" type="password" autocomplete="current-password" autocapitalize="characters" spellcheck="false">
     <button class="btn" id="lk-go" type="submit">Open dashboard</button>
     <p class="msg" id="lk-msg" role="status"></p>
+    <div class="lk-alt">
+      <p><b>Vehicle registry only</b><br>Registry team members sign in with their Hala Microsoft account instead of the passphrase.</p>
+      <a class="btn alt" href="../motor/" target="_blank" rel="noopener">1. Sign in with Microsoft</a>
+      <button class="btn alt" id="lk-reg" type="button">2. Open the vehicle registry</button>
+      <p class="msg" id="lk-reg-msg" role="status"></p>
+    </div>
   </form>
 </div>
 <div class="tip" id="tip" hidden></div>
@@ -655,25 +663,31 @@ async function tryKey(raw) {
 }
 async function unlock() {
   let saved = null; try { saved = localStorage.getItem(KEYNAME); } catch (e) {}
-  if (saved) { let raw = null; try { raw = unb64(saved); } catch (e) {} if (raw && await tryKey(raw)) return; }
+  if (saved) { let raw = null; try { raw = unb64(saved); } catch (e) {} if (raw && await tryKey(raw)) return 'key'; }
+  if (await regCheck()) return 'reg';   // registry-only people never need the passphrase
   $('#lock').hidden = false; document.documentElement.style.overflow = 'hidden'; $('#lk-in').focus();
-  await new Promise(done => $('#lk-form').addEventListener('submit', async e => {
+  return await new Promise(done => { $('#lk-reg').addEventListener('click', async () => {
+    const m = $('#lk-reg-msg'); m.textContent = 'Checking';
+    if (await regCheck()) { $('#lock').hidden = true; document.documentElement.style.overflow = ''; done('reg'); return; }
+    m.textContent = shipAuth() ? 'This Microsoft account does not have access to the vehicle registry.' : 'Sign in with Microsoft first (step 1), then press this button again.';
+  });
+  $('#lk-form').addEventListener('submit', async e => {
     e.preventDefault(); const btn = $('#lk-go'), msg = $('#lk-msg'), pass = $('#lk-in').value.toUpperCase().replace(/[^A-Z0-9]/g, ''); if (!pass || btn.disabled) return;
     btn.disabled = true; msg.textContent = 'Checking';
     try {
       const km = await crypto.subtle.importKey('raw', new TextEncoder().encode(pass), 'PBKDF2', false, ['deriveBits']);
       const raw = new Uint8Array(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: unb64(SITE.salt), iterations: SITE.iter }, km, 256));
-      if (await tryKey(raw)) { try { localStorage.setItem(KEYNAME, btoa(String.fromCharCode.apply(null, raw))); } catch (e2) {} $('#lock').hidden = true; document.documentElement.style.overflow = ''; $('#lk-in').value = ''; done(); return; }
+      if (await tryKey(raw)) { try { localStorage.setItem(KEYNAME, btoa(String.fromCharCode.apply(null, raw))); } catch (e2) {} $('#lock').hidden = true; document.documentElement.style.overflow = ''; $('#lk-in').value = ''; done('key'); return; }
       msg.textContent = 'That passphrase is not right. Check it and try again.';
     } catch (e1) { msg.textContent = 'This browser cannot open the dashboard. Use a current version of Chrome, Edge or Safari.'; }
     btn.disabled = false;
-  }));
+  }); });
 }
 
 async function load() {
   try {
     if (SITE) {
-      await unlock();
+      if (await unlock() === 'reg') { regOnlyStart(); return; }
       const cur = await fetch(SITE.data + 'current.json?t=' + Date.now(), { cache: 'no-store' }).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
       dataBase = SITE.data + cur.dir + '/';
       $('#lk-row').hidden = false; $('#lk-forget').addEventListener('click', () => { try { localStorage.removeItem(KEYNAME); } catch (e) {} location.reload(); });
@@ -2188,6 +2202,7 @@ function bind() {
   addEventListener('hashchange', () => { const t = location.hash.slice(1); if (['fc', 'age', 'hub', 'proc', 'grn', 'prices', 'shipments', 'notes'].concat(regAllowed ? ['reg'] : []).includes(t) && t !== state.tab) setTab(t); });
 }
 function setTab(t) {
+  if (REG_ONLY) return;
   const wasProc = state.tab === 'proc'; state.tab = t; $('#app').dataset.tab = t;
   $$('.tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === t));
   if (wasProc !== (t === 'proc')) buildFilters();
@@ -2200,16 +2215,43 @@ function writeHash() { const h = '#' + state.tab; if (location.hash !== h) histo
 let REG = null, regErr = '', regLoading = false;
 // Only these Hala Microsoft accounts see the registry tab (lower case). Add or remove addresses here.
 const REG_ALLOW = ['mohit.k@halamobility.in', 'sandeep.b@halamobility.in', 'vishnu.yaswanth@halamobility.in', 'venkatabharath@halamobility.in', 'shahab@halamobility.in'];
-let regAllowed = false;
-async function regAccess() {
+// The owner's dashboard copies each refresh's registry into this SharePoint folder; registry-only people read it from there.
+const REG_OWNER = 'mohit.k@halamobility.in', REG_DIR = SHIP.site + '/Shared Documents/Vehicle Registry', REG_FILE = 'registry.json';
+const spPath = p => "'" + p.replace(/'/g, "''").replace(/ /g, '%20') + "'";
+let regAllowed = false, regUser = '', REG_ONLY = false, regPublished = false;
+async function regCheck() {
   try {
-    if (!shipAuth()) return;
+    if (!shipAuth()) return false;
     const u = await shipRequest('currentuser?$select=Email,UserPrincipalName');
     const ids = [u.Email, u.UserPrincipalName].filter(Boolean).map(x => String(x).trim().toLowerCase());
-    regAllowed = ids.some(x => REG_ALLOW.includes(x));
+    regUser = ids.find(x => REG_ALLOW.includes(x)) || ''; regAllowed = !!regUser;
   } catch (e) { regAllowed = false; }
+  return regAllowed;
+}
+async function regAccess() {
+  await regCheck();
   $('#tab-reg').hidden = !regAllowed;
   if (regAllowed && location.hash === '#reg' && state.tab !== 'reg') setTab('reg');
+  if (regAllowed && regUser === REG_OWNER && sealKey) { await regLoad(); regPublish(); }
+}
+async function regPublish() {
+  if (!REG || REG_ONLY || regPublished) return; regPublished = true;
+  const add = () => shipRequest('GetFolderByServerRelativeUrl(' + spPath(REG_DIR) + ")/Files/add(url='" + REG_FILE + "',overwrite=true)", { body: REG });
+  try { await add(); }
+  catch (e) {
+    try { await shipRequest('GetFolderByServerRelativeUrl(' + spPath(SHIP.site + '/Shared Documents') + ")/Folders/add('Vehicle%20Registry')", { method: 'POST' }); await add(); }
+    catch (e2) { regPublished = false; console.warn('Registry could not be shared to SharePoint', e2); }
+  }
+}
+function regOnlyStart() {
+  REG_ONLY = true; state.tab = 'reg'; $('#app').dataset.tab = 'reg';
+  $$('.tabs button').forEach(b => { b.hidden = b.dataset.tab !== 'reg'; b.setAttribute('aria-selected', b.dataset.tab === 'reg'); });
+  $('.mast h1').textContent = 'Vehicle Registry'; document.title = 'HALA Vehicle Registry';
+  $('#asof').textContent = 'Signed in as ' + regUser;
+  $('#loading').hidden = true; $('#filters').hidden = true;
+  $$('.view').forEach(v => v.hidden = v.id !== 'v-reg');
+  history.replaceState(null, '', '#reg');
+  bindReg(); renderReg();
 }
 const regState = { view: 'all', oem: '', q: '', iss: 'Open', issQ: '', all: false, issAll: false };
 const REG_SHOW = 25;
@@ -2218,7 +2260,12 @@ const regToday = () => Math.floor((Date.now() + IST) / DAY);
 async function regLoad() {
   if (REG || regLoading || !regAllowed) return; regLoading = true;
   try {
+    if (REG_ONLY) {
+      try { REG = await shipRequest('GetFileByServerRelativeUrl(' + spPath(REG_DIR + '/' + REG_FILE) + ')/$value'); }
+      catch (e) { regErr = e.status === 404 ? 'The registry has not been shared yet. It appears after Mohith next opens the dashboard.' : e.status === 403 ? 'Your account cannot open the shared registry folder. Ask Mohith for access.' : 'The vehicle registry could not be loaded. Reload the page.'; regLoading = false; renderReg(); return; }
+    } else {
     try { REG = await getJSON('registry.json'); } catch (e) { REG = null; }   // rebuilt by each refresh
+    }
     if (!REG) { const el = $('#reg-data'); if (!el || !sealKey) throw new Error('no data'); REG = await openSealed(unb64(el.textContent.trim())); }
   } catch (e) { regErr = 'The vehicle registry could not be opened. Reload the dashboard.'; }
   regLoading = false; if (state.tab === 'reg') renderReg();
