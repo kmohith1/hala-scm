@@ -2199,7 +2199,7 @@ function writeHash() { const h = '#' + state.tab; if (location.hash !== h) histo
 // ---------- Vehicle registry tab: a fixed snapshot sealed into the page (reg-data), opened with the same key
 let REG = null, regErr = '', regLoading = false;
 // Only these Hala Microsoft accounts see the registry tab (lower case). Add or remove addresses here.
-const REG_ALLOW = ['__EMAILS__'];
+const REG_ALLOW = ['mohit.k@halamobility.in', 'sandeep.b@halamobility.in', 'vishnu.yaswanth@halamobility.in', 'venkatabharath@halamobility.in', 'shahab@halamobility.in'];
 let regAllowed = false;
 async function regAccess() {
   try {
