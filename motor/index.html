@@ -3359,7 +3359,12 @@ scanEl().addEventListener("close", () => { SCAN.session++; SCAN.busy = false; st
 
 (async function boot(){
   loadAuth();
+  /* Other pages on this site (the vehicle registry) send people here only to sign in, then get them back. */
+  const SS_RETURN = "hala_motor_return", ret = new URLSearchParams(location.search).get("return");
+  if(ret && /^\/hala-scm\/[a-z]+\/(#[a-z]+)?$/.test(ret)){ sessionStorage.setItem(SS_RETURN, ret); history.replaceState({}, "", redirectUri()); signIn(false); return; }
   const res = await handleRedirect();
+  const back = sessionStorage.getItem(SS_RETURN);
+  if(back){ sessionStorage.removeItem(SS_RETURN); if(!res){ location.replace(back); return; } }
   if(res && res !== "silent"){ showSignin(res); return; }
   if(tokenFresh() || AUTH.refresh){ render(); loadAll(); return; }
   /* A device that has signed in before gets one quiet attempt per browser session. */

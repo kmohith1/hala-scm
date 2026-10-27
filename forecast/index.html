@@ -605,8 +605,8 @@ table.dtbl .z { color: var(--muted); }
     <p class="msg" id="lk-msg" role="status"></p>
     <div class="lk-alt">
       <p><b>Vehicle registry only</b><br>Registry team members sign in with their Hala Microsoft account instead of the passphrase.</p>
-      <a class="btn alt" href="../motor/" target="_blank" rel="noopener">1. Sign in with Microsoft</a>
-      <button class="btn alt" id="lk-reg" type="button">2. Open the vehicle registry</button>
+      <a class="btn alt" href="../motor/?return=%2Fhala-scm%2Fforecast%2F%23reg">Sign in with Microsoft</a>
+      <button class="btn alt" id="lk-reg" type="button" hidden>Open the vehicle registry</button>
       <p class="msg" id="lk-reg-msg" role="status"></p>
     </div>
   </form>
@@ -666,10 +666,11 @@ async function unlock() {
   if (saved) { let raw = null; try { raw = unb64(saved); } catch (e) {} if (raw && await tryKey(raw)) return 'key'; }
   if (await regCheck()) return 'reg';   // registry-only people never need the passphrase
   $('#lock').hidden = false; document.documentElement.style.overflow = 'hidden'; $('#lk-in').focus();
+  if (location.hash === '#reg' && (shipAuth() || {}).refresh) $('#lk-reg-msg').textContent = 'This Microsoft account does not have access to the vehicle registry.';
   return await new Promise(done => { $('#lk-reg').addEventListener('click', async () => {
     const m = $('#lk-reg-msg'); m.textContent = 'Checking';
     if (await regCheck()) { $('#lock').hidden = true; document.documentElement.style.overflow = ''; done('reg'); return; }
-    m.textContent = shipAuth() ? 'This Microsoft account does not have access to the vehicle registry.' : 'Sign in with Microsoft first (step 1), then press this button again.';
+    m.textContent = shipAuth() ? 'This Microsoft account does not have access to the vehicle registry.' : 'Sign in with Microsoft first.';
   });
   $('#lk-form').addEventListener('submit', async e => {
     e.preventDefault(); const btn = $('#lk-go'), msg = $('#lk-msg'), pass = $('#lk-in').value.toUpperCase().replace(/[^A-Z0-9]/g, ''); if (!pass || btn.disabled) return;
