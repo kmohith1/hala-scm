@@ -480,6 +480,12 @@ table.dtbl .z { color: var(--muted); }
       <div class="panel pad"><div class="scroll"><div id="grn-chart-wrap"><div class="chart" id="grn-chart"></div><div class="chart-x" id="grn-chart-x"></div></div></div></div>
       <div class="panel"><div class="scroll" tabindex="0" role="region" aria-label="Monthly GRN spend"><table id="grn-month-table"></table></div></div>
     </section>
+    <section class="sec" id="grn-parts-section">
+      <header><div><h2 id="grn-parts-title">Parts purchased</h2><p id="grn-parts-sub"></p></div><div class="tools"><label><input id="grn-parts-model" type="checkbox"> Split by vehicle model</label><button class="btn" id="grn-parts-csv" type="button">Download parts CSV</button></div></header>
+      <div class="filters"><label class="fld">Part<input type="search" id="grn-parts-search" placeholder="e.g. Lockset" aria-label="Search purchased parts"></label></div>
+      <div class="panel"><div class="scroll" tabindex="0" role="region" aria-label="GRN parts purchased"><table id="grn-parts-table"></table></div></div>
+      <p class="note" id="grn-parts-note"></p>
+    </section>
     <section class="sec" id="grn-record-section">
       <header><h2 id="grn-record-title">Invoices</h2><button class="btn" id="grn-record-csv" type="button">Download purchase CSV</button></header>
       <div class="panel"><div class="scroll" tabindex="0" role="region" aria-label="GRN purchase records"><table id="grn-record-table"></table></div></div>
@@ -642,10 +648,10 @@ let D = null;                 // the data file
 let T = null;                 // typed arrays and derived indexes
 let R = null, F = null;       // consumption result, forecast for the chosen month
 let GRN = null, grnError = '';
-const grnState = { year: '', month: '', vendor: '', query: '', invoice: null };
+const grnState = { year: '', month: '', vendor: '', query: '', invoice: null, pQuery: '', pModel: false, pOpen: null };
 const state = { tab: 'fc', months: new Set(), two: true, models: null, svc: new Set([0, 1, 2, 3, 4]), city: '', bw: 180, measure: 'rate',
   open: new Set(), fcT: 1, fcPlan: 0, fcpQ: '', fcpMissing: false, fcpSort: ['fc', -1], fcpAll: false, fcpOpen: null, fcpCity: new Set(), fcpView: 'city',
-  hub: null, hubpAll: false, hubSort: ['um', -1], hubpQ: '', prFrom: null, prTo: null, prVendor: -1, prQ: '', prSort: ['amt', -1], prVSort: ['amt', -1], prFlagsAll: false, prAll: false };
+  hub: null, hubpAll: false, hubSort: ['um', -1], hubpQ: '', prFrom: null, prTo: null, prVendor: -1, prQ: '', prSort: ['amt', -1], prVSort: ['amt', -1], prFlagsAll: false, prAll: false, grnpSort: ['cost', -1] };
 
 // ---------- data source: the encrypted files the refresh publishes beside the fleet dashboard's, same passphrase
 const SITE = window.HALA_SITE || null, KEYNAME = 'hala_fleet_key', unb64 = t => Uint8Array.from(atob(t), c => c.charCodeAt(0));
@@ -1690,6 +1696,71 @@ function grnFilters() {
   $('#grn-month').innerHTML = opt('', 'All months', grnState.month) + months.map(m => opt(m, grnMonthLabel(m), grnState.month)).join('');
   $('#grn-vendor').innerHTML = opt('', 'All vendors', grnState.vendor) + vendors.map(v => opt(v, v, grnState.vendor)).join('');
 }
+// Part-wise totals across the invoices that match the GRN filters (year, month, vendor, invoice search)
+const grnQty = q => q == null || !Number.isFinite(q) ? '–' : Number.isInteger(q) ? n0(q) : f2.format(q);
+function grnParts(rows) {
+  const groups = new Map(), q = partNameKey(grnState.pQuery);
+  let linePaise = 0, noLines = 0, noLinesPaise = 0;
+  for (const invoice of rows) {
+    if (!Array.isArray(invoice.lines) || !invoice.lines.length) { noLines++; noLinesPaise += invoice.paise; continue; }
+    for (const line of invoice.lines) {
+      const name = partNameKey(line.part), model = String(line.model || '').trim();
+      if (q && !(name + ' ' + partNameKey(model)).includes(q)) continue;
+      const key = grnState.pModel ? JSON.stringify([name, partNameKey(model)]) : name;
+      if (!groups.has(key)) groups.set(key, { key, spell: new Map(), model: grnState.pModel ? model : '', qty: 0, paise: 0, pricedQty: 0, free: 0, min: null, max: null, invoices: new Set(), vendors: new Set(), models: new Set(), lines: [] });
+      const g = groups.get(key), qty = Number.isFinite(line.quantity) ? line.quantity : 0, paid = Number.isFinite(line.paid) ? line.paid : null;
+      const paise = paid != null ? Math.round(qty * paid * 100) : 0;
+      g.spell.set(String(line.part || '').trim(), (g.spell.get(String(line.part || '').trim()) || 0) + 1);
+      g.qty += qty; g.paise += paise; linePaise += paise;
+      if (paid > 0) { g.pricedQty += qty; g.min = g.min == null ? paid : Math.min(g.min, paid); g.max = g.max == null ? paid : Math.max(g.max, paid); } else if (qty) g.free += qty;
+      g.invoices.add(invoice.record); g.vendors.add(invoice.vendor); if (model) g.models.add(model);
+      g.lines.push({ invoice, line, paise });
+    }
+  }
+  const parts = [...groups.values()].map(g => ({ ...g, n: [...g.spell.entries()].sort((a, b) => b[1] - a[1])[0][0] || '(no part name)',
+    m: g.model || [...g.models].sort().join(', '), cost: g.paise / 100, avg: g.pricedQty ? g.paise / 100 / g.pricedQty : NaN, inv: g.invoices.size, ven: g.vendors.size }));
+  return { parts: sortRows(parts, state.grnpSort), linePaise, noLines, noLinesPaise };
+}
+function renderGrnParts(rows, period) {
+  const P = grnParts(rows), split = grnState.pModel;
+  $('#grn-parts-title').textContent = 'Parts purchased · ' + period;
+  const qty = P.parts.reduce((n, p) => n + p.qty, 0);
+  $('#grn-parts-sub').textContent = n0(P.parts.length) + (split ? ' part and model line' : ' part') + (P.parts.length === 1 ? '' : 's') + ' · ' + grnQty(qty) + ' units · ' + grnMoney(P.linePaise) + (grnState.vendor ? ' · ' + grnState.vendor : '');
+  const cols = [{ k: 'n', t: 'Part', lab: true }, { k: 'm', t: split ? 'Vehicle model' : 'Vehicle models' }, { k: 'qty', t: 'Quantity' }, { k: 'cost', t: 'Total cost' }, { k: 'avg', t: 'Avg unit price' }, { k: 'min', t: 'Lowest unit price' }, { k: 'inv', t: 'Invoices' }, { k: 'ven', t: 'Vendors' }];
+  if (!P.parts.some(p => p.key === grnState.pOpen)) grnState.pOpen = null;
+  let h = sortHead(cols, state.grnpSort, 'grnp') + '<tbody>';
+  for (const p of P.parts) {
+    const open = grnState.pOpen === p.key;
+    h += '<tr><td class="lab"><button class="link" type="button" data-grn-part="' + esc(p.key) + '" aria-expanded="' + open + '">' + (open ? '▾ ' : '▸ ') + esc(p.n) + '</button></td><td>' + esc(p.m || '–') + '</td><td><b>' + grnQty(p.qty) + '</b>' + (p.free ? '<small> · ' + grnQty(p.free) + ' at ₹0</small>' : '') + '</td><td><b>' + grnMoney(p.paise) + '</b></td><td>' + grnUnitMoney(p.avg) + '</td><td>' + grnUnitMoney(p.min) + (p.max != null && p.max !== p.min ? '<small> to ' + grnUnitMoney(p.max) + '</small>' : '') + '</td><td>' + n0(p.inv) + '</td><td>' + n0(p.ven) + '</td></tr>';
+    if (open) {
+      h += '<tr class="detail"><td colspan="8"><div class="pad"><h3>' + esc(p.n) + (split && p.m ? ' · ' + esc(p.m) : '') + ' · Purchases</h3><div class="scroll"><table class="dtbl"><thead><tr><th class="lab">Recorded date</th><th>Invoice / reference</th><th>Vendor</th><th>Vehicle model</th><th>Quantity</th><th>Paid Price</th><th>Line cost</th></tr></thead><tbody>';
+      for (const x of [...p.lines].sort((a, b) => b.invoice.date.localeCompare(a.invoice.date) || a.invoice.record - b.invoice.record))
+        h += '<tr><td class="lab">' + esc(dayLabel(Date.parse(x.invoice.date + 'T00:00:00Z') / DAY)) + '</td><td>' + (x.invoice.sourceUrl ? '<a href="' + esc(x.invoice.sourceUrl) + '" target="_blank" rel="noopener noreferrer">' + esc(x.invoice.invoice) + '</a>' : esc(x.invoice.invoice)) + '</td><td>' + esc(x.invoice.vendor) + '</td><td>' + esc(x.line.model || '–') + '</td><td>' + grnQty(x.line.quantity) + '</td><td>' + grnUnitMoney(x.line.paid) + '</td><td>' + grnMoney(x.paise) + '</td></tr>';
+      h += '<tr class="all"><td class="lab" colspan="4">Total</td><td><b>' + grnQty(p.qty) + '</b></td><td></td><td><b>' + grnMoney(p.paise) + '</b></td></tr></tbody></table></div></div></td></tr>';
+    }
+  }
+  if (!P.parts.length) h += '<tr><td colspan="8" class="lab">' + (rows.length ? 'No item lines match these filters.' : 'No purchases match these filters.') + '</td></tr>';
+  else h += '<tr class="all"><td class="lab" colspan="2">Total · ' + n0(P.parts.length) + (split ? ' line' : ' part') + (P.parts.length === 1 ? '' : 's') + '</td><td><b>' + grnQty(qty) + '</b></td><td><b>' + grnMoney(P.linePaise) + '</b></td><td colspan="4"></td></tr>';
+  $('#grn-parts-table').innerHTML = h + '</tbody>';
+  const invPaise = rows.reduce((n, r) => n + r.paise, 0);
+  let note = 'Total cost = quantity × Paid Price on each invoice item line. Avg unit price leaves out ₹0 lines.';
+  if (P.noLines) note += ' ' + n0(P.noLines) + ' invoice' + (P.noLines === 1 ? '' : 's') + ' in this view (' + grnMoney(P.noLinesPaise) + ') had no item lines, so ' + (P.noLines === 1 ? 'it is' : 'they are') + ' not in this table.';
+  if (!grnState.pQuery.trim() && Math.abs(invPaise - P.noLinesPaise - P.linePaise) > 100) note += ' Item lines add up to ' + grnMoney(P.linePaise) + ' against invoice totals of ' + grnMoney(invPaise - P.noLinesPaise) + ' for the same invoices.';
+  $('#grn-parts-note').textContent = note;
+  return P;
+}
+function bindGrnParts() {
+  $('#grn-parts-search').addEventListener('input', e => { grnState.pQuery = e.target.value; renderGrn(); });
+  $('#grn-parts-model').addEventListener('change', e => { grnState.pModel = e.target.checked; grnState.pOpen = null; renderGrn(); });
+  $('#grn-parts-table').addEventListener('click', e => {
+    const so = e.target.closest('th.sortable'); if (so) { e.stopPropagation(); const k = so.dataset.sort; state.grnpSort = [k, state.grnpSort[0] === k ? -state.grnpSort[1] : (['n', 'm'].includes(k) ? 1 : -1)]; renderGrn(); return; }
+    const b = e.target.closest('[data-grn-part]'); if (!b) return; const k = b.dataset.grnPart; grnState.pOpen = grnState.pOpen === k ? null : k; renderGrn(); });
+  $('#grn-parts-csv').addEventListener('click', () => {
+    const period = grnState.month || grnState.year || 'all';
+    csv('GRN parts purchased ' + period + '.csv', ['Period', 'Vendor filter', 'Part', grnState.pModel ? 'Vehicle model' : 'Vehicle models', 'Quantity', 'Total cost (Rs)', 'Avg unit price (Rs)', 'Lowest unit price (Rs)', 'Highest unit price (Rs)', 'Invoices', 'Vendors'],
+      grnParts(grnRows()).parts.map(p => [period, grnState.vendor || 'All', p.n, p.m, p.qty, (p.paise / 100).toFixed(2), Number.isFinite(p.avg) ? p.avg.toFixed(2) : '', p.min ?? '', p.max ?? '', p.inv, p.ven]));
+  });
+}
 function renderGrn() {
   if (!GRN) { $('#grn-asof').textContent = grnError || 'No GRN records in this refresh.'; return; }
   const rows = grnRows(), totals = grnSummary(rows), monthly = grnSummary(grnRows(true));
@@ -1718,9 +1789,10 @@ function renderGrn() {
   h += '<tr class="all"><td class="lab" colspan="3">Total · ' + n0(rows.length) + ' records</td><td><b>' + grnMoney(totals.paise) + '</b></td></tr>';
   $('#grn-record-table').innerHTML = h + '</tbody>';
   $('#grn-record-title').textContent = 'Invoices · ' + period;
+  renderGrnParts(rows, period);
 }
 function bindGrn() {
-  grnFilters();
+  grnFilters(); bindGrnParts();
   $('#grn-year').addEventListener('change', e => { grnState.year = e.target.value; grnState.month = ''; grnFilters(); renderGrn(); });
   $('#grn-month').addEventListener('change', e => { grnState.month = e.target.value; grnState.invoice = null; renderGrn(); $('#grn-record-section').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
   $('#grn-vendor').addEventListener('change', e => { grnState.vendor = e.target.value; renderGrn(); });
