@@ -2402,7 +2402,8 @@ function renderReg() {
 
   let p = 0, rc = 0;
   h = '<thead><tr><th class="lab">OEM</th><th>Planned</th><th>Received</th><th>Yet to arrive</th><th>% received</th></tr></thead><tbody>';
-  for (const [n, pl, re] of REG.plan) { p += pl; rc += re; h += '<tr><td class="lab">' + esc(n) + '</td><td>' + n0(pl) + '</td><td>' + n0(re) + '</td><td>' + n0(pl - re) + '</td><td>' + (pl ? pct(100 * re / pl) : '–') + '</td></tr>'; }
+  const REG_PLAN_SET = [[/not planned/i, 7500]];   // planned figures set here instead of the procurement tracker
+  for (let [n, pl, re] of REG.plan) { const fix = REG_PLAN_SET.find(([m]) => m.test(n)); if (fix) pl = fix[1]; p += pl; rc += re; h += '<tr><td class="lab">' + esc(n) + '</td><td>' + n0(pl) + '</td><td>' + n0(re) + '</td><td>' + n0(pl - re) + '</td><td>' + (pl ? pct(100 * re / pl) : '–') + '</td></tr>'; }
   h += '<tr class="total"><td class="lab">Fleet target</td><td>' + n0(p) + '</td><td>' + n0(rc) + '</td><td>' + n0(p - rc) + '</td><td>' + pct(100 * rc / p) + '</td></tr>';
   h += '<tr><td class="lab">In Cercle OS now<small>live check, two-wheelers</small></td><td></td><td><b>' + n0(inCercle) + '</b></td><td>' + n0(p - inCercle) + '</td><td>' + pct(100 * inCercle / p) + '</td></tr>';
   h += '<tr><td class="lab">Cercle OS minus tracker</td><td></td><td>' + (inCercle - rc >= 0 ? '+' : '') + n0(inCercle - rc) + '</td><td></td><td></td></tr></tbody>';
