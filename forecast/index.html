@@ -309,6 +309,11 @@ table.dtbl .z { color: var(--muted); }
 
 
 
+
+
+
+
+
 /* ---- Purchase orders tab */
 .po-run { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .po-run .neg { color: #c0392b; }
@@ -362,6 +367,13 @@ table.po-lines .w-qty { width: 90px; } table.po-lines .w-rate { width: 110px; } 
 .po-pct.over i b { background: #c0392b; }
 @media (max-width: 900px) { .po-run { grid-template-columns: repeat(2, 1fr); } .po-run > div:nth-child(odd) { border-left: 0; } .po-run > div:nth-child(n+3) { border-top: 1px solid var(--line); } }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .po-badge.cancelled { background: #4a1f1a; color: #f5b7b1; } }
+.po-inv-po > select { min-width: 360px; }
+table.po-inv-rows { table-layout: fixed; min-width: 1000px; }
+table.po-inv-rows td { vertical-align: top; white-space: normal; overflow-wrap: anywhere; }
+table.po-inv-rows td .po-badge, table.po-inv-rows td .flag { display: inline-block; margin-top: 4px; }
+table.po-inv-rows td small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+table.po-inv-rows select { margin-bottom: 4px; }
+.po-inv-pages img { display: block; max-width: 100%; margin-top: 10px; border: 1px solid var(--line2); }
 </style>
 </head>
 <body>
@@ -652,6 +664,11 @@ table.po-lines .w-qty { width: 90px; } table.po-lines .w-rate { width: 110px; } 
 
 
 
+
+
+
+
+
   <!-- ===== Purchase orders ===== -->
   <div class="view" id="v-po" hidden>
     <section class="sec">
@@ -680,7 +697,7 @@ table.po-lines .w-qty { width: 90px; } table.po-lines .w-rate { width: 110px; } 
     <section class="sec">
       <header>
         <div><h2>Purchase orders</h2><p id="po-list-sub"></p></div>
-        <div class="tools"><button class="btn po-primary" id="po-add" type="button">New PO</button><button class="btn" id="po-import" type="button">Import POs / supplies (CSV)</button><button class="btn" id="po-lines-csv" type="button">Download PO lines CSV</button></div>
+        <div class="tools"><button class="btn po-primary" id="po-add" type="button">New PO</button><button class="btn po-primary" id="po-inv-open" type="button">Upload vendor invoice</button><button class="btn" id="po-import" type="button">Import POs / supplies (CSV)</button><button class="btn" id="po-lines-csv" type="button">Download PO lines CSV</button></div>
       </header>
       <div class="panel"><div class="scroll" tabindex="0" role="region" aria-label="Purchase orders"><table class="dtbl" id="po-table"></table></div></div>
     </section>
@@ -743,6 +760,27 @@ table.po-lines .w-qty { width: 90px; } table.po-lines .w-rate { width: 110px; } 
     </form>
   </dialog>
 
+  <dialog id="po-inv" class="po-dlg" aria-labelledby="po-inv-title">
+    <div class="tools po-dhead"><h2 id="po-inv-title">Upload vendor invoice</h2><button type="button" class="btn" id="po-inv-close">Close</button></div>
+    <p class="note">PDF (including scanned or printed PDFs), JPG or PNG. The invoice is read on this computer; item names are matched to our part names and the PO's lines, and the quantities are recorded as supply.</p>
+    <div class="tools"><label class="btn po-primary po-file">Choose invoice<input type="file" id="po-inv-file" accept=".pdf,application/pdf,image/*"></label><span id="po-inv-status" role="status"></span></div>
+    <div id="po-inv-body" hidden>
+      <div class="filters">
+        <label class="fld">Vendor<input id="po-inv-vendor" list="po-vendors" maxlength="120" autocomplete="off"></label>
+        <label class="fld">Invoice no.<input id="po-inv-no" maxlength="60" autocomplete="off"></label>
+        <label class="fld">Invoice date<input id="po-inv-date" type="date"></label>
+        <label class="fld">PO no. on invoice<input id="po-inv-pono" maxlength="60" autocomplete="off"></label>
+        <label class="fld">City<select id="po-inv-city"></select></label>
+        <label class="fld po-inv-po">Record against PO<select id="po-inv-po"></select></label>
+      </div>
+      <p class="po-meta" id="po-inv-check"></p>
+      <div class="scroll"><table class="po-lines po-inv-rows" id="po-inv-rows"></table></div>
+      <label class="check"><input type="checkbox" id="po-inv-remember" checked> Remember these name matches for this vendor</label>
+      <details class="po-inv-pages"><summary>View the invoice pages</summary><div id="po-inv-pages"></div></details>
+    </div>
+    <p class="po-err" role="alert" id="po-inv-error"></p>
+    <div class="tools po-dfoot"><button type="button" class="btn po-primary" id="po-inv-save" disabled>Record supply</button></div>
+  </dialog>
   <dialog id="po-confirm" class="po-dlg po-narrow">
     <p id="po-confirm-text"></p>
     <div class="tools po-dfoot"><button type="button" class="btn" id="po-confirm-cancel">Cancel</button><button type="button" class="btn po-primary" id="po-confirm-go">Confirm</button></div>
@@ -2376,13 +2414,18 @@ function bindNotes() {
 
 
 
+
+
+
+
+
 // ===== PO register start
 // ---------- Purchase orders and budget, shared through the Hala Fleet Ops site (same Microsoft sign-in as Shipments and Notes).
 // Utilised = value of parts supplied against PO lines; it comes off the budget. Pending = ordered on open POs, not yet supplied.
 const PO_DEFAULT = { version: 1, kind: 'po-settings', budgetPaise: 600000000, scope: 'overall', basis: 'excl' };   // ₹60,00,000, pre-GST
 const PO_STATUS = ['Open', 'Closed', 'Cancelled'];
 const poState = { rows: [], settings: { ...PO_DEFAULT }, settingsRow: null, ready: false, loaded: false, loading: false, busy: false, error: '', message: '', refreshed: null,
-  by: 'city', month: '', city: '', vendor: '', status: '', q: '', open: null, edit: null, supply: null, supplyWarned: '', imp: { kind: 'po', plan: null }, user: null, confirm: null };
+  by: 'city', month: '', city: '', vendor: '', status: '', q: '', open: null, edit: null, supply: null, supplyWarned: '', imp: { kind: 'po', plan: null }, user: null, confirm: null, aliases: {} };
 const poNorm = s => String(s == null ? '' : s).normalize('NFKC').trim().replace(/\s+/g, ' ');
 const poKey = s => poNorm(s).toUpperCase();
 const poCompact = s => poKey(s).replace(/[^A-Z0-9]/g, '');
@@ -2400,7 +2443,7 @@ const poCurMonth = () => shipToday().slice(0, 7);
 // Files need only Contribute permission; every save sends the file's ETag so a teammate's save in between is never overwritten.
 async function poRaw(path, options = {}) {
   const url = SHIP.host + SHIP.site + '/_api/web/' + path, headers = { Accept: 'application/json;odata=nometadata', Authorization: 'Bearer ' + await shipToken(), ...(options.headers || {}) };
-  if (options.body != null) headers['Content-Type'] = 'application/json';
+  if (options.body != null) headers['Content-Type'] = options.contentType || 'application/json';
   const response = await fetch(url, { method: options.method || (options.body != null ? 'POST' : 'GET'), headers, body: options.body });
   if (!response.ok) {
     const err = new Error(response.status === 412 ? 'A teammate changed this PO at the same time. Reload and try again.' : response.status === 403 ? 'Your Hala account does not have permission for the shared PO register.' : 'Shared workspace request failed (' + response.status + ').');
@@ -2462,10 +2505,11 @@ async function poLoad() {
   try {
     const folder = await poReq(poFolder() + '?$select=Exists');
     if (!folder || !folder.Exists) { const e = new Error('missing'); e.status = 404; throw e; }
-    const files = (await poReq(poFolder() + '/Files?$select=Name,ETag,TimeLastModified&$top=5000')).value.filter(f => /\.json$/i.test(f.Name) && (f.Name.startsWith('PO_') || f.Name === PO_SETTINGS_FILE));
+    const files = (await poReq(poFolder() + '/Files?$select=Name,ETag,TimeLastModified&$top=5000')).value.filter(f => /\.json$/i.test(f.Name) && (f.Name.startsWith('PO_') || f.Name === PO_SETTINGS_FILE || f.Name === PO_ALIAS_FILE));
     const got = await poPool(files, 8, async f => ({ f, v: await poReq(poFile(f.Name) + '/$value', { json: true }) }));
-    const set = got.find(x => x.f.Name === PO_SETTINGS_FILE);
-    poState.rows = got.filter(x => x !== set).map(x => poDecode(x.f.Name, x.v, x.f.ETag, x.f.TimeLastModified));
+    const set = got.find(x => x.f.Name === PO_SETTINGS_FILE), al = got.find(x => x.f.Name === PO_ALIAS_FILE);
+    poState.aliases = al && al.v && typeof al.v === 'object' ? al.v : {};
+    poState.rows = got.filter(x => x !== set && x !== al).map(x => poDecode(x.f.Name, x.v, x.f.ETag, x.f.TimeLastModified));
     poState.settings = set && set.v && set.v.kind === 'po-settings' ? { ...PO_DEFAULT, ...set.v } : { ...PO_DEFAULT };
     poState.ready = true; poState.loaded = true; poState.refreshed = Date.now();
   } catch (e) { if (e.status === 404) { poState.ready = false; poState.loaded = true; poState.error = 'The shared PO register has not been created yet. Use "Create shared PO register".'; } else poState.error = e.message; }
@@ -2667,7 +2711,7 @@ function poDetail(po, c) {
   meta.push('Vendor <b>' + esc(po.vendor) + '</b>', 'PO date <b>' + esc(poDay(po.date)) + '</b>', 'Expected by <b>' + esc(po.due ? poDay(po.due) : '–') + '</b>');
   if (po.createdBy) meta.push('Entered by ' + esc(po.createdBy) + (po.createdAt ? ' · ' + esc(shipTime(po.createdAt)) : ''));
   let h = '<div class="po-detail"><div class="po-meta">' + meta.map(m => '<span>' + m + '</span>').join('') + '</div>' + (po.note ? '<p class="po-meta">' + esc(po.note) + '</p>' : '');
-  h += '<div class="tools">' + (po.status === 'Open' ? '<button class="btn po-primary" type="button" data-po-supply="' + po.id + '">Record supply</button>' : '') + '<button class="btn" type="button" data-po-edit="' + po.id + '">Edit PO</button>' +
+  h += '<div class="tools">' + (po.status === 'Open' ? '<button class="btn po-primary" type="button" data-po-supply="' + po.id + '">Record supply</button>' : '') + '<button class="btn" type="button" data-po-invoice="' + po.id + '">Upload vendor invoice</button><button class="btn" type="button" data-po-edit="' + po.id + '">Edit PO</button>' +
     (po.status === 'Open' ? '<button class="btn" type="button" data-po-status="' + po.id + '" data-to="Closed">Short-close PO</button><button class="btn" type="button" data-po-status="' + po.id + '" data-to="Cancelled">Cancel PO</button>' : '<button class="btn" type="button" data-po-status="' + po.id + '" data-to="Open">Reopen PO</button>') +
     '<button class="btn" type="button" data-po-delete="' + po.id + '">Delete</button></div>';
   h += '<div class="scroll"><table class="dtbl"><thead><tr><th class="l">City</th><th class="l">Part</th><th class="l">Vehicle model</th><th>Ordered</th><th>Rate<small>excl. GST</small></th><th>GST</th><th>Supplied</th><th>Pending</th><th>PO value<small>' + poBasisLabel() + '</small></th><th>Utilised</th><th>Utilisation</th></tr></thead><tbody>';
@@ -2678,7 +2722,7 @@ function poDetail(po, c) {
     h += '<div class="scroll"><table class="dtbl"><thead><tr><th class="l">Received on</th><th class="l">Invoice / DC / GRN</th><th class="l">City</th><th class="l">Part</th><th>Quantity</th><th>Value<small>' + poBasisLabel() + '</small></th><th class="l">Recorded</th><th></th></tr></thead><tbody>';
     for (const r of [...po.receipts].sort((a, b) => b.date.localeCompare(a.date))) {
       const l = lineOf.get(r.line), v = l ? Math.round(r.qty * l.ratePaise * (poState.settings.basis === 'excl' ? 1 : (100 + l.gst) / 100)) : 0;
-      h += '<tr><td class="l">' + esc(poDay(r.date)) + '</td><td class="l">' + esc(r.ref || '–') + '</td><td class="l">' + esc(l ? l.city || '–' : '–') + '</td><td class="l">' + esc(l ? l.part : '–') + '</td><td>' + poQty(r.qty) + '</td><td>' + poRs(v) + '</td><td class="l">' + esc(r.src === 'grn' ? 'Linked GRN' : r.src === 'csv' ? 'CSV import' : 'By hand') + (r.by ? ' · ' + esc(r.by) : '') + '</td><td><button type="button" class="link" data-po-unreceive="' + po.id + '" data-rid="' + esc(r.id) + '">Remove</button></td></tr>';
+      h += '<tr><td class="l">' + esc(poDay(r.date)) + '</td><td class="l">' + esc(r.ref || '–') + '</td><td class="l">' + esc(l ? l.city || '–' : '–') + '</td><td class="l">' + esc(l ? l.part : '–') + '</td><td>' + poQty(r.qty) + '</td><td>' + poRs(v) + '</td><td class="l">' + (r.src === 'invoice' ? (r.file ? '<a href="' + esc(r.file) + '" target="_blank" rel="noopener">Vendor invoice</a>' : 'Vendor invoice') + (r.inv && r.inv.name ? ' · read as “' + esc(r.inv.name) + '”' : '') + (r.inv && r.inv.ratePaise != null && l && r.inv.ratePaise !== l.ratePaise ? ' · billed ' + poRsFull(r.inv.ratePaise) : '') : esc(r.src === 'grn' ? 'Linked GRN' : r.src === 'csv' ? 'CSV import' : 'By hand')) + (r.by ? ' · ' + esc(r.by) : '') + '</td><td><button type="button" class="link" data-po-unreceive="' + po.id + '" data-rid="' + esc(r.id) + '">Remove</button></td></tr>';
     }
     h += '</tbody></table></div>';
   } else h += '<p class="po-meta">No supplies recorded yet.' + (po.status === 'Open' ? ' Use Record supply, or link a GRN line below.' : '') + '</p>';
@@ -2976,9 +3020,10 @@ function poSumCsv() {
   csv('PO summary by ' + by + ' ' + (poState.month || 'all months') + '.csv', first.concat(['POs', 'Ordered qty', 'Supplied qty', 'Pending qty', 'PO value ' + poBasisLabel() + ' (Rs)', 'Utilised (Rs)', 'Pending value (Rs)', 'Utilisation %']),
     poGroup(poFiltered(), by).map(g => (by === 'city' ? [g.city] : by === 'part' ? [g.part, [...g.cities].join(' / ')] : by === 'vendor' ? [g.vendor] : [g.city, g.part]).concat([g.pos.size, g.qty, g.supplied, g.pending, (g.ordered / 100).toFixed(2), (g.used / 100).toFixed(2), (g.pendingVal / 100).toFixed(2), g.ordered ? (100 * g.used / g.ordered).toFixed(1) : ''])));
 }
-function poAnyDialog() { return ['#po-dialog', '#po-supply', '#po-import-dialog', '#po-settings-dialog', '#po-confirm'].some(s => $(s).open); }
+function poAnyDialog() { return ['#po-dialog', '#po-supply', '#po-import-dialog', '#po-settings-dialog', '#po-confirm', '#po-inv'].some(s => $(s).open); }
 
 function bindPo() {
+  bindInvoice();
   $('#po-reload').addEventListener('click', poLoad);
   $('#po-setup').addEventListener('click', poSetup);
   $('#po-settings').addEventListener('click', poOpenSettings);
@@ -2994,6 +3039,7 @@ function bindPo() {
     if (d.poOpen) { poState.open = poState.open === d.poOpen ? null : d.poOpen; renderPo(); return; }
     if (d.poSupply) { const p = po(d.poSupply); if (p) poOpenSupply(p); return; }
     if (d.poEdit) { const p = po(d.poEdit); if (p) poOpenForm(p); return; }
+    if (d.poInvoice) { invOpen(d.poInvoice); return; }
     if (d.poStatus) { const p = po(d.poStatus), to = d.to; if (!p) return;
       const text = to === 'Closed' ? 'Short-close PO ' + p.po + '? Pending quantity (' + poQty(poC(p).pending) + ' parts) is released back to the budget. Supplies already recorded stay utilised.' : to === 'Cancelled' ? 'Cancel PO ' + p.po + '? Nothing more is expected from it; anything already supplied stays utilised.' : 'Reopen PO ' + p.po + '? Its pending quantity counts against the budget again.';
       poConfirm(text, async () => { const by = await poWho(), at = new Date().toISOString(); await poRun(() => poMutate(p.id, cur => cur.status === to ? null : { ...cur, status: to, history: [...(cur.history || []), { at, by, what: 'Status ' + cur.status + ' → ' + to }] }), 'PO ' + p.po + ' is now ' + to.toLowerCase() + '.'); }); return; }
@@ -3039,6 +3085,373 @@ function bindPo() {
   for (const s of ['#po-dialog', '#po-supply', '#po-import-dialog', '#po-settings-dialog']) $(s).addEventListener('cancel', e => { if (poState.busy) e.preventDefault(); });
   setInterval(() => { if (state.tab === 'po' && !document.hidden && poState.ready && !poState.busy && !poAnyDialog()) poLoad(); }, 60000);
   addEventListener('storage', e => { if (e.key === SHIP.authKey && state.tab === 'po' && !poState.busy && !poAnyDialog()) poLoad(); });
+}
+// ---------- Vendor invoice upload: read the invoice (PDF text, or OCR for scanned / printed PDFs and photos), match item names to our part names,
+// and record the quantities as supply against a PO. Everything is read in this browser; only the result and the original file are saved to Fleet Ops.
+const PO_LIB = Object.assign({
+  pdfjs: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs',
+  pdfWorker: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs',
+  tesseract: 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js',
+  tessOptions: {}
+}, window.PO_LIBS || {});
+const PO_ALIAS_FILE = '_aliases.json';
+const invState = { busy: false, file: null, pages: [], rows: [], head: {}, po: '', warned: '', ops: null, tot: null };
+let poPdfLib = null, poTess = null;
+async function poPdf() { if (!poPdfLib) { poPdfLib = await import(PO_LIB.pdfjs); poPdfLib.GlobalWorkerOptions.workerSrc = PO_LIB.pdfWorker; } return poPdfLib; }
+function poScript(src) { return new Promise((ok, no) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => no(new Error('The invoice reader could not be downloaded. Check the internet connection and try again.')); document.head.appendChild(s); }); }
+async function poOcr() {
+  if (!poTess) {
+    if (!window.Tesseract) await poScript(PO_LIB.tesseract);
+    poTess = await window.Tesseract.createWorker('eng', 1, PO_LIB.tessOptions);
+    await poTess.setParameters({ tessedit_pageseg_mode: '6', preserve_interword_spaces: '1' });
+  }
+  return poTess;
+}
+const invStatus = t => { $('#po-inv-status').textContent = t; };
+
+// ---- pages → canvases (+ text words when the PDF has a text layer)
+async function invPages(file) {
+  const pages = [];
+  if (/\.pdf$/i.test(file.name) || file.type === 'application/pdf') {
+    const lib = await poPdf(), doc = await lib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+    for (let n = 1; n <= Math.min(doc.numPages, 6); n++) {
+      invStatus('Opening page ' + n + ' of ' + doc.numPages + '…');
+      const page = await doc.getPage(n), base = page.getViewport({ scale: 1 }), vp = page.getViewport({ scale: Math.min(4, 2100 / base.width) });
+      const cv = document.createElement('canvas'); cv.width = Math.ceil(vp.width); cv.height = Math.ceil(vp.height);
+      const cx = cv.getContext('2d', { willReadFrequently: true }); cx.fillStyle = '#fff'; cx.fillRect(0, 0, cv.width, cv.height);
+      await page.render({ canvasContext: cx, viewport: vp }).promise;
+      const tc = await page.getTextContent(), words = [];
+      for (const it of tc.items) {
+        const s = (it.str || '').trim(); if (!s) continue;
+        const t = lib.Util.transform(vp.transform, it.transform), h = Math.hypot(t[2], t[3]), w = it.width * vp.scale;
+        words.push({ text: s, x0: t[4], y0: t[5] - h, x1: t[4] + w, y1: t[5] });
+      }
+      pages.push({ cv, words: words.length > 15 ? words : null, preview: cv.toDataURL('image/jpeg', 0.7) });
+    }
+  } else {
+    const img = await createImageBitmap(file), k = Math.max(1, Math.min(3, 2000 / img.width));
+    const cv = document.createElement('canvas'); cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k);
+    const cx = cv.getContext('2d', { willReadFrequently: true }); cx.fillStyle = '#fff'; cx.fillRect(0, 0, cv.width, cv.height); cx.drawImage(img, 0, 0, cv.width, cv.height);
+    pages.push({ cv, words: null, preview: cv.toDataURL('image/jpeg', 0.7) });
+  }
+  return pages;
+}
+// ---- ruled tables: long dark vertical and horizontal strokes
+function invLines(cv) {
+  const W = cv.width, H = cv.height, d = cv.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, W, H).data, dark = new Uint8Array(W * H);
+  for (let i = 0, j = 0; j < W * H; i += 4, j++) dark[j] = d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11 < 150 ? 1 : 0;
+  const V = [], Hs = [], minV = Math.max(40, H * 0.02), minH = W * 0.25;
+  for (let x = 0; x < W; x++) { let s = -1; for (let y = 0; y <= H; y++) { const on = y < H && dark[y * W + x]; if (on && s < 0) s = y; else if (!on && s >= 0) { if (y - s >= minV) V.push([x, s, y]); s = -1; } } }
+  for (let y = 0; y < H; y++) { let s = -1, row = y * W; for (let x = 0; x <= W; x++) { const on = x < W && dark[row + x]; if (on && s < 0) s = x; else if (!on && s >= 0) { if (x - s >= minH) Hs.push([y, s, x]); s = -1; } } }
+  const merge = segs => { const out = []; for (const [p, s, e] of segs) { const o = out.find(q => p - q.p1 <= 4 && p >= q.p0 && Math.abs(q.s - s) <= 14 && Math.abs(q.e - e) <= 14); if (o) { o.p1 = p; o.s = Math.min(o.s, s); o.e = Math.max(o.e, e); } else out.push({ p0: p, p1: p, s, e }); } return out; };
+  return { V: merge(V), H: merge(Hs) };
+}
+function invTables(cv) {
+  const { V, H } = invLines(cv), groups = [];
+  for (const v of V) { const g = groups.find(g => Math.abs(g.s - v.s) <= 14 && Math.abs(g.e - v.e) <= 14); if (g) g.v.push(v); else groups.push({ s: v.s, e: v.e, v: [v] }); }
+  const tables = [];
+  for (const g of groups) {
+    if (g.v.length < 3) continue;
+    const xs = [...new Set(g.v.map(v => Math.round((v.p0 + v.p1) / 2)))].sort((a, b) => a - b), x0 = xs[0], x1 = xs[xs.length - 1];
+    if (x1 - x0 < cv.width * 0.3) continue;
+    const ys = H.filter(h => h.p0 >= g.s - 6 && h.p1 <= g.e + 6 && h.s <= x0 + 12 && h.e >= x1 - 12).map(h => ({ y: Math.round((h.p0 + h.p1) / 2), p0: h.p0, p1: h.p1 }));
+    if (ys.length < 3) continue;
+    tables.push({ xs, ys: ys.sort((a, b) => a.y - b.y), top: g.s, bottom: g.e });
+  }
+  return tables.sort((a, b) => a.top - b.top);
+}
+// ---- OCR helpers
+async function invRecognise(cv, r) {   // OCR one region, cut out onto its own canvas so each read sees only that region
+  const x0 = Math.max(0, Math.round(r.x0)), y0 = Math.max(0, Math.round(r.y0)), w = Math.min(cv.width - x0, Math.round(r.x1 - r.x0)), h = Math.min(cv.height - y0, Math.round(r.y1 - r.y0));
+  if (w < 4 || h < 4) return { words: [], text: '' };
+  const c = document.createElement('canvas'); c.width = w + 20; c.height = h + 20;
+  const cx = c.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, c.width, c.height); cx.drawImage(cv, x0, y0, w, h, 10, 10, w, h);
+  const { data } = await (await poOcr()).recognize(c);
+  const words = (data.words || []).filter(x => x.text && x.text.trim() && x.confidence > 15).map(x => ({ text: x.text.trim(), x0: x.bbox.x0 - 10 + x0, y0: x.bbox.y0 - 10 + y0, x1: x.bbox.x1 - 10 + x0, y1: x.bbox.y1 - 10 + y0 }));
+  return { words, text: data.text || '' };
+}
+function invWipeRules(cv, t) {   // whiten the horizontal rules inside a table so they don't read as characters
+  const cx = cv.getContext('2d'); cx.fillStyle = '#fff';
+  for (const y of t.ys) cx.fillRect(t.xs[0], y.p0 - 2, t.xs[t.xs.length - 1] - t.xs[0], y.p1 - y.p0 + 5);
+}
+const invField = h => { h = h.toLowerCase(); if (/price|rate/.test(h)) return 'rate'; if (/\bq(uan)?ty\b|quantity|qty/.test(h)) return 'qty'; if (/hsn|sac/.test(h)) return 'hsn'; if (/item|desc|partic|product|goods|material|name|part/.test(h)) return 'item'; if (/gst|tax/.test(h)) return 'gst'; if (/amount|total|value/.test(h)) return 'amount'; if (/unit|uom/.test(h)) return 'unit'; if (/^#|s\.?\s*no|^sl/.test(h)) return 'sn'; return ''; };
+const invNums = t => (String(t || '').replace(/(\d)\s*,\s*(\d)/g, '$1,$2').match(/\d[\d,]*(?:\.\d+)?/g) || []).map(s => Number(s.replace(/,/g, ''))).filter(Number.isFinite);
+const invMoney = t => { const s = String(t || ''), dec = s.match(/\d[\d,]*\.\d{1,2}/g); if (dec) return Number(dec[dec.length - 1].replace(/,/g, '')); const n = invNums(s); return n.length ? n[n.length - 1] : NaN; };
+function invRowsFromCells(cells, fields) {
+  const rows = []; let tot = null;
+  for (const c of cells) {
+    const get = f => { const i = fields.indexOf(f); return i < 0 ? '' : c[i].join(' ').replace(/\s+/g, ' ').trim(); };
+    const name = get('item').replace(/^[|\s:;,.\-–_=]+|[|\s:;,=]+$/g, ''), qtyN = invNums(get('qty')), gstT = get('gst');
+    const row = { name, qty: qtyN.length ? qtyN[0] : NaN, rate: invMoney(get('rate')), amount: invMoney(get('amount')), gstPct: (gstT.match(/(\d+(?:\.\d+)?)\s*%/) || [])[1], hsn: (get('hsn').match(/\d{4,8}/) || [''])[0] };
+    if (/^(sub\s*-?\s*)?total\b|grand\s*total|^amount in words|round(ed)?\s*off/i.test(name) || (!name && /total/i.test(c.flat().join(' ')))) { tot = { qty: row.qty, amount: row.amount }; continue; }
+    if (!name && rows.length && !(row.qty > 0)) { continue; }
+    if (!name || !(row.qty > 0)) continue;
+    row.gstPct = row.gstPct != null ? Number(row.gstPct) : NaN;
+    rows.push(row);
+  }
+  return { rows, tot };
+}
+async function invReadTable(pg, t, pi) {
+  const cols = t.xs.length - 1, bands = t.ys.length - 1, pad = 5;
+  const cells = Array.from({ length: bands }, () => Array.from({ length: cols }, () => []));
+  const place = words => { for (const w of words) { const cx = (w.x0 + w.x1) / 2, cy = (w.y0 + w.y1) / 2; const ci = t.xs.findIndex((x, i) => i < cols && cx >= x && cx < t.xs[i + 1]), ri = t.ys.findIndex((y, i) => i < bands && cy >= y.y && cy < t.ys[i + 1].y); if (ci >= 0 && ri >= 0) cells[ri][ci].push(w); } };
+  const finish = () => cells.map(r => r.map(c => c.sort((a, b) => (Math.abs(a.y0 - b.y0) > (a.y1 - a.y0) * 0.6 ? a.y0 - b.y0 : a.x0 - b.x0)).map(w => w.text)));
+  if (pg.words) { place(pg.words); }
+  else {
+    invWipeRules(pg.cv, t);
+    invStatus('Reading page ' + (pi + 1) + ' · table headings…');
+    place((await invRecognise(pg.cv, { x0: t.xs[0] + pad, y0: t.ys[0].p1 + 2, x1: t.xs[cols] - pad, y1: t.ys[1].p0 - 1 })).words);
+  }
+  let txt = finish(), fields = txt[0].map(c => invField(c.join(' ')));
+  if (!fields.includes('item') || !fields.includes('qty')) return null;
+  if (!pg.words) for (let ci = 0; ci < cols; ci++) {
+    if (!['item', 'qty', 'rate', 'amount', 'gst', 'hsn'].includes(fields[ci])) continue;
+    invStatus('Reading page ' + (pi + 1) + ' · ' + { item: 'item names', qty: 'quantities', rate: 'rates', amount: 'amounts', gst: 'GST', hsn: 'HSN codes' }[fields[ci]] + '…');
+    place((await invRecognise(pg.cv, { x0: t.xs[ci] + pad, y0: t.ys[1].p1 + 2, x1: t.xs[ci + 1] - pad, y1: t.ys[bands].p0 - 1 })).words);
+  }
+  txt = finish();
+  return invRowsFromCells(txt.slice(1), fields);
+}
+// tables without ruling: columns from the heading words, one row per text line (wrapped names join the row above)
+function invLooseTable(words) {
+  const lines = [];
+  for (const w of [...words].sort((a, b) => a.y0 - b.y0)) { const h = w.y1 - w.y0, cy = (w.y0 + w.y1) / 2, l = lines.find(l => Math.abs(l.cy - cy) < h * 0.6); if (l) { l.w.push(w); } else lines.push({ cy, w: [w] }); }
+  lines.forEach(l => l.w.sort((a, b) => a.x0 - b.x0));
+  const hi = lines.findIndex(l => { const f = new Set(l.w.map(w => invField(w.text)).filter(Boolean)); return f.has('qty') && (f.has('item') || f.has('rate')); });
+  if (hi < 0) return null;
+  const head = lines[hi].w.map(w => ({ f: invField(w.text), c: (w.x0 + w.x1) / 2, x0: w.x0 })).filter(h => h.f);
+  const uniq = []; for (const h of head) if (!uniq.some(u => u.f === h.f)) uniq.push(h);
+  uniq.sort((a, b) => a.c - b.c);
+  const bounds = uniq.map((h, i) => i ? (uniq[i - 1].c + h.c) / 2 : -Infinity), fields = uniq.map(h => h.f), cells = [];
+  for (const l of lines.slice(hi + 1)) {
+    const row = fields.map(() => []); for (const w of l.w) { const cx = (w.x0 + w.x1) / 2; let i = bounds.length - 1; while (i > 0 && cx < bounds[i]) i--; row[i].push(w.text); }
+    const qi = fields.indexOf('qty'), ii = fields.indexOf('item');
+    if (!invNums(row[qi].join(' ')).length && cells.length && ii >= 0 && row[ii].length && !/total/i.test(row[ii].join(' '))) { cells[cells.length - 1][ii].push(...row[ii]); continue; }
+    cells.push(row);
+    if (/total/i.test(l.w.map(w => w.text).join(' '))) break;
+  }
+  return invRowsFromCells(cells, fields);
+}
+const INV_CITY = [[/BENGALURU|BANGALORE|BANGLORE|KARNATAKA/, 'Bengaluru'], [/MUMBAI|MAHARASHTRA|GOREGAON/, 'Mumbai'], [/DELHI|NOIDA|GURUGRAM|GURGAON|HARYANA/, 'Delhi'], [/HYDERABAD|TELANGANA|VIJAYAWADA|ANDHRA/, 'Hyderabad']];
+function invHeader(text) {
+  const T = text.replace(/[|]/g, ' '), U = T.toUpperCase(), h = {};
+  let m = T.match(/invoice\s*(?:no|number|#)\.?\s*[:\-]?\s*([A-Z0-9][A-Z0-9\/\-]*)/i); if (m) h.no = m[1];
+  m = T.match(/(?:invoice\s*date|(?<!P\.?\s?O\.?\s)\bdate(?:d)?)\s*[:\-]?\s*(\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}|\d{1,2}[\s\-][A-Za-z]{3,9}[\s\-,]+\d{2,4})/i); if (m) h.date = poDate(m[1]) || '';
+  m = T.match(/P\.?\s?O\.?\s*(?:no|number|#|ref)\.?\s*[:\-]?\s*([A-Z0-9][A-Z0-9\/\-]*)/i); if (m) h.poNo = m[1];
+  m = U.match(/PLACE\s*OF\s*SUPPLY\s*[:\-]?\s*(?:\d+\s*-\s*)?([A-Z ]+)/); const pos = m ? m[1] : '';
+  const bill = (U.match(/(?:BILL|SHIP)\s*TO[\s\S]{0,260}/) || [''])[0];
+  for (const src of [pos, bill]) { const c = INV_CITY.find(([re]) => re.test(src)); if (c) { h.city = c[1]; h.cityFrom = src === pos ? 'place of supply' : 'bill-to address'; break; } }
+  const comp = U.replace(/[^A-Z0-9]/g, ''), names = new Set(poState.rows.map(p => p.vendor)); if (GRN) for (const r of GRN.records) names.add(r.vendor);
+  let best = null; for (const v of names) { const k = poVendorKey(v); if (k.length >= 4 && comp.includes(k) && (!best || k.length > best.k.length)) best = { v, k }; }
+  if (best) h.vendor = best.v;
+  return h;
+}
+async function invRead(file) {
+  invState.pages = await invPages(file);
+  const rows = [], tots = []; let headText = '';
+  for (const [pi, pg] of invState.pages.entries()) {
+    let got = null, top = pg.cv.height;
+    for (const t of invTables(pg.cv)) { const r = await invReadTable(pg, t, pi); if (r) { got = got ? { rows: got.rows.concat(r.rows), tot: r.tot || got.tot } : r; top = Math.min(top, t.top); } }
+    if (!got) {
+      let words = pg.words;
+      if (!words) { invStatus('Reading page ' + (pi + 1) + '…'); words = (await invRecognise(pg.cv, { x0: 0, y0: 0, x1: pg.cv.width, y1: pg.cv.height })).words; pg.allWords = words; }
+      got = invLooseTable(words);
+    }
+    if (pi === 0 || !headText) {
+      if (pg.words) headText = pg.words.filter(w => w.y1 <= top + 2).map(w => w.text).join(' ');
+      else if (pg.allWords) headText = pg.allWords.map(w => w.text).join(' ');
+      else if (top > 40) { invStatus('Reading page ' + (pi + 1) + ' · invoice details…'); headText = (await invRecognise(pg.cv, { x0: 0, y0: 0, x1: pg.cv.width, y1: top })).text; }
+    }
+    if (got) { rows.push(...got.rows); if (got.tot) tots.push(got.tot); }
+  }
+  invState.headText = headText;
+  return { rows, head: invHeader(headText), tot: tots[tots.length - 1] || null };
+}
+
+// ---- name matching
+const PO_SYN = [[/\bASSEMBLE?Y\b|\bASSEMBLE\b|\bASSY\b|\bASSMBLY\b|\bASSEMBLI\b/g, 'ASSEMBLY'], [/\bMUD\s*GUARD\b|\bMUD\s+FENDER\b|\bMUDGAURD\b/g, 'FENDER'], [/\bHEADLIGHT\b|\bHEAD\s*LAMP\b|\bHEADLAMP\b/g, 'HEAD LIGHT'], [/\bTAILLIGHT\b|\bTAIL\s*LAMP\b/g, 'TAIL LIGHT'], [/\bSPEEDO\s*METER\b|\bSPEEDO\b/g, 'SPEEDOMETER'], [/\bLOCK\s*SET\b/g, 'LOCKSET'], [/\bKEY\s*FOB\b/g, 'KEYFOB'], [/\bCENTER\b/g, 'CENTRE'], [/\bINCH(ES)?\b|\bIN\b/g, ' '], [/\bSHOCK\s*ABSORBER\b/g, 'SHOCK ABSORBER'], [/\bCALLIPER\b/g, 'CALIPER'], [/\bSPEEDOMETRE\b/g, 'SPEEDOMETER']];
+const PO_NOISE = new Set(['OLD', 'NEW', 'MODEL', 'UNIVERSAL', 'WITH', 'AND', 'THE', 'FOR', 'OF', 'PCS', 'NOS', 'PC', 'NO', 'TYPE', 'QUALITY', 'GENUINE', 'ORIGINAL', 'OEM', 'SPARE', 'SPARES', 'PART', 'PARTS', 'COMPLETE']);
+const poModelNorm = m => { const k = poKey(m); return /ROAMY|SINGLE\s*LIGHT|\bSL\b/.test(k) ? 'SL' : /HYFY/.test(k) ? 'HYFY' : /SNAP/.test(k) ? 'SNAP' : /ALL|COMMON/.test(k) || !k ? '' : k; };
+const poModelHint = s => { const k = ' ' + poKey(s).replace(/[^A-Z0-9/ ]+/g, ' ') + ' '; return /\bS\s*\/\s*L\b|\bSL\b|SINGLE\s*LIGHT|ROAMY/.test(k) ? 'SL' : /HYFY/.test(k) ? 'HYFY' : /SNAP/.test(k) ? 'SNAP' : ''; };
+function poTokens(s) {
+  let k = ' ' + poKey(s).replace(/[^A-Z0-9/ ]+/g, ' ') + ' ';
+  k = k.replace(/\bS\s*\/\s*L\b|\bSL\b|\bSINGLE\s+LIGHT\b|\bROAMY\b|\bODYSSE\b|\bHYFY\b|\bSNAP\b|\bSUN\b/g, ' ');
+  for (const [re, t] of PO_SYN) k = k.replace(re, t);
+  return k.split(/[\s/]+/).filter(t => t && !PO_NOISE.has(t)).map(t => t.length > 3 && /S$/.test(t) && !/SS$/.test(t) ? t.slice(0, -1) : t);
+}
+function poLev1(a, b) { if (Math.abs(a.length - b.length) > 1) return false; let i = 0, j = 0, e = 0; while (i < a.length && j < b.length) { if (a[i] === b[j]) { i++; j++; continue; } if (++e > 1) return false; if (a.length > b.length) i++; else if (b.length > a.length) j++; else { i++; j++; } } return e + (a.length - i) + (b.length - j) <= 1; }
+const poTokEq = (a, b) => a === b || (Math.min(a.length, b.length) >= 5 && poLev1(a, b));
+function poNameScore(inv, part, model) {
+  const A = poTokens(inv), B = poTokens(part); if (!A.length || !B.length) return 0;
+  const used = new Set(); let m = 0;
+  for (const x of A) { const j = B.findIndex((y, i) => !used.has(i) && poTokEq(x, y)); if (j >= 0) { used.add(j); m++; } }
+  let s = 2 * m / (A.length + B.length);
+  const ca = A.join(''), cb = B.join('');
+  if ((cb.length >= 4 && ca.includes(cb)) || (ca.length >= 4 && cb.includes(ca))) s = Math.max(s, 0.85);
+  const hint = poModelHint(inv), mm = poModelNorm(model);
+  if (hint && mm) s += hint === mm ? 0.08 : -0.25;
+  return Math.max(0, Math.min(1, s));
+}
+const poAliasKey = (vendor, name) => poVendorKey(vendor) + '|' + poTokens(name).join(' ');
+function invCatalogue() {
+  const m = new Map(), add = (part, model) => { if (!part) return; const k = poKey(part) + '|' + poModelNorm(model); if (!m.has(k)) m.set(k, { part: poNorm(part), model: poNorm(model || '') }); };
+  for (const po of poState.rows) for (const l of po.lines) add(l.part, l.model);
+  if (typeof HALA_PARTS !== 'undefined') for (const p of HALA_PARTS) add(p.part, p.model);
+  return [...m.values()];
+}
+function invBest(name, list, vendor) {
+  const al = poState.aliases[poAliasKey(vendor, name)];
+  let best = null;
+  for (const c of list) {
+    let s = poNameScore(name, c.part, c.model), saved = false;
+    if (al && poKey(al.part) === poKey(c.part) && poModelNorm(al.model) === poModelNorm(c.model)) { s = 1; saved = true; }
+    if (!best || s > best.s) best = { c, s, saved };
+  }
+  return best;
+}
+function invMatch() {
+  const po = poState.rows.find(p => p.id === invState.po), vendor = $('#po-inv-vendor').value || (po && po.vendor) || '';
+  const lines = po ? poC(po).lines : [], cat = invCatalogue(), taken = new Set();
+  const order = invState.rows.map((r, i) => ({ r, i, b: invBest(r.name, lines.map(l => ({ part: l.part, model: l.model, l })), vendor) })).sort((a, b) => (b.b ? b.b.s : 0) - (a.b ? a.b.s : 0));
+  for (const { r, b } of order) {
+    r.internal = invBest(r.name, cat, vendor);
+    if (r.manual) { if (r.line) taken.add(r.line); continue; }
+    r.line = ''; r.score = 0; r.saved = false;
+    if (!b) continue;
+    const ranked = lines.map(l => { const al = poState.aliases[poAliasKey(vendor, r.name)], saved = !!(al && poKey(al.part) === poKey(l.part) && poModelNorm(al.model) === poModelNorm(l.model)); return { l, s: saved ? 1 : poNameScore(r.name, l.part, l.model), saved }; }).sort((a, b) => b.s - a.s);
+    const pick = ranked.find(x => x.s >= 0.55 && !taken.has(x.l.id));
+    if (pick) { r.line = pick.l.id; r.score = pick.s; r.saved = pick.saved; taken.add(pick.l.id); }
+  }
+}
+
+// ---- dialog
+function invOpen(poId) {
+  Object.assign(invState, { busy: false, file: null, pages: [], rows: [], head: {}, po: poId || '', warned: '', ops: null, tot: null });
+  $('#po-inv-file').value = ''; invStatus(''); $('#po-inv-body').hidden = true; $('#po-inv-error').textContent = ''; $('#po-inv-save').disabled = true; $('#po-inv-pages').innerHTML = '';
+  $('#po-inv').showModal();
+}
+async function invChoose(file) {
+  if (!file || invState.busy) return;
+  invState.busy = true; invState.file = file; $('#po-inv-error').textContent = ''; $('#po-inv-body').hidden = true; $('#po-inv-save').disabled = true;
+  const t0 = Date.now();
+  try {
+    invStatus('Loading the invoice reader…');
+    const got = await invRead(file);
+    invState.rows = got.rows.map((r, i) => ({ ...r, i, include: true, manual: false })); invState.head = got.head; invState.tot = got.tot;
+    const h = got.head;
+    $('#po-inv-vendor').value = h.vendor || ''; $('#po-inv-no').value = h.no || ''; $('#po-inv-date').value = h.date || shipToday(); $('#po-inv-pono').value = h.poNo || '';
+    poOptions('#po-inv-city', poCityList(), 'Any city', h.city || '');
+    if (!invState.po) invState.po = invPickPo();
+    invFillPo(); invMatch(); invRender();
+    $('#po-inv-pages').innerHTML = ''; for (const pg of invState.pages) { const im = new Image(); im.src = pg.preview; im.alt = 'Invoice page'; $('#po-inv-pages').appendChild(im); }
+    $('#po-inv-body').hidden = false;
+    invStatus(got.rows.length ? n0(got.rows.length) + ' items read from ' + file.name + ' in ' + Math.round((Date.now() - t0) / 1000) + ' s. Check them against the invoice before saving.' : 'No item table was found in ' + file.name + '.');
+    if (!got.rows.length) $('#po-inv-error').textContent = 'The item rows could not be read. Try a clearer scan or photo, or record the supply by hand.';
+  } catch (e) { invStatus(''); $('#po-inv-error').textContent = e.message || String(e); }
+  finally { invState.busy = false; if (invState.rows.length) invRender(); }
+}
+function invPickPo() {
+  const h = invState.head, vk = poVendorKey($('#po-inv-vendor').value || ''), city = $('#po-inv-city').value;
+  const rank = po => { if (h.poNo && poCompact(po.po) === poCompact(h.poNo)) return 0; const v = poVendorMatch(vk, poVendorKey(po.vendor)); if (!v) return 9; const c = !city || po.lines.some(l => l.city === city); return (po.status === 'Open' ? 0 : 3) + (c ? 1 : 2); };
+  const best = poState.rows.map(po => ({ po, k: rank(po) })).filter(x => x.k < 9).sort((a, b) => a.k - b.k || b.po.date.localeCompare(a.po.date))[0];
+  return best ? best.po.id : '';
+}
+function invFillPo() {
+  const vk = poVendorKey($('#po-inv-vendor').value || ''), city = $('#po-inv-city').value;
+  const list = [...poState.rows].sort((a, b) => (poVendorMatch(vk, poVendorKey(b.vendor)) - poVendorMatch(vk, poVendorKey(a.vendor))) || ((city && b.lines.some(l => l.city === city)) - (city && a.lines.some(l => l.city === city))) || b.date.localeCompare(a.date));
+  $('#po-inv-po').innerHTML = '<option value="">Choose the PO…</option>' + list.map(po => '<option value="' + esc(po.id) + '"' + (po.id === invState.po ? ' selected' : '') + '>' + esc(po.po + ' · ' + po.vendor + ' · ' + poC(po).cities.join(', ') + (po.status !== 'Open' ? ' · ' + po.status : '')) + '</option>').join('');
+}
+function invRender() {
+  const po = poState.rows.find(p => p.id === invState.po), lines = po ? poC(po).lines : [], byId = new Map(lines.map(l => [l.id, l]));
+  const h = invState.head, msgs = [];
+  if (h.poNo) msgs.push('PO on invoice: ' + h.poNo + (po && poCompact(po.po) === poCompact(h.poNo) ? ' (matches)' : po ? ' — not in the register; recording against ' + po.po : ''));
+  if (h.city) msgs.push('City from ' + h.cityFrom + ': ' + h.city);
+  const inc = invState.rows.filter(r => r.include && r.line), qty = invState.rows.reduce((s, r) => s + (r.qty || 0), 0);
+  const taxable = invState.rows.reduce((s, r) => s + (r.qty > 0 && r.rate > 0 ? r.qty * r.rate : 0), 0);
+  if (invState.tot && invState.tot.qty > 0) msgs.push('Invoice total quantity ' + poQty(invState.tot.qty) + (Math.abs(invState.tot.qty - qty) < 0.01 ? ' = rows read ✓' : ' but rows read add up to ' + poQty(qty) + ' — check for a missed or misread row'));
+  msgs.push('Taxable value read ' + poRsFull(Math.round(taxable * 100)));
+  $('#po-inv-check').textContent = msgs.join(' · ');
+  const opts = sel => '<option value="">— Not on this PO (skip) —</option>' + lines.map(l => '<option value="' + esc(l.id) + '"' + (l.id === sel ? ' selected' : '') + '>' + esc((l.city || '–') + ' · ' + l.part + (l.model ? ' · ' + l.model : '') + ' · ' + poQty(l.pending) + ' pending') + '</option>').join('');
+  let t = '<colgroup><col style="width:36px"><col style="width:24%"><col style="width:20%"><col style="width:28%"><col style="width:96px"><col style="width:110px"><col style="width:120px"></colgroup><thead><tr><th>#</th><th>Invoice item</th><th>Our part name</th><th>Record against PO line</th><th class="r">Qty</th><th class="r">Invoice rate</th><th class="r">PO rate</th></tr></thead><tbody>';
+  for (const r of invState.rows) {
+    const l = byId.get(r.line), diff = l && r.rate > 0 ? 100 * (r.rate * 100 - l.ratePaise) / Math.max(1, l.ratePaise) : NaN;
+    const badge = !r.line ? '<span class="flag">Not matched</span>' : r.manual ? '<span class="po-badge closed">Chosen</span>' : r.saved ? '<span class="po-badge">Saved match</span>' : r.score >= 0.8 ? '<span class="po-badge">Match ' + Math.round(r.score * 100) + '%</span>' : '<span class="flag">Check · ' + Math.round(r.score * 100) + '%</span>';
+    const amtOk = r.qty > 0 && r.rate > 0 && r.amount > 0 ? (Math.abs(r.amount - r.qty * r.rate) < 1.5 || (Number.isFinite(r.gstPct) && Math.abs(r.amount - r.qty * r.rate * (1 + r.gstPct / 100)) < 2) || Math.abs(r.amount - r.qty * r.rate * 1.18) < 2) : true;
+    const internal = r.internal && r.internal.s >= 0.55 ? esc(r.internal.c.part + (r.internal.c.model ? ' · ' + r.internal.c.model : '')) + (r.internal.s < 0.8 ? ' <small>(' + Math.round(r.internal.s * 100) + '%)</small>' : '') : '<small>No close part name</small>';
+    t += '<tr data-ir="' + r.i + '"><td>' + (r.i + 1) + '</td><td><input data-if="name" value="' + esc(r.name) + '" aria-label="Invoice item name">' + (r.hsn ? '<small>HSN ' + esc(r.hsn) + '</small>' : '') + '</td><td>' + internal + '</td><td><select data-if="line" aria-label="PO line">' + opts(r.line) + '</select>' + badge + '</td><td><input class="n" data-if="qty" inputmode="decimal" value="' + (Number.isFinite(r.qty) ? r.qty : '') + '" aria-label="Quantity">' + (l && r.qty > l.pending + 1e-9 ? '<span class="flag">over pending ' + poQty(l.pending) + '</span>' : '') + '</td><td class="r">' + (r.rate > 0 ? poRsFull(Math.round(r.rate * 100)) : '–') + (amtOk ? '' : ' <span class="flag">qty × rate ≠ amount</span>') + '</td><td class="r">' + (l ? poRsFull(l.ratePaise) + (Number.isFinite(diff) && Math.abs(diff) >= 0.5 ? ' <span class="flag">' + (diff > 0 ? '+' : '') + f1.format(diff) + '%</span>' : '') : '–') + '</td></tr>';
+  }
+  if (!invState.rows.length) t += '<tr><td colspan="7">No items.</td></tr>';
+  $('#po-inv-rows').innerHTML = t + '</tbody>';
+  $('#po-inv-save').disabled = !po || !inc.length || invState.busy || poState.busy;
+  $('#po-inv-save').textContent = inc.length ? 'Record ' + n0(inc.length) + ' lines as supply' : 'Record supply';
+}
+async function invSave() {
+  if (invState.busy || poState.busy) return;
+  const po = poState.rows.find(p => p.id === invState.po), err = $('#po-inv-error'); err.textContent = '';
+  if (!po) { err.textContent = 'Choose the PO this invoice is for.'; return; }
+  const no = poNorm($('#po-inv-no').value), date = $('#po-inv-date').value, vendor = poNorm($('#po-inv-vendor').value) || po.vendor;
+  if (!no) { err.textContent = 'Enter the invoice number.'; return; }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date > shipToday()) { err.textContent = 'Enter the invoice date (not in the future).'; return; }
+  const items = invState.rows.filter(r => r.include && r.line);
+  for (const r of items) if (!(r.qty > 0)) { err.textContent = 'Row ' + (r.i + 1) + ': enter a quantity above 0.'; return; }
+  if (po.receipts.some(x => x.src === 'invoice' && poKey(x.ref) === poKey(no))) { err.textContent = 'Invoice ' + no + ' is already recorded on PO ' + po.po + '. Remove those supplies first if you need to record it again.'; return; }
+  const lines = new Map(poC(po).lines.map(l => [l.id, l])), dupLine = new Set(), seen = new Set(), over = [];
+  const sumBy = new Map(); for (const r of items) sumBy.set(r.line, (sumBy.get(r.line) || 0) + r.qty);
+  for (const [id, q] of sumBy) if (q > lines.get(id).pending + 1e-9) over.push(lines.get(id).part + ' (' + poQty(q) + ' vs ' + poQty(lines.get(id).pending) + ' pending)');
+  const sig = JSON.stringify([po.id, no, date, items.map(r => [r.line, r.qty])]);
+  if (over.length && invState.warned !== sig) { invState.warned = sig; err.textContent = 'More than pending on: ' + over.join(', ') + '. Click again to record it as excess supply.'; return; }
+  invState.busy = true; $('#po-inv-save').disabled = true; err.textContent = 'Saving…';
+  const by = await poWho(), at = new Date().toISOString();
+  if (!invState.ops || invState.ops.sig !== sig) invState.ops = { sig, rec: items.map(r => ({ id: poNewId(), line: r.line, qty: r.qty, date, ref: no, src: 'invoice', inv: { name: r.name, ratePaise: r.rate > 0 ? Math.round(r.rate * 100) : null }, at, by })) };
+  let fileUrl = null;
+  try {   // keep the original invoice beside the POs; recording continues if this fails
+    await poReq(poFolder() + "/Folders/add('Invoices')", { method: 'POST' }).catch(() => {});
+    const fname = (poVendorKey(vendor) || 'VENDOR') + '_' + no.replace(/[^A-Za-z0-9]+/g, '-') + '_' + date + '.' + ((invState.file.name.match(/\.([a-z0-9]{2,4})$/i) || [, 'pdf'])[1].toLowerCase());
+    await poReq('GetFolderByServerRelativeUrl(' + poSp(PO_DIR + '/Invoices') + ")/Files/add(url='" + fname + "',overwrite=true)", { body: await invState.file.arrayBuffer(), contentType: 'application/octet-stream' });
+    fileUrl = SHIP.host + PO_DIR + '/Invoices/' + fname;
+  } catch (e) { console.warn('Invoice file not stored', e); }
+  const rec = invState.ops.rec.map(x => fileUrl ? { ...x, file: fileUrl } : x);
+  invState.busy = false;
+  const ok = await poRun(async () => {
+    await poMutate(po.id, cur => {
+      const have = new Set(cur.receipts.map(r => r.id)), add = rec.filter(o => !have.has(o.id));
+      if (!add.length) return null;
+      if (cur.receipts.some(x => x.src === 'invoice' && poKey(x.ref) === poKey(no) && !rec.some(o => o.id === x.id))) throw new Error('A teammate already recorded invoice ' + no + ' on this PO.');
+      return { ...cur, receipts: [...cur.receipts, ...add], history: [...(cur.history || []), { at, by, what: 'Recorded vendor invoice ' + no + ': ' + add.length + ' lines, ' + poQty(add.reduce((s, o) => s + o.qty, 0)) + ' parts' }] };
+    });
+    if ($('#po-inv-remember').checked) await invSaveAliases(items.map(r => { const l = lines.get(r.line); return [poAliasKey(vendor, r.name), { part: l.part, model: l.model, name: r.name, by, at }]; }));
+  }, 'Invoice ' + no + ' recorded as supply on PO ' + po.po + '.');
+  if (ok) { invState.ops = null; poState.open = po.id; $('#po-inv').close(); renderPo(); }
+  else { err.textContent = poState.error; $('#po-inv-save').disabled = false; }
+}
+async function invSaveAliases(pairs) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    let cur = {}, etag = null;
+    try { const meta = await poReq(poFile(PO_ALIAS_FILE) + '?$select=ETag'); etag = meta.ETag; cur = await poReq(poFile(PO_ALIAS_FILE) + '/$value', { json: true }) || {}; } catch (e) { if (e.status !== 404) throw e; }
+    const next = { ...cur }; for (const [k, v] of pairs) next[k] = v;
+    try {
+      if (etag) await poReq(poFile(PO_ALIAS_FILE) + '/$value', { headers: { 'X-HTTP-Method': 'PUT', 'IF-MATCH': etag }, body: JSON.stringify(next) });
+      else await poReq(poFolder() + "/Files/add(url='" + PO_ALIAS_FILE + "',overwrite=false)", { body: JSON.stringify(next) });
+      poState.aliases = next; return;
+    } catch (e) { if (attempt === 2 || ![400, 409, 412, 500].includes(e.status)) throw e; }
+  }
+}
+function bindInvoice() {
+  $('#po-inv-open').addEventListener('click', () => invOpen(''));
+  $('#po-inv-close').addEventListener('click', () => { if (!invState.busy) $('#po-inv').close(); });
+  $('#po-inv').addEventListener('cancel', e => { if (invState.busy) e.preventDefault(); });
+  $('#po-inv-file').addEventListener('change', e => invChoose(e.target.files[0]));
+  $('#po-inv-po').addEventListener('change', e => { invState.po = e.target.value; invState.rows.forEach(r => { r.manual = false; }); invMatch(); invRender(); });
+  $('#po-inv-vendor').addEventListener('change', () => { invFillPo(); invMatch(); invRender(); });
+  $('#po-inv-city').addEventListener('change', () => { invFillPo(); invRender(); });
+  $('#po-inv-rows').addEventListener('change', e => {
+    const tr = e.target.closest('tr[data-ir]'); if (!tr) return; const r = invState.rows[+tr.dataset.ir], f = e.target.dataset.if;
+    if (f === 'line') { r.line = e.target.value; r.manual = true; }
+    if (f === 'qty') r.qty = poNum(e.target.value);
+    if (f === 'name') { r.name = poNorm(e.target.value); if (!r.manual) invMatch(); }
+    invRender();
+  });
+  $('#po-inv-save').addEventListener('click', invSave);
 }
 // ===== PO register end
 
