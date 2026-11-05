@@ -314,6 +314,7 @@ table.dtbl .z { color: var(--muted); }
 
 
 
+
 /* ---- Purchase orders tab */
 .po-run { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .po-run .neg { color: #c0392b; }
@@ -661,6 +662,7 @@ table.po-inv-rows select { margin-bottom: 4px; }
     <p role="alert" id="notes-detail-error"></p>
     <form id="notes-comment-form"><label class="fld">Your comment<textarea id="notes-comment" rows="3" maxlength="4000" required placeholder="Add an update, decision or next step…"></textarea></label><button type="submit" class="btn" id="notes-comment-save">Post comment</button></form>
   </dialog>
+
 
 
 
@@ -2419,6 +2421,7 @@ function bindNotes() {
 
 
 
+
 // ===== PO register start
 // ---------- Purchase orders and budget, shared through the Hala Fleet Ops site (same Microsoft sign-in as Shipments and Notes).
 // Utilised = value of parts supplied against PO lines; it comes off the budget. Pending = ordered on open POs, not yet supplied.
@@ -3177,6 +3180,32 @@ function invWipeRules(cv, t) {   // whiten the horizontal rules inside a table s
 const invField = h => { h = h.toLowerCase(); if (/price|rate/.test(h)) return 'rate'; if (/\bq(uan)?ty\b|quantity|qty/.test(h)) return 'qty'; if (/hsn|sac/.test(h)) return 'hsn'; if (/item|desc|partic|product|goods|material|name|part/.test(h)) return 'item'; if (/gst|tax/.test(h)) return 'gst'; if (/amount|total|value/.test(h)) return 'amount'; if (/unit|uom/.test(h)) return 'unit'; if (/^#|s\.?\s*no|^sl/.test(h)) return 'sn'; return ''; };
 const invNums = t => (String(t || '').replace(/(\d)\s*,\s*(\d)/g, '$1,$2').match(/\d[\d,]*(?:\.\d+)?/g) || []).map(s => Number(s.replace(/,/g, ''))).filter(Number.isFinite);
 const invMoney = t => { const s = String(t || ''), dec = s.match(/\d[\d,]*\.\d{1,2}/g); if (dec) return Number(dec[dec.length - 1].replace(/,/g, '')); const n = invNums(s); return n.length ? n[n.length - 1] : NaN; };
+// Money cells: the value as read, and the same value without its first digit, because OCR often reads the ₹ sign in front as a 2 or 7.
+function invMoneyCands(t) {
+  const s = String(t || '').replace(/\(\s*\d+(?:\.\d+)?\s*%\s*\)/g, ' ').replace(/(\d)\s*,\s*(\d)/g, '$1,$2');
+  const toks = s.match(/\d[\d,]*(?:\.\d+)?/g) || []; if (!toks.length) return [];
+  const dec = toks.filter(x => /\.\d{1,2}$/.test(x)), pool = dec.length ? dec : toks, tok = pool[pool.length - 1];
+  const out = [Number(tok.replace(/,/g, ''))], cut = tok.replace(/^\d,?/, '');
+  if (/^\d/.test(cut) && tok.replace(/[^0-9]/g, '').length > 3) out.push(Number(cut.replace(/,/g, '')));
+  return [...new Set(out.filter(Number.isFinite))];
+}
+// Pick the rate (and amount) that agree with each other: amount = qty × rate (+ GST), GST = qty × rate × GST %.
+function invReconcile(row, rateT, amtT, gstT) {
+  const R = invMoneyCands(rateT), A = invMoneyCands(amtT), G = invMoneyCands(gstT), q = row.qty, g = Number.isFinite(row.gstPct) ? row.gstPct : 18;
+  const near = (x, y) => Math.abs(x - y) <= Math.max(1.5, Math.abs(y) * 0.002);
+  let best = null;
+  if (q > 0) for (const [ri, r] of R.entries()) {
+    const base = q * r; let sc = 0, a = NaN;
+    for (const x of A) if (near(x, base * (1 + g / 100)) || near(x, base)) { sc += 2; a = x; break; }
+    for (const x of G) if (near(x, base * g / 100)) { sc += 1; break; }
+    sc -= ri * 0.1;
+    if (!best || sc > best.sc) best = { sc, r, a };
+  }
+  row.rate = best ? best.r : NaN; row.amount = best && Number.isFinite(best.a) ? best.a : (A.length ? A[0] : NaN); row.rateOk = !!(best && best.sc >= 0.9);
+  if (!row.rateOk && q > 0) {   // rate unreadable or inconsistent: derive it from an amount and GST that agree with each other
+    for (const x of A) for (const y of G) if (y > 0 && near(x, y * (100 + g) / g)) { row.rate = Math.round((x - y) / q * 100) / 100; row.amount = x; row.rateOk = true; row.rateDerived = true; return; }
+  }
+}
 function invRowsFromCells(cells, fields) {
   const rows = []; let tot = null;
   for (const c of cells) {
@@ -3187,6 +3216,7 @@ function invRowsFromCells(cells, fields) {
     if (!name && rows.length && !(row.qty > 0)) { continue; }
     if (!name || !(row.qty > 0)) continue;
     row.gstPct = row.gstPct != null ? Number(row.gstPct) : NaN;
+    invReconcile(row, get('rate'), get('amount'), gstT);
     rows.push(row);
   }
   return { rows, tot };
@@ -3378,7 +3408,7 @@ function invRender() {
     const badge = !r.line ? '<span class="flag">Not matched</span>' : r.manual ? '<span class="po-badge closed">Chosen</span>' : r.saved ? '<span class="po-badge">Saved match</span>' : r.score >= 0.8 ? '<span class="po-badge">Match ' + Math.round(r.score * 100) + '%</span>' : '<span class="flag">Check · ' + Math.round(r.score * 100) + '%</span>';
     const amtOk = r.qty > 0 && r.rate > 0 && r.amount > 0 ? (Math.abs(r.amount - r.qty * r.rate) < 1.5 || (Number.isFinite(r.gstPct) && Math.abs(r.amount - r.qty * r.rate * (1 + r.gstPct / 100)) < 2) || Math.abs(r.amount - r.qty * r.rate * 1.18) < 2) : true;
     const internal = r.internal && r.internal.s >= 0.55 ? esc(r.internal.c.part + (r.internal.c.model ? ' · ' + r.internal.c.model : '')) + (r.internal.s < 0.8 ? ' <small>(' + Math.round(r.internal.s * 100) + '%)</small>' : '') : '<small>No close part name</small>';
-    t += '<tr data-ir="' + r.i + '"><td>' + (r.i + 1) + '</td><td><input data-if="name" value="' + esc(r.name) + '" aria-label="Invoice item name">' + (r.hsn ? '<small>HSN ' + esc(r.hsn) + '</small>' : '') + '</td><td>' + internal + '</td><td><select data-if="line" aria-label="PO line">' + opts(r.line) + '</select>' + badge + '</td><td><input class="n" data-if="qty" inputmode="decimal" value="' + (Number.isFinite(r.qty) ? r.qty : '') + '" aria-label="Quantity">' + (l && r.qty > l.pending + 1e-9 ? '<span class="flag">over pending ' + poQty(l.pending) + '</span>' : '') + '</td><td class="r">' + (r.rate > 0 ? poRsFull(Math.round(r.rate * 100)) : '–') + (amtOk ? '' : ' <span class="flag">qty × rate ≠ amount</span>') + '</td><td class="r">' + (l ? poRsFull(l.ratePaise) + (Number.isFinite(diff) && Math.abs(diff) >= 0.5 ? ' <span class="flag">' + (diff > 0 ? '+' : '') + f1.format(diff) + '%</span>' : '') : '–') + '</td></tr>';
+    t += '<tr data-ir="' + r.i + '"><td>' + (r.i + 1) + '</td><td><input data-if="name" value="' + esc(r.name) + '" aria-label="Invoice item name">' + (r.hsn ? '<small>HSN ' + esc(r.hsn) + '</small>' : '') + '</td><td>' + internal + '</td><td><select data-if="line" aria-label="PO line">' + opts(r.line) + '</select>' + badge + '</td><td><input class="n" data-if="qty" inputmode="decimal" value="' + (Number.isFinite(r.qty) ? r.qty : '') + '" aria-label="Quantity">' + (l && r.qty > l.pending + 1e-9 ? '<span class="flag">over pending ' + poQty(l.pending) + '</span>' : '') + '</td><td class="r">' + (r.rate > 0 ? poRsFull(Math.round(r.rate * 100)) : '–') + (r.rateDerived ? '<small>from amount and GST</small>' : '') + (amtOk && r.rateOk !== false ? '' : ' <span class="flag">check rate</span>') + '</td><td class="r">' + (l ? poRsFull(l.ratePaise) + (Number.isFinite(diff) && Math.abs(diff) >= 0.5 ? ' <span class="flag">' + (diff > 0 ? '+' : '') + f1.format(diff) + '%</span>' : '') : '–') + '</td></tr>';
   }
   if (!invState.rows.length) t += '<tr><td colspan="7">No items.</td></tr>';
   $('#po-inv-rows').innerHTML = t + '</tbody>';
