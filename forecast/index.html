@@ -317,6 +317,7 @@ table.dtbl .z { color: var(--muted); }
 
 
 
+
 /* ---- Purchase orders tab */
 .po-run { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .po-run .neg { color: #c0392b; }
@@ -679,6 +680,7 @@ table.po-inv-rows select { margin-bottom: 4px; }
 
 
 
+
   <!-- ===== Purchase orders ===== -->
   <div class="view" id="v-po" hidden>
     <section class="sec">
@@ -774,7 +776,7 @@ table.po-inv-rows select { margin-bottom: 4px; }
     <div class="tools po-dhead"><h2 id="po-inv-title">Upload vendor invoice</h2><button type="button" class="btn" id="po-inv-close">Close</button></div>
     <p class="note">PDF (including scanned or printed PDFs), JPG or PNG. The invoice is read on this computer; item names are matched to our part names and the PO's lines, and the quantities are recorded as supply.</p>
     <div class="tools po-ai"><span id="po-ai-status"></span><button type="button" class="btn sm" id="po-ai-set">Turn on AI reading</button><button type="button" class="btn sm" id="po-ai-clear" hidden>Remove AI key</button></div>
-    <div class="po-ai-form" id="po-ai-form" hidden><label class="fld">AI key<input type="password" id="po-ai-key" autocomplete="off" spellcheck="false" placeholder="AIza… (free Google key)"></label><button type="button" class="btn po-primary" id="po-ai-save">Save in this browser</button><p class="note"><b>Free:</b> open aistudio.google.com, sign in with a Google account, click <b>Get API key</b> → Create API key, and paste it here. No card or billing is needed. On Google's free tier the invoices you send may be used by Google to improve its products. A Claude key (sk-ant-…) also works, but needs paid credit. The key is kept only in this browser.</p></div>
+    <div class="po-ai-form" id="po-ai-form" hidden><label class="fld">AI key<input type="password" id="po-ai-key" autocomplete="off" spellcheck="false" placeholder="AQ.… (free Google key)"></label><button type="button" class="btn po-primary" id="po-ai-save">Save in this browser</button><p class="note"><b>Free:</b> open aistudio.google.com, sign in with a Google account, click <b>Get API key</b> → Create API key, and paste it here. No card or billing is needed. On Google's free tier the invoices you send may be used by Google to improve its products. A Claude key (sk-ant-…) also works, but needs paid credit. The key is kept only in this browser.</p></div>
     <div class="tools"><label class="btn po-primary po-file">Choose invoice<input type="file" id="po-inv-file" accept=".pdf,application/pdf,image/*"></label><button type="button" class="btn" id="po-inv-reread" hidden>Read again</button><span id="po-inv-status" role="status"></span></div>
     <div id="po-inv-body" hidden>
       <div class="filters">
@@ -2434,6 +2436,7 @@ function bindNotes() {
 
 
 
+
 // ===== PO register start
 // ---------- Purchase orders and budget, shared through the Hala Fleet Ops site (same Microsoft sign-in as Shipments and Notes).
 // Utilised = value of parts supplied against PO lines; it comes off the budget. Pending = ordered on open POs, not yet supplied.
@@ -3391,7 +3394,7 @@ async function invAiRead(file, key) {
     city: { type: 'string', enum: ['Hyderabad', 'Bengaluru', 'Delhi', 'Mumbai', ''] }, total_quantity: { type: 'number', description: 'Total quantity printed on the invoice, 0 if none' }, taxable_total: { type: 'number', description: 'Total taxable value before GST, 0 if none' },
     items: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, hsn: { type: 'string' }, quantity: { type: 'number' }, unit: { type: 'string' }, unit_rate_excl_gst: { type: 'number' }, gst_percent: { type: 'number' }, line_amount: { type: 'number' }, match: { type: 'integer', description: 'Index in the HALA parts list, or -1' }, match_confidence: { type: 'number' } }, required: ['name', 'quantity', 'unit_rate_excl_gst', 'match', 'match_confidence'] } } },
     required: ['vendor_name', 'invoice_number', 'invoice_date', 'items'] } };
-  const x = /^AIza/.test(key) ? await invGemini(key, media, doc.source.data, prompt, tool.input_schema) : await invClaude(key, doc, prompt, tool);
+  const x = /^(AIza|AQ\.)/.test(key) ? await invGemini(key, media, doc.source.data, prompt, tool.input_schema) : await invClaude(key, doc, prompt, tool);
   if (!x || !Array.isArray(x.items)) throw new Error('The AI did not return the invoice items.');
   const num = v => { const n = typeof v === 'number' ? v : Number(String(v == null ? '' : v).replace(/[₹,\s]/g, '')); return Number.isFinite(n) ? n : NaN; };
   const rows = x.items.map(it => {
@@ -3418,7 +3421,7 @@ async function invClaude(key, doc, prompt, tool) {
   const j = await response.json(), tu = (j.content || []).find(c => c.type === 'tool_use');
   return tu && tu.input;
 }
-// Google Gemini, free tier: the key comes from Google AI Studio with no billing. The newest Flash model the key can use is picked from the model list.
+// Google Gemini, free tier: the key comes from Google AI Studio with no billing (new keys start AQ., older ones AIza). The newest Flash model the key can use is picked from the model list.
 const GEM = 'https://generativelanguage.googleapis.com/v1beta/', GEM_MODEL_KEY = 'hala_ai_gemini_model';
 const gemSchema = sc => { const o = {}; if (sc.type) o.type = String(sc.type).toUpperCase(); if (sc.description) o.description = sc.description; if (sc.enum) o.enum = sc.enum.filter(v => v !== ''); if (sc.properties) { o.properties = {}; for (const k in sc.properties) o.properties[k] = gemSchema(sc.properties[k]); } if (sc.items) o.items = gemSchema(sc.items); if (sc.required) o.required = sc.required; return o; };
 async function gemFetch(path, key, body) {
@@ -3465,7 +3468,7 @@ async function invGemini(key, mime, data, prompt, schema) {
 }
 function invAiStatus() {
   const k = invAiKey();
-  $('#po-ai-status').textContent = k ? 'AI reading on (' + (/^AIza/.test(k) ? 'Google Gemini, free tier' : 'Claude') + ') · key saved in this browser' : 'AI reading off · invoices are read with basic text recognition';
+  $('#po-ai-status').textContent = k ? 'AI reading on (' + (/^(AIza|AQ\.)/.test(k) ? 'Google Gemini, free tier' : 'Claude') + ') · key saved in this browser' : 'AI reading off · invoices are read with basic text recognition';
   $('#po-ai-set').textContent = k ? 'Change AI key' : 'Turn on AI reading'; $('#po-ai-clear').hidden = !k;
 }
 
@@ -3605,7 +3608,7 @@ function bindInvoice() {
   });
   $('#po-inv-save').addEventListener('click', invSave);
   $('#po-ai-set').addEventListener('click', () => { $('#po-ai-form').hidden = !$('#po-ai-form').hidden; $('#po-ai-key').value = ''; if (!$('#po-ai-form').hidden) $('#po-ai-key').focus(); });
-  $('#po-ai-save').addEventListener('click', () => { const k = $('#po-ai-key').value.trim(); if (!/^(sk-ant-[A-Za-z0-9_\-]{20,}|AIza[0-9A-Za-z_\-]{30,})$/.test(k)) { $('#po-inv-error').textContent = 'That does not look like an AI key. A free Google AI Studio key starts with AIza; a Claude key starts with sk-ant-.'; return; } try { localStorage.setItem(PO_AI_KEYNAME, k); } catch (e) {} $('#po-ai-key').value = ''; $('#po-ai-form').hidden = true; $('#po-inv-error').textContent = ''; invAiStatus(); if (invState.file && !invState.busy) invChoose(invState.file); });
+  $('#po-ai-save').addEventListener('click', () => { const k = $('#po-ai-key').value.trim(); if (!/^(sk-ant-[A-Za-z0-9_\-]{20,}|AIza[0-9A-Za-z_\-]{30,}|AQ\.[0-9A-Za-z_\-.]{20,})$/.test(k)) { $('#po-inv-error').textContent = 'That does not look like an AI key. A Google AI Studio key starts with AQ. (or AIza for older keys); a Claude key starts with sk-ant-.'; return; } try { localStorage.setItem(PO_AI_KEYNAME, k); } catch (e) {} $('#po-ai-key').value = ''; $('#po-ai-form').hidden = true; $('#po-inv-error').textContent = ''; invAiStatus(); if (invState.file && !invState.busy) invChoose(invState.file); });
   $('#po-ai-clear').addEventListener('click', () => { try { localStorage.removeItem(PO_AI_KEYNAME); localStorage.removeItem(GEM_MODEL_KEY); } catch (e) {} invAiStatus(); });
   $('#po-inv-reread').addEventListener('click', () => { if (invState.file && !invState.busy) { invState.rows.forEach(r => { r.manual = false; }); invChoose(invState.file); } });
 }
