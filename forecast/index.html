@@ -306,6 +306,59 @@ table.dtbl .z { color: var(--muted); }
   .fld > input[type="search"] { min-width: 0; width: 100%; }
 }
 @media print { .band { -webkit-print-color-adjust: exact; print-color-adjust: exact; } .filters, .tools, .tabs { display: none; } }
+
+/* ---- Purchase orders tab */
+.po-run { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.po-run .neg { color: #c0392b; }
+.po-meter { display: flex; height: 14px; margin: 0 20px 4px; border-radius: 7px; overflow: hidden; background: var(--track); }
+.po-meter i { display: block; height: 100%; }
+.po-meter .u { background: var(--bar); } .po-meter .p { background: #9cc2ef; } .po-meter .x { background: #c0392b; }
+.po-legend { display: flex; flex-wrap: wrap; gap: 4px 18px; }
+.po-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+.btn.po-primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.btn.po-primary:disabled { opacity: .55; cursor: default; }
+.po-dlg { width: min(1080px, calc(100vw - 32px)); max-height: 92vh; overflow: auto; padding: 22px 24px; background: var(--surface); color: var(--ink); border: 1px solid var(--line2); border-radius: 12px; }
+.po-dlg.po-narrow { width: min(460px, calc(100vw - 32px)); }
+.po-dlg::backdrop { background: rgba(10, 18, 30, .45); }
+.po-dlg form, .po-dlg > div, .po-dlg > p { margin-bottom: 14px; }
+.po-dlg form { display: flex; flex-direction: column; gap: 14px; }
+.po-dhead { justify-content: space-between; }
+.po-dhead h2 { font: 600 20px/1.25 var(--cond); margin: 0; }
+.po-dfoot { justify-content: flex-end; }
+.po-wide > input { width: 100%; }
+.po-err { color: #c0392b; font-size: 14px; margin: 0; min-height: 1em; white-space: pre-line; }
+.po-total { margin-left: auto; font-weight: 600; }
+table.po-lines th, table.po-lines td { padding: 5px 6px; text-align: left; vertical-align: middle; }
+table.po-lines td.r, table.po-lines th.r { text-align: right; }
+table.po-lines input, table.po-lines select { height: 32px; padding: 0 8px; border: 1px solid var(--line2); border-radius: 6px; background: var(--surface); color: var(--ink); width: 100%; min-width: 0; font-size: 14px; }
+table.po-lines input.n { text-align: right; font-variant-numeric: tabular-nums; }
+table.po-lines .w-city { width: 130px; } table.po-lines .w-part { min-width: 220px; } table.po-lines .w-model { width: 140px; }
+table.po-lines .w-qty { width: 90px; } table.po-lines .w-rate { width: 110px; } table.po-lines .w-gst { width: 70px; } table.po-lines .w-val { width: 120px; }
+.po-x { border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 18px; padding: 0 6px; }
+.po-x:hover { color: #c0392b; }
+.po-file { position: relative; display: inline-flex; align-items: center; overflow: hidden; }
+.po-file input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+#po-table { min-width: 1050px; }
+#po-table td:not(:first-child), #po-table th:not(:first-child) { text-align: right; }
+#po-table td.l, #po-table th.l { text-align: left; }
+#po-table > tbody > tr.detail > td { padding: 0; }
+#po-table small, #po-sum small { display: block; }
+.po-badge { display: inline-block; padding: 2px 10px; border-radius: 99px; font-size: 13px; font-weight: 600; background: var(--accent-wash); color: var(--accent); }
+.po-badge.closed { background: var(--sunk); color: var(--ink2); } .po-badge.cancelled { background: #fbe1de; color: #922b21; }
+.po-detail { padding: 14px 16px 6px; display: flex; flex-direction: column; gap: 12px; }
+.po-detail h3 { font: 600 16px/1.2 var(--cond); margin: 0; }
+.po-detail table.dtbl { margin: 0; min-width: 100%; }
+.po-detail table.dtbl td, .po-detail table.dtbl th { text-align: right; }
+.po-detail table.dtbl td.l, .po-detail table.dtbl th.l { text-align: left; white-space: normal; }
+.po-meta { display: flex; flex-wrap: wrap; gap: 4px 22px; font-size: 14px; color: var(--ink2); }
+.po-sug td { background: var(--accent-wash); }
+.ok { color: #1e8449; font-weight: 600; }
+.po-pct { display: grid; grid-template-columns: 52px 80px; gap: 8px; align-items: center; justify-content: end; }
+.po-pct i { display: block; height: 8px; border-radius: 4px; background: var(--track); overflow: hidden; }
+.po-pct i b { display: block; height: 100%; background: var(--bar); }
+.po-pct.over i b { background: #c0392b; }
+@media (max-width: 900px) { .po-run { grid-template-columns: repeat(2, 1fr); } .po-run > div:nth-child(odd) { border-left: 0; } .po-run > div:nth-child(n+3) { border-top: 1px solid var(--line); } }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .po-badge.cancelled { background: #4a1f1a; color: #f5b7b1; } }
 </style>
 </head>
 <body>
@@ -324,6 +377,7 @@ table.dtbl .z { color: var(--muted); }
       <button role="tab" id="tab-proc" aria-selected="false" data-tab="proc">Procurement</button>
       <button role="tab" id="tab-grn" aria-selected="false" data-tab="grn">GRN purchases</button>
       <button role="tab" id="tab-prices" aria-selected="false" data-tab="prices">Item vs vendor prices</button>
+      <button role="tab" id="tab-po" aria-selected="false" data-tab="po">Purchase orders</button>
       <button role="tab" id="tab-shipments" aria-selected="false" data-tab="shipments">Shipment tracking</button>
       <button role="tab" id="tab-notes" aria-selected="false" data-tab="notes">Notes</button>
       <button role="tab" id="tab-reg" aria-selected="false" data-tab="reg" hidden>Vehicle registry</button>
@@ -593,6 +647,101 @@ table.dtbl .z { color: var(--muted); }
     <form id="notes-comment-form"><label class="fld">Your comment<textarea id="notes-comment" rows="3" maxlength="4000" required placeholder="Add an update, decision or next step…"></textarea></label><button type="submit" class="btn" id="notes-comment-save">Post comment</button></form>
   </dialog>
 
+  <!-- ===== Purchase orders ===== -->
+  <div class="view" id="v-po" hidden>
+    <section class="sec">
+      <header><div><h2>Purchase orders &amp; budget</h2><p id="po-shared"></p></div><span id="po-count"></span></header>
+      <div class="panel pad"><div class="tools"><b id="po-budget-label">Spares budget</b><a class="btn" href="../motor/" target="_blank" rel="noopener">Open Microsoft sign-in</a><button class="btn" id="po-reload" type="button">Load shared POs</button><button class="btn" id="po-setup" type="button">Create shared PO register</button><button class="btn" id="po-settings" type="button">Budget settings</button></div><p class="note">Every PO given to a vendor is entered here, city-wise and part-wise. Supplies are recorded against each PO line, by hand, from a CSV, or by linking a matching GRN line. Utilisation is the value of parts supplied; it comes off the budget.</p></div>
+      <p class="ship-notice" role="alert" id="po-error" hidden></p><p class="ship-notice" role="status" id="po-message" hidden></p>
+      <div class="panel" id="po-budget-panel"><div class="run po-run" id="po-run"></div><div class="po-meter" id="po-meter"></div><p class="note" id="po-budget-note"></p></div>
+    </section>
+
+    <section class="sec">
+      <header>
+        <div><h2>Summary</h2><p id="po-sum-sub"></p></div>
+        <div class="tools"><div class="seg" id="po-by"><button type="button" data-po-by="city" aria-pressed="true">City</button><button type="button" data-po-by="part" aria-pressed="false">Part</button><button type="button" data-po-by="citypart" aria-pressed="false">City × part</button><button type="button" data-po-by="vendor" aria-pressed="false">Vendor</button></div><button class="btn" id="po-sum-csv" type="button">Download CSV</button></div>
+      </header>
+      <div class="filters">
+        <label class="fld">PO month<select id="po-month" aria-label="PO month"></select></label>
+        <label class="fld">City<select id="po-city" aria-label="City"></select></label>
+        <label class="fld">Vendor<select id="po-vendor" aria-label="Vendor"></select></label>
+        <label class="fld">Status<select id="po-status" aria-label="PO status"><option value="">All except cancelled</option><option value="Open">Open</option><option value="Closed">Closed</option><option value="Cancelled">Cancelled</option><option value="pending">Pending supply</option><option value="overdue">Overdue</option><option value="untraced">No supply recorded</option></select></label>
+        <label class="fld">Search<input type="search" id="po-q" placeholder="PO, part or vendor" aria-label="Search purchase orders"></label>
+      </div>
+      <div class="panel"><div class="run po-run" id="po-frun"></div></div>
+      <div class="panel"><div class="scroll" tabindex="0" role="region" aria-label="PO summary"><table id="po-sum"></table></div></div>
+    </section>
+
+    <section class="sec">
+      <header>
+        <div><h2>Purchase orders</h2><p id="po-list-sub"></p></div>
+        <div class="tools"><button class="btn po-primary" id="po-add" type="button">New PO</button><button class="btn" id="po-import" type="button">Import POs / supplies (CSV)</button><button class="btn" id="po-lines-csv" type="button">Download PO lines CSV</button></div>
+      </header>
+      <div class="panel"><div class="scroll" tabindex="0" role="region" aria-label="Purchase orders"><table class="dtbl" id="po-table"></table></div></div>
+    </section>
+  </div>
+
+  <dialog id="po-dialog" class="po-dlg" aria-labelledby="po-d-title">
+    <form id="po-form" method="dialog">
+      <div class="tools po-dhead"><h2 id="po-d-title">New purchase order</h2><button type="button" class="btn" id="po-d-close">Close</button></div>
+      <div class="filters">
+        <label class="fld">PO number<input id="po-f-no" maxlength="60" required autocomplete="off" placeholder="e.g. HALA/PO/2611/014"></label>
+        <label class="fld">Vendor<input id="po-f-vendor" list="po-vendors" maxlength="120" required autocomplete="off"></label>
+        <label class="fld">PO date<input id="po-f-date" type="date" required></label>
+        <label class="fld">Supply expected by<input id="po-f-due" type="date"></label>
+        <label class="fld">Status<select id="po-f-status"><option>Open</option><option value="Closed">Closed (short-closed)</option><option>Cancelled</option></select></label>
+        <label class="fld">Default city<input id="po-f-city" list="po-cities" maxlength="60" autocomplete="off" placeholder="Used for new lines"></label>
+      </div>
+      <label class="fld po-wide">Note (optional)<input id="po-f-note" maxlength="300" autocomplete="off"></label>
+      <div class="scroll"><table class="po-lines" id="po-f-lines"></table></div>
+      <div class="tools"><button type="button" class="btn" id="po-f-addline">Add line</button><span id="po-f-total" class="po-total"></span></div>
+      <p class="po-err" role="alert" id="po-f-error"></p>
+      <div class="tools po-dfoot"><button type="submit" class="btn po-primary" id="po-f-save">Save PO</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="po-supply" class="po-dlg" aria-labelledby="po-s-title">
+    <form id="po-s-form" method="dialog">
+      <div class="tools po-dhead"><h2 id="po-s-title">Record supply</h2><button type="button" class="btn" id="po-s-close">Close</button></div>
+      <p class="note" id="po-s-sub"></p>
+      <div class="filters">
+        <label class="fld">Received on<input id="po-s-date" type="date" required></label>
+        <label class="fld">Invoice / DC / GRN no.<input id="po-s-ref" maxlength="80" autocomplete="off"></label>
+      </div>
+      <div class="scroll"><table class="po-lines" id="po-s-lines"></table></div>
+      <p class="po-err" role="alert" id="po-s-error"></p>
+      <div class="tools po-dfoot"><button type="button" class="btn" id="po-s-fill">Fill all pending</button><button type="submit" class="btn po-primary" id="po-s-save">Save supply</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="po-import-dialog" class="po-dlg" aria-labelledby="po-i-title">
+    <div class="tools po-dhead"><h2 id="po-i-title">Import from CSV</h2><button type="button" class="btn" id="po-i-close">Close</button></div>
+    <div class="seg" id="po-i-kind"><button type="button" data-po-ik="po" aria-pressed="true">Purchase orders</button><button type="button" data-po-ik="supply" aria-pressed="false">Supplies received</button></div>
+    <p class="note" id="po-i-help"></p>
+    <div class="tools"><button type="button" class="btn" id="po-i-template">Download template</button><label class="btn po-file">Choose CSV file<input type="file" id="po-i-file" accept=".csv,text/csv"></label><span id="po-i-file-name"></span></div>
+    <div id="po-i-preview"></div>
+    <p class="po-err" role="alert" id="po-i-error"></p>
+    <div class="tools po-dfoot"><button type="button" class="btn po-primary" id="po-i-go" disabled>Import</button></div>
+  </dialog>
+
+  <dialog id="po-settings-dialog" class="po-dlg po-narrow" aria-labelledby="po-b-title">
+    <form id="po-b-form" method="dialog">
+      <div class="tools po-dhead"><h2 id="po-b-title">Budget settings</h2><button type="button" class="btn" id="po-b-close">Close</button></div>
+      <label class="fld">Budget (₹)<input id="po-b-amount" inputmode="decimal" required autocomplete="off"></label>
+      <label class="fld">Budget covers<select id="po-b-scope"><option value="overall">All POs together</option><option value="month">Each PO month separately</option></select></label>
+      <label class="fld">Count PO values<select id="po-b-basis"><option value="incl">Including GST</option><option value="excl">Excluding GST</option></select></label>
+      <p class="note">Shared with everyone who uses this register.</p>
+      <p class="po-err" role="alert" id="po-b-error"></p>
+      <div class="tools po-dfoot"><button type="submit" class="btn po-primary" id="po-b-save">Save</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="po-confirm" class="po-dlg po-narrow">
+    <p id="po-confirm-text"></p>
+    <div class="tools po-dfoot"><button type="button" class="btn" id="po-confirm-cancel">Cancel</button><button type="button" class="btn po-primary" id="po-confirm-go">Confirm</button></div>
+  </dialog>
+  <datalist id="po-vendors"></datalist><datalist id="po-cities"></datalist><datalist id="po-parts"></datalist><datalist id="po-models"></datalist>
+
   <section class="sec" id="defs-sec" hidden>
     <header><h2>Definitions</h2></header>
     <div class="panel pad"><dl class="defs" id="defs"></dl></div>
@@ -717,7 +866,7 @@ async function load() {
     return;
   }
   prepare(); readHash(); buildFilters(); bind(); defs(); render();
-  $('#loading').hidden = true; $('#filters').hidden = ['fc', 'grn', 'prices', 'shipments', 'notes', 'reg'].includes(state.tab); $('#defs-sec').hidden = false;
+  $('#loading').hidden = true; $('#filters').hidden = ['fc', 'grn', 'prices', 'po', 'shipments', 'notes', 'reg'].includes(state.tab); $('#defs-sec').hidden = false;
   gstLoad(); regAccess();
   addEventListener('focus', () => { if (!regAllowed) regAccess(); });   // picks up a sign-in done in the other tab
 }
@@ -1125,7 +1274,7 @@ function render() {
   R = compute(); F = D.fc2 ? forecast() : { tm: { label: '' }, sku: new Map(), total: 0, value: 0 };
   kpis();
   $$('.view').forEach(v => v.hidden = v.id !== 'v-' + state.tab);
-  $('#filters').hidden = ['fc', 'grn', 'prices', 'shipments', 'notes', 'reg'].includes(state.tab);
+  $('#filters').hidden = ['fc', 'grn', 'prices', 'po', 'shipments', 'notes', 'reg'].includes(state.tab);
   if (state.tab === 'fc') renderForecast();
   else if (state.tab === 'age') renderAge();
   else if (state.tab === 'hub') renderHubs();
@@ -1133,6 +1282,7 @@ function render() {
   else if (state.tab === 'prices') renderPrices();
   else if (state.tab === 'shipments') { renderShipments(); if (!shipState.loaded && !shipState.loading) shipLoad(); }
   else if (state.tab === 'notes') { renderNotes(); if (!notesState.loaded && !notesState.loading) notesLoad(); }
+  else if (state.tab === 'po') { renderPo(); if (!poState.loaded && !poState.loading) poLoad(); }
   else if (state.tab === 'reg') renderReg();
   else renderProc();
   writeHash();
@@ -2217,6 +2367,658 @@ function bindNotes() {
   addEventListener('storage', e => { if (e.key === SHIP.authKey && state.tab === 'notes' && !notesState.saving && !$('#notes-dialog').open) notesLoad(); });
 }
 
+// ===== PO register start
+// ---------- Purchase orders and budget. One shared SharePoint list in the Hala Fleet Ops site, same sign-in as Shipments and Notes:
+// one item per PO (Title = PO|<number>, the PO as JSON in ShipmentData) and one settings item for the budget.
+// Utilised = value of parts supplied against PO lines; it comes off the budget. Pending = ordered on open POs, not yet supplied.
+const PO_LIST = 'Hala Purchase Orders', PO_PATH = "lists/getbytitle('" + PO_LIST + "')", PO_SETTINGS = '__settings__';
+const PO_DEFAULT = { version: 1, kind: 'po-settings', budgetPaise: 600000000, scope: 'overall', basis: 'incl' };   // ₹60,00,000
+const PO_STATUS = ['Open', 'Closed', 'Cancelled'];
+const poState = { rows: [], settings: { ...PO_DEFAULT }, settingsRow: null, ready: false, loaded: false, loading: false, busy: false, error: '', message: '', refreshed: null,
+  by: 'city', month: '', city: '', vendor: '', status: '', q: '', open: null, edit: null, supply: null, supplyWarned: '', imp: { kind: 'po', plan: null }, user: null, confirm: null };
+const poNorm = s => String(s == null ? '' : s).normalize('NFKC').trim().replace(/\s+/g, ' ');
+const poKey = s => poNorm(s).toUpperCase();
+const poCompact = s => poKey(s).replace(/[^A-Z0-9]/g, '');
+const poTitle = no => 'PO|' + poKey(no);
+const poNewId = () => (crypto.randomUUID ? crypto.randomUUID().replace(/-/g, '') : Date.now().toString(16) + Math.random().toString(16).slice(2)).slice(0, 16);
+const poQty = q => q == null || !Number.isFinite(q) ? '–' : Number.isInteger(q) ? n0(q) : f2.format(q);
+const poRs = paise => inr(paise / 100);
+const poRsFull = paise => '₹' + f2.format(paise / 100);
+const poPct = (a, b) => b > 0 ? 100 * a / b : NaN;
+const poDay = ymd => { if (!ymd) return '–'; const [y, m, d] = ymd.split('-'); return +d + ' ' + MON[+m - 1] + ' ' + y; };
+const poBasisLabel = () => poState.settings.basis === 'excl' ? 'excl. GST' : 'incl. GST';
+const poCurMonth = () => shipToday().slice(0, 7);
+
+// ---------- storage
+async function poReq(path, options = {}) {
+  try { return await shipRequest(path, options); }
+  catch (e) { e.message = e.message.replace(/shared shipments/gi, 'shared POs').replace(/shared shipment list/gi, 'shared PO register').replace(/this shipment/gi, 'this PO'); throw e; }
+}
+function poValidate(v) {
+  const bad = m => { throw new Error('PO ' + (v && v.po || '') + ': ' + m); };
+  if (!v || v.version !== 1 || v.kind !== 'po') bad('unsupported format.');
+  if (typeof v.po !== 'string' || !v.po.trim() || typeof v.vendor !== 'string' || !v.vendor.trim()) bad('PO number and vendor are required.');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v.date)) bad('PO date is missing.');
+  if (v.due != null && v.due !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(v.due)) bad('expected date is not a date.');
+  if (!PO_STATUS.includes(v.status)) bad('unknown status.');
+  if (!Array.isArray(v.lines) || !Array.isArray(v.receipts)) bad('lines are missing.');
+  const ids = new Set();
+  for (const l of v.lines) {
+    if (!l || typeof l.id !== 'string' || ids.has(l.id) || typeof l.part !== 'string' || !l.part.trim() || typeof l.city !== 'string') bad('a line has no part.');
+    if (!(Number.isFinite(l.qty) && l.qty > 0) || !Number.isSafeInteger(l.ratePaise) || l.ratePaise < 0 || !(Number.isFinite(l.gst) && l.gst >= 0 && l.gst <= 100)) bad('line ' + l.part + ' needs a quantity, rate and GST %.');
+    ids.add(l.id);
+  }
+  for (const r of v.receipts) if (!r || typeof r.id !== 'string' || !ids.has(r.line) || !(Number.isFinite(r.qty) && r.qty > 0) || !/^\d{4}-\d{2}-\d{2}$/.test(r.date)) bad('a supply entry could not be read.');
+  return v;
+}
+function poDecode(raw) {
+  let value; try { value = JSON.parse(raw.ShipmentData); } catch { throw new Error('PO record ' + raw.Id + ' could not be read. No records were changed.'); }
+  if (value && value.kind === 'po-settings') return { settings: true, value, id: raw.Id, etag: raw['@odata.etag'] || raw['odata.etag'] };
+  poValidate(value);
+  return { ...value, id: raw.Id, etag: raw['@odata.etag'] || raw['odata.etag'], modified: raw.Modified };
+}
+async function poWho() {
+  if (poState.user) return poState.user;
+  try { poState.user = (await notesUser()).name; } catch (e) { poState.user = 'Hala team'; }
+  return poState.user;
+}
+async function poSetup() {
+  if (poState.busy) return;
+  poState.busy = true; poState.error = ''; renderPo();
+  try {
+    try { await poReq(PO_PATH + '?$select=Id'); }
+    catch (e) { if (e.status !== 404) throw e; await poReq('lists', { body: { Title: PO_LIST, Description: 'Purchase orders given to spares vendors, supplies received against them and the spares budget.', BaseTemplate: 100, AllowContentTypes: false } }); }
+    const fields = await poReq(PO_PATH + '/fields?$select=InternalName');
+    if (!fields.value.some(f => f.InternalName === 'ShipmentData')) await poReq(PO_PATH + '/fields', { body: { Title: 'ShipmentData', FieldTypeKind: 3, Required: false } });
+    await poReq(PO_PATH + "/fields/getbyinternalnameortitle('Title')", { etag: '*', body: { Indexed: true, EnforceUniqueValues: true } });
+    poState.message = 'Shared PO register created. POs and supplies are saved for the Hala team.';
+    poState.busy = false; await poLoad();
+  } catch (e) { poState.error = e.message; }
+  finally { poState.busy = false; renderPo(); }
+}
+async function poLoad() {
+  if (poState.loading) return;
+  poState.loading = true; poState.error = ''; renderPo();
+  try {
+    let rows = [], next = PO_PATH + '/items?$select=Id,Title,ShipmentData,Modified&$top=5000&$orderby=Id desc';
+    while (next) { const page = await poReq(next); rows.push(...page.value); next = page['@odata.nextLink'] || page['odata.nextLink']; }
+    const values = rows.map(poDecode), set = values.find(v => v.settings);
+    poState.rows = values.filter(v => !v.settings);
+    poState.settingsRow = set || null; poState.settings = set ? { ...PO_DEFAULT, ...set.value } : { ...PO_DEFAULT };
+    poState.ready = true; poState.loaded = true; poState.refreshed = Date.now();
+  } catch (e) { if (e.status === 404) { poState.ready = false; poState.loaded = true; poState.error = 'The shared PO register has not been created yet. Use "Create shared PO register".'; } else poState.error = e.message; }
+  finally { poState.loading = false; renderPo(); }
+}
+function poSerialize(value) {
+  const { id, etag, modified, ...clean } = value;
+  const text = JSON.stringify(poValidate(clean));
+  if (text.length > 60000) throw new Error('PO ' + clean.po + ' is too large to store in one record (' + clean.lines.length + ' lines, ' + clean.receipts.length + ' supplies). Split it into two POs.');
+  return text;
+}
+async function poCreate(value) {
+  const title = poTitle(value.po), text = poSerialize(value);
+  const found = await poReq(PO_PATH + '/items?$select=Id&$filter=' + encodeURIComponent("Title eq '" + title.replace(/'/g, "''") + "'"));
+  if (found.value.length) throw new Error('PO ' + value.po + ' is already in the register.');
+  await poReq(PO_PATH + '/items', { body: { Title: title, ShipmentData: text } });
+}
+// Read the latest copy, apply the change, write it back with its version. A teammate's save in between is merged by re-running the change.
+async function poMutate(id, change) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const current = poDecode(await poReq(PO_PATH + '/items(' + id + ')'));
+    if (current.settings) throw new Error('Unexpected record.');
+    if (!current.etag) throw new Error('Could not verify the latest version of this PO. Reload and try again.');
+    const next = change(JSON.parse(JSON.stringify(current)));
+    if (!next) return current;
+    const body = { ShipmentData: poSerialize(next) };
+    if (poKey(next.po) !== poKey(current.po)) body.Title = poTitle(next.po);
+    try { await poReq(PO_PATH + '/items(' + id + ')', { etag: current.etag, body }); return next; }
+    catch (e) { if (e.status !== 412 || attempt === 2) throw e; }
+  }
+}
+async function poRun(fn, done) {
+  if (poState.busy) return false;
+  poState.busy = true; poState.error = ''; poState.message = ''; renderPo();
+  try { await fn(); if (done) poState.message = done; poState.busy = false; await poLoad(); return true; }
+  catch (e) { poState.error = e.message + (e.status && e.status !== 412 && e.status !== 403 ? ' Reload before retrying; the save may already have completed.' : ''); return false; }
+  finally { poState.busy = false; renderPo(); }
+}
+
+// ---------- figures
+function poCalc(po) {
+  const basis = poState.settings.basis, live = po.status === 'Open', sup = new Map();
+  for (const r of po.receipts) sup.set(r.line, (sup.get(r.line) || 0) + r.qty);
+  const lines = po.lines.map(l => {
+    const supplied = sup.get(l.id) || 0, val = q => { const ex = Math.round(q * l.ratePaise); return basis === 'excl' ? ex : Math.round(ex * (100 + l.gst) / 100); };
+    const pending = live ? Math.max(0, l.qty - supplied) : 0, ordered = val(l.qty), used = val(supplied), committed = val(live ? Math.max(l.qty, supplied) : supplied);
+    return { ...l, supplied, pending, excess: Math.max(0, supplied - l.qty), ordered, used, committed, pendingVal: committed - used };
+  });
+  const t = { lines, ordered: 0, used: 0, committed: 0, pendingVal: 0, qty: 0, supplied: 0, pending: 0 };
+  for (const l of lines) { t.ordered += l.ordered; t.used += l.used; t.committed += l.committed; t.pendingVal += l.pendingVal; t.qty += l.qty; t.supplied += l.supplied; t.pending += l.pending; }
+  t.untraced = live && !po.receipts.length;
+  t.overdue = !!(live && t.pending > 0 && po.due && po.due < shipToday());
+  t.cities = [...new Set(po.lines.map(l => l.city || '–'))];
+  return t;
+}
+const poCache = new WeakMap();
+const poC = po => { let c = poCache.get(po); if (!c || c.basis !== poState.settings.basis || c.day !== shipToday()) poCache.set(po, c = { basis: poState.settings.basis, day: shipToday(), v: poCalc(po) }); return c.v; };
+function poBudget() {
+  const s = poState.settings, month = s.scope === 'month' ? (poState.month || poCurMonth()) : '';
+  const rows = poState.rows.filter(po => !month || po.date.startsWith(month));
+  let used = 0, committed = 0, pendingVal = 0; for (const po of rows) { const c = poC(po); used += c.used; committed += c.committed; pendingVal += c.pendingVal; }
+  return { budget: s.budgetPaise, used, committed, pendingVal, month, n: rows.length };
+}
+function poMatchQ(po, l, q) { return !q || [po.po, po.vendor, po.note, l.part, l.model, l.city].join(' ').toUpperCase().includes(q); }
+function poFiltered() {
+  const q = poKey(poState.q), out = [];
+  for (const po of poState.rows) {
+    if (poState.month && !po.date.startsWith(poState.month)) continue;
+    if (poState.vendor && po.vendor !== poState.vendor) continue;
+    const c = poC(po), st = poState.status;
+    if (!st && po.status === 'Cancelled') continue;
+    if (PO_STATUS.includes(st) && po.status !== st) continue;
+    if (st === 'pending' && !(po.status === 'Open' && c.pending > 0)) continue;
+    if (st === 'overdue' && !c.overdue) continue;
+    if (st === 'untraced' && !c.untraced) continue;
+    const lines = c.lines.filter(l => (!poState.city || (l.city || '–') === poState.city) && poMatchQ(po, l, q));
+    if (lines.length) out.push({ po, c, lines });
+  }
+  return out.sort((a, b) => b.po.date.localeCompare(a.po.date) || b.po.id - a.po.id);
+}
+function poGroup(list, by) {
+  const m = new Map();
+  for (const { po, lines } of list) for (const l of lines) {
+    const city = l.city || '–', part = l.part + (l.model ? ' · ' + l.model : '');
+    const key = by === 'city' ? city : by === 'vendor' ? po.vendor : by === 'part' ? poKey(part) : city + '\u0001' + poKey(part);
+    let g = m.get(key); if (!g) m.set(key, g = { city, part, vendor: po.vendor, pos: new Set(), cities: new Set(), vendors: new Set(), lines: 0, qty: 0, supplied: 0, pending: 0, ordered: 0, used: 0, pendingVal: 0 });
+    g.pos.add(po.id); g.cities.add(city); g.vendors.add(po.vendor); g.lines++;
+    g.qty += l.qty; g.supplied += l.supplied; g.pending += l.pending; g.ordered += l.ordered; g.used += l.used; g.pendingVal += l.pendingVal;
+  }
+  const rows = [...m.values()];
+  return by === 'citypart' ? rows.sort((a, b) => a.city.localeCompare(b.city) || b.ordered - a.ordered) : rows.sort((a, b) => b.ordered - a.ordered);
+}
+function poPctCell(used, ordered) {
+  const p = poPct(used, ordered); if (!Number.isFinite(p)) return '<td>–</td>';
+  return '<td><div class="po-pct' + (p > 100.05 ? ' over' : '') + '"><span>' + pct(p) + '</span><i><b style="width:' + Math.min(100, p).toFixed(1) + '%"></b></i></div></td>';
+}
+
+// ---------- GRN lines that look like supplies against an open PO
+const PO_VENDOR_NOISE = /\b(M\/S|MS|THE|PVT|PRIVATE|LTD|LIMITED|LLP|CO|COMPANY|INDIA|ENTERPRISES?|TRADERS?|TRADING|CORPORATION|CORP|INC)\b\.?/g;
+const poVendorKey = v => poKey(v).replace(PO_VENDOR_NOISE, ' ').replace(/[^A-Z0-9]/g, '');
+const poVendorMatch = (a, b) => !!a && !!b && (a === b || (Math.min(a.length, b.length) >= 4 && (a.startsWith(b) || b.startsWith(a))));
+function poPartMatch(l, gl) {
+  const a = poCompact(l.part), b = poCompact(gl.part);
+  if (!a || !b || !(a === b || (Math.min(a.length, b.length) >= 5 && (a.includes(b) || b.includes(a))))) return false;
+  const ma = poCompact(l.model), mb = poCompact(gl.model);
+  return !ma || !mb || ma === mb || ma.includes(mb) || mb.includes(ma);
+}
+function poGrnUsed() { const m = new Map(); for (const po of poState.rows) for (const r of po.receipts) if (r.grn) m.set(r.grn, (m.get(r.grn) || 0) + r.qty); return m; }
+function poGrnCandidates(po, c) {
+  if (!GRN || po.status !== 'Open' || !c.pending) return [];
+  const vk = poVendorKey(po.vendor), used = poGrnUsed(), out = [];
+  for (const inv of GRN.records) {
+    if (inv.date < po.date || !poVendorMatch(vk, poVendorKey(inv.vendor))) continue;
+    (inv.lines || []).forEach((gl, i) => {
+      if (!(gl.quantity > 0)) return;
+      const left = gl.quantity - (used.get(inv.record + ':' + i) || 0); if (left <= 1e-9) return;
+      for (const l of c.lines) if (l.pending > 0 && poPartMatch(l, gl)) out.push({ inv, i, gl, left, line: l });
+    });
+  }
+  return out.sort((a, b) => a.inv.date.localeCompare(b.inv.date)).slice(0, 40);
+}
+
+// ---------- render
+function poOptions(sel, values, all, chosen, label = v => v) {
+  const opt = (v, t) => '<option value="' + esc(v) + '"' + (v === chosen ? ' selected' : '') + '>' + esc(t) + '</option>';
+  $(sel).innerHTML = opt('', all) + values.map(v => opt(v, label(v))).join('');
+}
+function poCityList() { const s = new Set(T && T.cities ? T.cities : []); for (const po of poState.rows) for (const l of po.lines) if (l.city) s.add(l.city); return [...s].sort((a, b) => a.localeCompare(b)); }
+function poDatalists() {
+  const fill = (sel, vals) => { $(sel).innerHTML = [...vals].filter(Boolean).sort((a, b) => a.localeCompare(b)).slice(0, 4000).map(v => '<option value="' + esc(v) + '">').join(''); };
+  const vend = new Set(poState.rows.map(p => p.vendor)), parts = new Set(), models = new Set();
+  if (GRN) for (const r of GRN.records) { vend.add(r.vendor); for (const l of r.lines || []) { parts.add(poNorm(l.part)); if (l.model) models.add(poNorm(l.model)); } }
+  if (D && D.proc && D.proc.dicts && D.proc.dicts.vendor) for (const v of D.proc.dicts.vendor) vend.add(v);
+  if (typeof HALA_PARTS !== 'undefined') for (const p of HALA_PARTS) { parts.add(p.part); models.add(p.model); }
+  if (D && D.skus) for (const s of D.skus) parts.add(poNorm(s[0]));
+  for (const po of poState.rows) for (const l of po.lines) { parts.add(l.part); if (l.model) models.add(l.model); }
+  fill('#po-vendors', vend); fill('#po-cities', poCityList()); fill('#po-parts', parts); fill('#po-models', models);
+}
+function renderPo() {
+  const s = poState.settings, ready = poState.ready;
+  $('#po-shared').textContent = ready ? 'Shared with Hala Fleet Ops · last loaded ' + shipTime(poState.refreshed) : 'Shared Hala workspace · Microsoft sign-in required';
+  const open = poState.rows.filter(p => p.status === 'Open').length;
+  $('#po-count').textContent = ready ? n0(poState.rows.length) + ' POs · ' + n0(open) + ' open' : '';
+  $('#po-error').hidden = !poState.error; $('#po-error').textContent = poState.error;
+  $('#po-message').hidden = !poState.message; $('#po-message').textContent = poState.message;
+  $('#po-setup').hidden = ready || !poState.loaded; $('#po-setup').disabled = poState.busy || poState.loading;
+  $('#po-reload').disabled = poState.loading || poState.busy; $('#po-reload').textContent = poState.loading ? 'Loading…' : 'Load shared POs';
+  for (const id of ['po-add', 'po-import', 'po-settings']) $('#' + id).disabled = !ready || poState.busy;
+  // budget
+  const B = poBudget(), bal = B.budget - B.used, free = B.budget - B.committed;
+  const scope = B.month ? grnMonthLabel(B.month) + ' POs' : 'all POs';
+  $('#po-budget-label').textContent = 'Spares budget ' + poRs(B.budget) + (s.scope === 'month' ? ' a month' : '') + ' · ' + poBasisLabel();
+  const neg = v => v < 0 ? ' class="num neg"' : ' class="num"';
+  $('#po-run').innerHTML = '<div><b class="num">' + poRs(B.budget) + '</b><span>Budget</span><small>' + esc(scope) + ' · ' + poBasisLabel() + '</small></div>' +
+    '<div><b class="num">' + poRs(B.used) + '</b><span>Utilised</span><small>parts supplied · ' + pct(poPct(B.used, B.budget)) + ' of budget</small></div>' +
+    '<div><b' + neg(bal) + '>' + poRs(bal) + '</b><span>Balance budget</span><small>budget − utilised</small></div>' +
+    '<div><b class="num">' + poRs(B.pendingVal) + '</b><span>Pending supply</span><small>on open POs, not yet supplied</small></div>' +
+    '<div><b' + neg(free) + '>' + poRs(free) + '</b><span>' + (free < 0 ? 'Over-committed' : 'Free to put on new POs') + '</span><small>budget − utilised − pending</small></div>';
+  const base = Math.max(B.budget, B.committed, 1), w = v => (100 * Math.max(0, v) / base).toFixed(2) + '%';
+  $('#po-meter').innerHTML = '<i class="u" style="width:' + w(Math.min(B.used, B.budget)) + '" title="Utilised"></i><i class="p" style="width:' + w(Math.min(B.pendingVal, Math.max(0, B.budget - B.used))) + '" title="Pending supply"></i><i class="x" style="width:' + w(B.committed - B.budget) + '" title="Over budget"></i>';
+  $('#po-budget-note').innerHTML = '<span class="po-legend"><span><i style="background:var(--bar)"></i>Utilised</span><span><i style="background:#9cc2ef"></i>Pending supply</span>' + (B.committed > B.budget ? '<span><i style="background:#c0392b"></i>Over budget</span>' : '') + '<span>' + (ready ? n0(B.n) + ' POs in this budget' + (B.month && !poState.month ? ' (current month; pick a PO month to see another)' : '') : 'Load the shared register to see the budget.') + '</span></span>';
+  // filters
+  const months = [...new Set(poState.rows.map(p => p.date.slice(0, 7)))].sort().reverse();
+  if (poState.month && !months.includes(poState.month)) months.unshift(poState.month);
+  poOptions('#po-month', months, 'All months', poState.month, grnMonthLabel);
+  poOptions('#po-city', poCityList(), 'All cities', poState.city);
+  poOptions('#po-vendor', [...new Set(poState.rows.map(p => p.vendor))].sort((a, b) => a.localeCompare(b)), 'All vendors', poState.vendor);
+  $('#po-status').value = poState.status;
+  $$('#po-by button').forEach(b => b.setAttribute('aria-pressed', b.dataset.poBy === poState.by));
+  const list = poFiltered();
+  let qty = 0, sup = 0, ord = 0, used = 0, pend = 0, pendQ = 0; for (const { lines } of list) for (const l of lines) { qty += l.qty; sup += l.supplied; ord += l.ordered; used += l.used; pend += l.pendingVal; pendQ += l.pending; }
+  $('#po-frun').innerHTML = '<div><b class="num">' + n0(list.length) + '</b><span>POs in view</span><small>' + n0(list.reduce((n, x) => n + x.lines.length, 0)) + ' lines · ' + n0(list.filter(x => x.c.untraced).length) + ' with no supply recorded</small></div>' +
+    '<div><b class="num">' + poQty(qty) + '</b><span>Parts ordered</span></div>' +
+    '<div><b class="num">' + poQty(sup) + '</b><span>Parts supplied</span><small>' + pct(poPct(sup, qty)) + ' of ordered · ' + poQty(pendQ) + ' pending</small></div>' +
+    '<div><b class="num">' + poRs(ord) + '</b><span>PO value</span><small>' + poBasisLabel() + '</small></div>' +
+    '<div><b class="num">' + poRs(used) + '</b><span>Utilised</span><small>' + pct(poPct(used, ord)) + ' of PO value · ' + poRs(pend) + ' pending</small></div>';
+  // summary
+  const by = poState.by, groups = poGroup(list, by);
+  const firstCols = by === 'city' ? ['City'] : by === 'part' ? ['Part', 'Cities'] : by === 'vendor' ? ['Vendor'] : ['City', 'Part'];
+  let h = '<thead><tr>' + firstCols.map((t, i) => '<th class="' + (i ? 'l' : 'lab') + '" style="text-align:left">' + t + '</th>').join('') + '<th>POs</th><th>Ordered</th><th>Supplied</th><th>Pending</th><th>PO value<small>' + poBasisLabel() + '</small></th><th>Utilised<small>value supplied</small></th><th>Pending value</th><th>Utilisation<small>of PO value</small></th></tr></thead><tbody>';
+  for (const g of groups) {
+    const first = by === 'city' ? [g.city] : by === 'part' ? [g.part, [...g.cities].join(', ')] : by === 'vendor' ? [g.vendor] : [g.city, g.part];
+    h += '<tr>' + first.map((t, i) => '<td class="' + (i ? '' : 'lab') + '" style="text-align:left;white-space:normal">' + esc(t) + '</td>').join('') + '<td>' + n0(g.pos.size) + '</td><td>' + poQty(g.qty) + '</td><td>' + poQty(g.supplied) + '</td><td>' + (g.pending ? '<b>' + poQty(g.pending) + '</b>' : '0') + '</td><td>' + poRs(g.ordered) + '</td><td>' + poRs(g.used) + '</td><td>' + poRs(g.pendingVal) + '</td>' + poPctCell(g.used, g.ordered) + '</tr>';
+  }
+  if (!groups.length) h += '<tr><td class="lab" colspan="' + (firstCols.length + 8) + '">' + (poState.loading ? 'Loading shared POs…' : !ready ? 'Load or create the shared PO register.' : poState.rows.length ? 'No PO lines match these filters.' : 'No POs yet. Add one with New PO, or import a CSV.') + '</td></tr>';
+  else h += '<tr class="total"><td class="lab" colspan="' + firstCols.length + '">Total</td><td>' + n0(list.length) + '</td><td>' + poQty(qty) + '</td><td>' + poQty(sup) + '</td><td>' + poQty(pendQ) + '</td><td>' + poRs(ord) + '</td><td>' + poRs(used) + '</td><td>' + poRs(pend) + '</td>' + poPctCell(used, ord) + '</tr>';
+  $('#po-sum').innerHTML = h + '</tbody>';
+  $('#po-sum-sub').textContent = (poState.month ? grnMonthLabel(poState.month) : 'All months') + ' · by ' + { city: 'city', part: 'part', citypart: 'city and part', vendor: 'vendor' }[by] + '. Ordered, supplied and pending are numbers of parts; values are ' + poBasisLabel() + '. Pending on closed or cancelled POs is released.';
+  // PO list
+  h = '<thead><tr><th class="lab">PO / vendor</th><th class="l">PO date<small>expected by</small></th><th class="l">Cities</th><th>Lines</th><th>Ordered</th><th>Supplied</th><th>PO value<small>' + poBasisLabel() + '</small></th><th>Utilised</th><th>Utilisation</th><th class="l">Status</th></tr></thead><tbody>';
+  for (const { po, c, lines } of list) {
+    const isOpen = poState.open === po.id, flags = (c.overdue ? ' <span class="flag">Overdue</span>' : '') + (c.untraced ? ' <span class="flag">No supply recorded</span>' : '') + (c.lines.some(l => l.excess > 0) ? ' <span class="flag">Excess supply</span>' : '');
+    h += '<tr><td class="lab"><button type="button" class="link" data-po-open="' + po.id + '" aria-expanded="' + isOpen + '">' + (isOpen ? '▾ ' : '▸ ') + esc(po.po) + '</button><small>' + esc(po.vendor) + '</small></td><td class="l">' + esc(poDay(po.date)) + '<small>' + (po.due ? esc(poDay(po.due)) : '–') + '</small></td><td class="l">' + esc(c.cities.join(', ')) + '</td><td>' + n0(po.lines.length) + (lines.length !== po.lines.length ? '<small>' + n0(lines.length) + ' in view</small>' : '') + '</td><td>' + poQty(c.qty) + '</td><td>' + poQty(c.supplied) + '<small>' + (c.pending ? poQty(c.pending) + ' pending' : '') + '</small></td><td>' + poRs(c.ordered) + '</td><td>' + poRs(c.used) + '</td>' + poPctCell(c.used, c.ordered) + '<td class="l"><span class="po-badge ' + po.status.toLowerCase() + '">' + esc(po.status) + '</span>' + flags + '</td></tr>';
+    if (isOpen) h += '<tr class="detail"><td colspan="10">' + poDetail(po, c) + '</td></tr>';
+  }
+  if (!list.length) h += '<tr><td class="lab" colspan="10">' + (poState.loading ? 'Loading shared POs…' : !ready ? 'Load or create the shared PO register to see team POs.' : poState.rows.length ? 'No POs match these filters.' : 'No POs yet. Add one with New PO, or import a CSV.') + '</td></tr>';
+  $('#po-table').innerHTML = h + '</tbody>';
+  $('#po-list-sub').textContent = 'Newest first. Open a PO to see its lines, record supplies or link GRN lines.';
+}
+function poDetail(po, c) {
+  const lineOf = new Map(c.lines.map(l => [l.id, l])), meta = [];
+  meta.push('Vendor <b>' + esc(po.vendor) + '</b>', 'PO date <b>' + esc(poDay(po.date)) + '</b>', 'Expected by <b>' + esc(po.due ? poDay(po.due) : '–') + '</b>');
+  if (po.createdBy) meta.push('Entered by ' + esc(po.createdBy) + (po.createdAt ? ' · ' + esc(shipTime(po.createdAt)) : ''));
+  let h = '<div class="po-detail"><div class="po-meta">' + meta.map(m => '<span>' + m + '</span>').join('') + '</div>' + (po.note ? '<p class="po-meta">' + esc(po.note) + '</p>' : '');
+  h += '<div class="tools">' + (po.status === 'Open' ? '<button class="btn po-primary" type="button" data-po-supply="' + po.id + '">Record supply</button>' : '') + '<button class="btn" type="button" data-po-edit="' + po.id + '">Edit PO</button>' +
+    (po.status === 'Open' ? '<button class="btn" type="button" data-po-status="' + po.id + '" data-to="Closed">Short-close PO</button><button class="btn" type="button" data-po-status="' + po.id + '" data-to="Cancelled">Cancel PO</button>' : '<button class="btn" type="button" data-po-status="' + po.id + '" data-to="Open">Reopen PO</button>') +
+    '<button class="btn" type="button" data-po-delete="' + po.id + '">Delete</button></div>';
+  h += '<div class="scroll"><table class="dtbl"><thead><tr><th class="l">City</th><th class="l">Part</th><th class="l">Vehicle model</th><th>Ordered</th><th>Rate<small>excl. GST</small></th><th>GST</th><th>Supplied</th><th>Pending</th><th>PO value<small>' + poBasisLabel() + '</small></th><th>Utilised</th><th>Utilisation</th></tr></thead><tbody>';
+  for (const l of c.lines) h += '<tr><td class="l">' + esc(l.city || '–') + '</td><td class="l">' + esc(l.part) + '</td><td class="l">' + esc(l.model || '–') + '</td><td>' + poQty(l.qty) + '</td><td>' + poRsFull(l.ratePaise) + '</td><td>' + poQty(l.gst) + '%</td><td>' + poQty(l.supplied) + (l.excess ? ' <span class="flag">+' + poQty(l.excess) + ' excess</span>' : '') + '</td><td>' + (l.pending ? '<b>' + poQty(l.pending) + '</b>' : po.status === 'Open' ? '<span class="ok">Complete</span>' : '0') + '</td><td>' + poRs(l.ordered) + '</td><td>' + poRs(l.used) + '</td>' + poPctCell(l.used, l.ordered) + '</tr>';
+  h += '<tr class="total"><td class="l" colspan="3">PO total</td><td>' + poQty(c.qty) + '</td><td></td><td></td><td>' + poQty(c.supplied) + '</td><td>' + poQty(c.pending) + '</td><td>' + poRs(c.ordered) + '</td><td>' + poRs(c.used) + '</td>' + poPctCell(c.used, c.ordered) + '</tr></tbody></table></div>';
+  h += '<h3>Supplies received · ' + n0(po.receipts.length) + '</h3>';
+  if (po.receipts.length) {
+    h += '<div class="scroll"><table class="dtbl"><thead><tr><th class="l">Received on</th><th class="l">Invoice / DC / GRN</th><th class="l">City</th><th class="l">Part</th><th>Quantity</th><th>Value<small>' + poBasisLabel() + '</small></th><th class="l">Recorded</th><th></th></tr></thead><tbody>';
+    for (const r of [...po.receipts].sort((a, b) => b.date.localeCompare(a.date))) {
+      const l = lineOf.get(r.line), v = l ? Math.round(r.qty * l.ratePaise * (poState.settings.basis === 'excl' ? 1 : (100 + l.gst) / 100)) : 0;
+      h += '<tr><td class="l">' + esc(poDay(r.date)) + '</td><td class="l">' + esc(r.ref || '–') + '</td><td class="l">' + esc(l ? l.city || '–' : '–') + '</td><td class="l">' + esc(l ? l.part : '–') + '</td><td>' + poQty(r.qty) + '</td><td>' + poRs(v) + '</td><td class="l">' + esc(r.src === 'grn' ? 'Linked GRN' : r.src === 'csv' ? 'CSV import' : 'By hand') + (r.by ? ' · ' + esc(r.by) : '') + '</td><td><button type="button" class="link" data-po-unreceive="' + po.id + '" data-rid="' + esc(r.id) + '">Remove</button></td></tr>';
+    }
+    h += '</tbody></table></div>';
+  } else h += '<p class="po-meta">No supplies recorded yet.' + (po.status === 'Open' ? ' Use Record supply, or link a GRN line below.' : '') + '</p>';
+  const cand = poGrnCandidates(po, c);
+  if (po.status === 'Open' && c.pending) {
+    h += '<h3>Matching GRN lines</h3>';
+    if (!GRN) h += '<p class="po-meta">GRN purchase records are not in this refresh.</p>';
+    else if (!cand.length) h += '<p class="po-meta">No unlinked GRN lines from this vendor for these parts since the PO date.</p>';
+    else {
+      h += '<p class="po-meta">Cercle OS GRN lines from a vendor with a similar name, for a similar part, dated on or after the PO. Check before linking: GRN has no city, so pick the right line.</p><div class="scroll"><table class="dtbl"><thead><tr><th class="l">GRN date</th><th class="l">Invoice</th><th class="l">Vendor</th><th class="l">GRN part</th><th>Not yet linked</th><th>Paid<small>per item</small></th><th class="l">Link to PO line</th></tr></thead><tbody>';
+      for (const x of cand) h += '<tr class="po-sug"><td class="l">' + esc(poDay(x.inv.date)) + '</td><td class="l">' + esc(x.inv.invoice) + '</td><td class="l">' + esc(x.inv.vendor) + '</td><td class="l">' + esc(x.gl.part) + (x.gl.model ? '<small>' + esc(x.gl.model) + '</small>' : '') + '</td><td>' + poQty(x.left) + '</td><td>' + grnUnitMoney(x.gl.paid) + '</td><td class="l"><button type="button" class="btn sm" data-po-link="' + po.id + '" data-line="' + esc(x.line.id) + '" data-grn="' + x.inv.record + ':' + x.i + '">Link ' + poQty(Math.min(x.left, x.line.pending)) + ' to ' + esc((x.line.city || '–') + ' · ' + x.line.part) + '</button></td></tr>';
+      h += '</tbody></table></div>';
+    }
+  }
+  if (po.history && po.history.length) h += '<details><summary class="po-meta">Change history · ' + n0(po.history.length) + '</summary><ul class="ship-history">' + [...po.history].reverse().slice(0, 30).map(e => '<li><b>' + esc(shipTime(e.at)) + '</b> · ' + esc(e.by || 'Hala team') + ' · ' + esc(e.what) + '</li>').join('') + '</ul></details>';
+  return h + '</div>';
+}
+
+// ---------- PO form
+function poLineRow(l = {}) {
+  const v = (x, d = '') => esc(x == null ? d : x);
+  return '<tr data-lid="' + v(l.id) + '"><td class="w-city"><input data-f="city" list="po-cities" maxlength="60" value="' + v(l.city, $('#po-f-city').value.trim()) + '" aria-label="City"></td><td class="w-part"><input data-f="part" list="po-parts" maxlength="160" value="' + v(l.part) + '" aria-label="Part"></td><td class="w-model"><input data-f="model" list="po-models" maxlength="80" value="' + v(l.model) + '" aria-label="Vehicle model (optional)"></td>' +
+    '<td class="w-qty"><input class="n" data-f="qty" inputmode="decimal" value="' + v(l.qty) + '" aria-label="Quantity"></td><td class="w-rate"><input class="n" data-f="rate" inputmode="decimal" value="' + (l.ratePaise != null ? (l.ratePaise / 100).toFixed(2) : '') + '" aria-label="Rate excluding GST"></td><td class="w-gst"><input class="n" data-f="gst" inputmode="decimal" value="' + v(l.gst, 18) + '" aria-label="GST %"></td><td class="w-val r" data-f="val"></td><td><button type="button" class="po-x" data-po-rmline aria-label="Remove line">×</button></td></tr>';
+}
+function poOpenForm(po) {
+  poState.edit = po ? { id: po.id, received: new Set(po.receipts.map(r => r.line)) } : { id: null, received: new Set() };
+  poDatalists();
+  $('#po-d-title').textContent = po ? 'Edit PO ' + po.po : 'New purchase order';
+  $('#po-f-no').value = po ? po.po : ''; $('#po-f-vendor').value = po ? po.vendor : ''; $('#po-f-date').value = po ? po.date : shipToday(); $('#po-f-due').value = po && po.due || '';
+  $('#po-f-status').value = po ? po.status : 'Open'; $('#po-f-note').value = po && po.note || ''; $('#po-f-city').value = po && po.lines[0] ? po.lines[0].city : (poState.city || '');
+  $('#po-f-lines').innerHTML = '<thead><tr><th>City</th><th>Part</th><th>Vehicle model<small>optional</small></th><th class="r">Quantity</th><th class="r">Rate ₹<small>excl. GST</small></th><th class="r">GST %</th><th class="r">Line value<small>' + poBasisLabel() + '</small></th><th></th></tr></thead><tbody>' + (po ? po.lines.map(poLineRow).join('') : poLineRow() + poLineRow() + poLineRow()) + '</tbody>';
+  $('#po-f-error').textContent = ''; $('#po-f-save').disabled = false; poFormTotal(); $('#po-dialog').showModal(); $('#po-f-no').focus();
+}
+const poNum = t => { const s = String(t == null ? '' : t).replace(/[₹,\s]/g, '').replace(/^Rs\.?/i, ''); return s === '' ? NaN : /^-?\d*\.?\d+$/.test(s) ? Number(s) : NaN; };
+function poReadLine(tr) {
+  const g = f => tr.querySelector('[data-f="' + f + '"]').value;
+  return { id: tr.dataset.lid || '', city: poNorm(g('city')), part: poNorm(g('part')), model: poNorm(g('model')), qty: poNum(g('qty')), rate: poNum(g('rate')), gst: poNum(g('gst')) };
+}
+function poFormTotal() {
+  let tot = 0;
+  for (const tr of $$('#po-f-lines tbody tr')) {
+    const l = poReadLine(tr), ok = l.qty > 0 && l.rate >= 0 && l.gst >= 0;
+    const v = ok ? Math.round(l.qty * Math.round(l.rate * 100) * (poState.settings.basis === 'excl' ? 1 : (100 + l.gst) / 100)) : 0;
+    tr.querySelector('[data-f="val"]').textContent = ok ? poRsFull(v) : '';
+    tot += v;
+  }
+  $('#po-f-total').textContent = 'PO value ' + poRsFull(tot) + ' · ' + poBasisLabel();
+}
+function poFormValue() {
+  const no = poNorm($('#po-f-no').value), vendor = poNorm($('#po-f-vendor').value), date = $('#po-f-date').value, due = $('#po-f-due').value, errs = [];
+  if (!no) errs.push('Enter the PO number.'); if (!vendor) errs.push('Enter the vendor.'); if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) errs.push('Enter the PO date.');
+  if (due && due < date) errs.push('Expected date is before the PO date.');
+  if (!poState.edit.id && poState.rows.some(p => poKey(p.po) === poKey(no))) errs.push('PO ' + no + ' is already in the register. Open it to edit.');
+  if (poState.edit.id && poState.rows.some(p => p.id !== poState.edit.id && poKey(p.po) === poKey(no))) errs.push('Another PO already has number ' + no + '.');
+  const lines = [], seen = new Set();
+  $$('#po-f-lines tbody tr').forEach((tr, i) => {
+    const l = poReadLine(tr);
+    if (!l.part && !(l.qty > 0) && !Number.isFinite(l.rate)) return;   // empty row
+    const n = 'Line ' + (i + 1) + ': ';
+    if (!l.part) errs.push(n + 'enter the part.');
+    if (!l.city) errs.push(n + 'enter the city.');
+    if (!(l.qty > 0)) errs.push(n + 'enter a quantity above 0.');
+    if (!(l.rate >= 0) || !/^\d+(\.\d{1,2})?$/.test(String(l.rate))) errs.push(n + 'enter the rate excluding GST, up to 2 decimals.');
+    if (!(l.gst >= 0 && l.gst <= 100)) errs.push(n + 'GST % must be 0–100.');
+    const k = poKey(l.city) + '|' + poKey(l.part) + '|' + poKey(l.model);
+    if (l.part && seen.has(k)) errs.push(n + 'the same part, model and city is already on this PO. Add the quantity to one line.'); seen.add(k);
+    lines.push({ id: l.id || poNewId(), city: l.city, part: l.part, model: l.model, qty: l.qty, ratePaise: Math.round(l.rate * 100), gst: l.gst });
+  });
+  if (!lines.length) errs.push('Add at least one line.');
+  if (errs.length) throw new Error(errs.slice(0, 8).join('\n'));
+  return { po: no, vendor, date, due: due || null, status: $('#po-f-status').value, note: poNorm($('#po-f-note').value), lines };
+}
+async function poSaveForm(e) {
+  e.preventDefault(); if (poState.busy) return;
+  let f; try { f = poFormValue(); } catch (err) { $('#po-f-error').textContent = err.message; return; }
+  const edit = poState.edit, missing = [...edit.received].filter(id => !f.lines.some(l => l.id === id));
+  if (missing.length) { $('#po-f-error').textContent = 'A line that already has supplies recorded was removed. Remove its supplies first, or keep the line.'; return; }
+  $('#po-f-save').disabled = true; $('#po-f-error').textContent = 'Saving…';
+  const by = await poWho(), at = new Date().toISOString();
+  const ok = await poRun(async () => {
+    if (!edit.id) await poCreate({ version: 1, kind: 'po', ...f, receipts: [], createdAt: at, createdBy: by, history: [{ at, by, what: 'Created with ' + f.lines.length + ' lines' }] });
+    else await poMutate(edit.id, cur => {
+      const gone = cur.receipts.filter(r => !f.lines.some(l => l.id === r.line));
+      if (gone.length) throw new Error('A teammate recorded supplies on a line you removed. Reload and edit again.');
+      return { ...cur, ...f, receipts: cur.receipts, history: [...(cur.history || []), { at, by, what: 'Edited PO (' + f.lines.length + ' lines, status ' + f.status + ')' }] };
+    });
+  }, edit.id ? 'PO ' + f.po + ' updated.' : 'PO ' + f.po + ' saved for the team.');
+  if (ok) { $('#po-dialog').close(); poState.open = poState.rows.find(p => poKey(p.po) === poKey(f.po))?.id ?? poState.open; renderPo(); }
+  else { $('#po-f-error').textContent = poState.error; $('#po-f-save').disabled = false; }
+}
+
+// ---------- supply form
+function poOpenSupply(po) {
+  const c = poC(po); poState.supply = { id: po.id, ops: null }; poState.supplyWarned = '';
+  $('#po-s-title').textContent = 'Record supply · ' + po.po; $('#po-s-sub').textContent = po.vendor + ' · enter the quantity received on each line.';
+  $('#po-s-date').value = shipToday(); $('#po-s-ref').value = '';
+  $('#po-s-lines').innerHTML = '<thead><tr><th>City</th><th>Part</th><th class="r">Ordered</th><th class="r">Supplied so far</th><th class="r">Pending</th><th class="r">Received now</th></tr></thead><tbody>' +
+    c.lines.map(l => '<tr data-lid="' + esc(l.id) + '" data-pending="' + l.pending + '"><td>' + esc(l.city || '–') + '</td><td>' + esc(l.part) + (l.model ? ' · ' + esc(l.model) : '') + '</td><td class="r">' + poQty(l.qty) + '</td><td class="r">' + poQty(l.supplied) + '</td><td class="r"><b>' + poQty(l.pending) + '</b></td><td class="w-qty"><input class="n" inputmode="decimal" aria-label="Received quantity" placeholder="0"></td></tr>').join('') + '</tbody>';
+  $('#po-s-error').textContent = ''; $('#po-s-save').disabled = false; $('#po-supply').showModal(); $('#po-s-ref').focus();
+}
+async function poSaveSupply(e) {
+  e.preventDefault(); if (poState.busy || !poState.supply) return;
+  const date = $('#po-s-date').value, ref = poNorm($('#po-s-ref').value), items = [], over = [];
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { $('#po-s-error').textContent = 'Enter the date received.'; return; }
+  if (date > shipToday()) { $('#po-s-error').textContent = 'The received date is in the future.'; return; }
+  for (const tr of $$('#po-s-lines tbody tr')) {
+    const raw = tr.querySelector('input').value.trim(); if (!raw) continue;
+    const q = poNum(raw); if (!(q > 0)) { $('#po-s-error').textContent = 'Quantities must be numbers above 0.'; return; }
+    items.push({ line: tr.dataset.lid, qty: q }); if (q > +tr.dataset.pending + 1e-9) over.push(tr.children[1].textContent);
+  }
+  if (!items.length) { $('#po-s-error').textContent = 'Enter the quantity received on at least one line.'; return; }
+  const sig = JSON.stringify([date, ref, items]);
+  if (over.length && poState.supplyWarned !== sig) { poState.supplyWarned = sig; $('#po-s-error').textContent = 'More than pending on: ' + over.join(', ') + '. Click Save supply again to record it as excess supply.'; return; }
+  const by = await poWho(), at = new Date().toISOString();
+  if (!poState.supply.ops || poState.supply.sig !== sig) poState.supply = { ...poState.supply, sig, ops: items.map(x => ({ id: poNewId(), line: x.line, qty: x.qty, date, ref, src: 'manual', at, by })) };
+  const ops = poState.supply.ops; $('#po-s-save').disabled = true; $('#po-s-error').textContent = 'Saving…';
+  const ok = await poRun(() => poMutate(poState.supply.id, cur => {
+    const have = new Set(cur.receipts.map(r => r.id)), add = ops.filter(o => !have.has(o.id));
+    if (!add.length) return null;
+    return { ...cur, receipts: [...cur.receipts, ...add], history: [...(cur.history || []), { at, by, what: 'Recorded supply ' + (ref || '') + ': ' + add.map(o => poQty(o.qty)).join(' + ') + ' parts' }] };
+  }), 'Supply recorded.');
+  if (ok) { poState.supply = null; $('#po-supply').close(); } else { $('#po-s-error').textContent = poState.error; $('#po-s-save').disabled = false; }
+}
+
+// ---------- CSV import
+const PO_COLS = {
+  po: { po: ['po number', 'po no', 'po', 'po #', 'purchase order', 'po num'], date: ['po date', 'date'], vendor: ['vendor', 'supplier', 'vendor name'], city: ['city', 'location', 'hub city'], part: ['part', 'item', 'part name', 'item name', 'description'], model: ['vehicle model', 'model'], qty: ['quantity', 'qty', 'po qty', 'ordered qty', 'order qty'], rate: ['rate excl gst', 'rate', 'unit price', 'unit rate', 'price', 'rate excluding gst', 'unit cost'], gst: ['gst %', 'gst', 'gst rate', 'tax %'], due: ['expected by', 'due date', 'delivery date', 'expected date'], note: ['note', 'remarks', 'notes'] },
+  supply: { po: ['po number', 'po no', 'po', 'po #', 'purchase order', 'po num'], part: ['part', 'item', 'part name', 'item name', 'description'], city: ['city', 'location', 'hub city'], model: ['vehicle model', 'model'], qty: ['quantity', 'qty', 'received qty', 'supplied qty', 'quantity received'], date: ['received on', 'date', 'received date', 'grn date', 'invoice date'], ref: ['reference', 'invoice', 'invoice no', 'dc no', 'grn no', 'ref'] }
+};
+const PO_REQ = { po: ['po', 'date', 'vendor', 'city', 'part', 'qty', 'rate'], supply: ['po', 'part', 'qty', 'date'] };
+const PO_TEMPLATE = {
+  po: [['PO number', 'PO date', 'Vendor', 'City', 'Part', 'Vehicle model', 'Quantity', 'Rate excl GST', 'GST %', 'Expected by', 'Note'], ['HALA/PO/2611/001', '05-11-2026', 'Xpresslite', 'Hyderabad', 'Front Fender', 'Roamy SL', '200', '145.50', '18', '20-11-2026', ''], ['HALA/PO/2611/001', '05-11-2026', 'Xpresslite', 'Mumbai', 'Front Fender', 'Roamy SL', '80', '145.50', '18', '20-11-2026', '']],
+  supply: [['PO number', 'Part', 'City', 'Vehicle model', 'Quantity', 'Received on', 'Reference'], ['HALA/PO/2611/001', 'Front Fender', 'Hyderabad', 'Roamy SL', '120', '12-11-2026', 'INV-5521']]
+};
+function poCsvParse(text) {
+  const rows = []; let row = [], cell = '', q = false;
+  text = text.replace(/^﻿/, '');
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (q) { if (ch === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += ch; }
+    else if (ch === '"') q = true;
+    else if (ch === ',') { row.push(cell); cell = ''; }
+    else if (ch === '\n' || ch === '\r') { if (ch === '\r' && text[i + 1] === '\n') i++; row.push(cell); rows.push(row); row = []; cell = ''; }
+    else cell += ch;
+  }
+  if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
+  return rows.filter(r => r.some(c => c.trim() !== ''));
+}
+function poDate(t) {
+  const s = String(t == null ? '' : t).trim(); if (!s) return '';
+  const ok = (y, m, d) => { y = +y; if (y < 100) y += 2000; const dt = new Date(Date.UTC(y, m - 1, +d)); return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === +d ? y + '-' + String(m).padStart(2, '0') + '-' + String(+d).padStart(2, '0') : null; };
+  let m;
+  if ((m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/))) return ok(m[1], +m[2], m[3]);
+  if ((m = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})$/))) return ok(m[3], +m[2], m[1]);   // Indian day-first
+  if ((m = s.match(/^(\d{1,2})[-\s/]([A-Za-z]{3})[A-Za-z]*[-\s/,]+(\d{2,4})$/))) { const mi = MON.findIndex(x => x.toLowerCase() === m[2].toLowerCase()); return mi < 0 ? null : ok(m[3], mi + 1, m[1]); }
+  if (/^\d{5}$/.test(s) && +s > 30000 && +s < 80000) { const dt = new Date(Date.UTC(1899, 11, 30) + +s * DAY); return dt.toISOString().slice(0, 10); }   // Excel serial
+  return null;
+}
+function poCsvMap(head, kind) {
+  const norm = h => h.toLowerCase().replace(/[()_]/g, ' ').replace(/\s+/g, ' ').replace(/\.$/, '').trim(), idx = {};
+  const hs = head.map(norm);
+  for (const [k, names] of Object.entries(PO_COLS[kind])) { const i = hs.findIndex(h => names.includes(h)); if (i >= 0) idx[k] = i; }
+  const miss = PO_REQ[kind].filter(k => idx[k] == null);
+  if (miss.length) throw new Error('Columns not found: ' + miss.map(k => PO_COLS[kind][k][0]).join(', ') + '. Use the template headings.');
+  return idx;
+}
+function poPlanPo(rows) {
+  const idx = poCsvMap(rows[0], 'po'), groups = new Map(), errors = [];
+  rows.slice(1).forEach((r, n) => {
+    const g = k => idx[k] == null ? '' : poNorm(r[idx[k]]), line = n + 2, e = [];
+    const po = g('po'), date = poDate(g('date')), due = poDate(g('due')), qty = poNum(g('qty')), rate = poNum(g('rate')), gstT = g('gst'), gst = gstT === '' ? 18 : poNum(gstT.replace('%', ''));
+    if (!po) e.push('no PO number'); if (!date) e.push('PO date not read'); if (!g('vendor')) e.push('no vendor'); if (!g('city')) e.push('no city'); if (!g('part')) e.push('no part');
+    if (!(qty > 0)) e.push('quantity not above 0'); if (!(rate >= 0)) e.push('rate not a number'); if (!(gst >= 0 && gst <= 100)) e.push('GST % not 0–100'); if (due === null) e.push('expected date not read');
+    if (e.length) { errors.push('Row ' + line + ': ' + e.join(', ')); return; }
+    const k = poKey(po); let G = groups.get(k);
+    if (!G) groups.set(k, G = { po, vendor: g('vendor'), date, due: due || null, note: g('note'), lines: [], rows: [] });
+    else if (poKey(G.vendor) !== poKey(g('vendor')) || G.date !== date) { errors.push('Row ' + line + ': PO ' + po + ' has a different vendor or date on another row'); return; }
+    const lk = poKey(g('city')) + '|' + poKey(g('part')) + '|' + poKey(g('model')), same = G.lines.find(l => l.k === lk && l.ratePaise === Math.round(rate * 100));
+    if (same) same.qty += qty;
+    else G.lines.push({ k: lk, id: poNewId(), city: g('city'), part: g('part'), model: g('model'), qty, ratePaise: Math.round(rate * 100), gst });
+    G.rows.push(line);
+  });
+  const items = [...groups.values()].map(G => {
+    const exists = poState.rows.some(p => poKey(p.po) === poKey(G.po));
+    const val = G.lines.reduce((s, l) => s + Math.round(l.qty * l.ratePaise * (poState.settings.basis === 'excl' ? 1 : (100 + l.gst) / 100)), 0);
+    return { ...G, exists, val };
+  });
+  return { kind: 'po', items, errors, todo: items.filter(i => !i.exists).length };
+}
+function poPlanSupply(rows) {
+  const idx = poCsvMap(rows[0], 'supply'), items = [], errors = [];
+  rows.slice(1).forEach((r, n) => {
+    const g = k => idx[k] == null ? '' : poNorm(r[idx[k]]), line = n + 2;
+    const po = poState.rows.find(p => poKey(p.po) === poKey(g('po'))), qty = poNum(g('qty')), date = poDate(g('date'));
+    if (!po) { errors.push('Row ' + line + ': PO ' + (g('po') || '(blank)') + ' is not in the register'); return; }
+    if (!(qty > 0)) { errors.push('Row ' + line + ': quantity not above 0'); return; }
+    if (!date) { errors.push('Row ' + line + ': date not read'); return; }
+    let cands = po.lines.filter(l => poCompact(l.part) === poCompact(g('part')));
+    if (g('city')) cands = cands.filter(l => poKey(l.city) === poKey(g('city')));
+    if (g('model') && cands.length > 1) cands = cands.filter(l => poCompact(l.model) === poCompact(g('model')));
+    if (!cands.length) { errors.push('Row ' + line + ': ' + g('part') + (g('city') ? ' / ' + g('city') : '') + ' is not a line on PO ' + po.po); return; }
+    if (cands.length > 1) { errors.push('Row ' + line + ': PO ' + po.po + ' has ' + cands.length + ' lines for ' + g('part') + '; add the city'); return; }
+    const l = cands[0], ref = g('ref'), dup = po.receipts.some(x => x.line === l.id && x.qty === qty && x.date === date && poKey(x.ref) === poKey(ref)) || items.some(x => x.poId === po.id && x.line === l.id && x.qty === qty && x.date === date && poKey(x.ref) === poKey(ref));
+    items.push({ poId: po.id, po: po.po, line: l.id, part: l.part, city: l.city, qty, date, ref, dup, rid: poNewId() });
+  });
+  return { kind: 'supply', items, errors, todo: items.filter(i => !i.dup).length };
+}
+function poRenderImport() {
+  const kind = poState.imp.kind, P = poState.imp.plan;
+  $$('#po-i-kind button').forEach(b => b.setAttribute('aria-pressed', b.dataset.poIk === kind));
+  $('#po-i-help').textContent = kind === 'po' ? 'One row per PO line: PO number, PO date, Vendor, City, Part, Vehicle model (optional), Quantity, Rate excl GST, GST % (18 if blank), Expected by (optional), Note (optional). Rows with the same PO number become one PO. Dates are read day first (05-11-2026 = 5 Nov 2026). POs already in the register are skipped.' : 'One row per supply: PO number, Part, City (needed when a PO has the part for more than one city), Vehicle model (optional), Quantity, Received on, Reference (optional). A row already recorded with the same quantity, date and reference is skipped, so a file can be imported again safely.';
+  let h = '';
+  if (P) {
+    if (P.kind === 'po') {
+      h = '<div class="scroll"><table class="dtbl"><thead><tr><th class="l">PO</th><th class="l">Vendor</th><th class="l">PO date</th><th>Lines</th><th>PO value<small>' + poBasisLabel() + '</small></th><th class="l">Action</th></tr></thead><tbody>' + P.items.map(i => '<tr><td class="l">' + esc(i.po) + '</td><td class="l">' + esc(i.vendor) + '</td><td class="l">' + esc(poDay(i.date)) + '</td><td>' + n0(i.lines.length) + '</td><td>' + poRs(i.val) + '</td><td class="l">' + (i.exists ? 'Skip · already in the register' : i.done ? '<span class="ok">Imported</span>' : 'Create') + '</td></tr>').join('') + '</tbody></table></div>';
+    } else {
+      h = '<div class="scroll"><table class="dtbl"><thead><tr><th class="l">PO</th><th class="l">City</th><th class="l">Part</th><th>Quantity</th><th class="l">Received on</th><th class="l">Reference</th><th class="l">Action</th></tr></thead><tbody>' + P.items.map(i => '<tr><td class="l">' + esc(i.po) + '</td><td class="l">' + esc(i.city) + '</td><td class="l">' + esc(i.part) + '</td><td>' + poQty(i.qty) + '</td><td class="l">' + esc(poDay(i.date)) + '</td><td class="l">' + esc(i.ref || '–') + '</td><td class="l">' + (i.dup ? 'Skip · already recorded' : i.done ? '<span class="ok">Recorded</span>' : 'Record') + '</td></tr>').join('') + '</tbody></table></div>';
+    }
+    h += '<p class="po-meta">' + n0(P.todo) + (P.kind === 'po' ? ' POs to create' : ' supplies to record') + (P.errors.length ? ' · ' + n0(P.errors.length) + ' rows cannot be read and will be left out' : '') + '</p>';
+  }
+  $('#po-i-preview').innerHTML = h;
+  $('#po-i-error').textContent = P && P.errors.length ? P.errors.slice(0, 12).join('\n') + (P.errors.length > 12 ? '\n… and ' + (P.errors.length - 12) + ' more' : '') : $('#po-i-error').textContent;
+  $('#po-i-go').disabled = !P || !P.todo || poState.busy; $('#po-i-go').textContent = P && P.todo ? (P.kind === 'po' ? 'Create ' + n0(P.todo) + ' POs' : 'Record ' + n0(P.todo) + ' supplies') : 'Import';
+}
+async function poReadFile(file) {
+  poState.imp.plan = null; $('#po-i-error').textContent = ''; $('#po-i-file-name').textContent = file ? file.name : '';
+  if (!file) return poRenderImport();
+  try {
+    if (/\.xlsx?$/i.test(file.name)) throw new Error('Save the sheet as CSV (File → Save as → CSV UTF-8) and choose that file.');
+    const rows = poCsvParse(await file.text()); if (rows.length < 2) throw new Error('The file has no rows under the headings.');
+    poState.imp.plan = poState.imp.kind === 'po' ? poPlanPo(rows) : poPlanSupply(rows);
+  } catch (e) { $('#po-i-error').textContent = e.message; }
+  poRenderImport();
+}
+async function poImport() {
+  const P = poState.imp.plan; if (!P || poState.busy) return;
+  const by = await poWho(), at = new Date().toISOString(); let done = 0;
+  $('#po-i-go').disabled = true; $('#po-i-error').textContent = 'Importing…';
+  const ok = await poRun(async () => {
+    if (P.kind === 'po') {
+      for (const i of P.items) {
+        if (i.exists || i.done) continue;
+        await poCreate({ version: 1, kind: 'po', po: i.po, vendor: i.vendor, date: i.date, due: i.due, status: 'Open', note: i.note, lines: i.lines.map(({ k, ...l }) => l), receipts: [], createdAt: at, createdBy: by, history: [{ at, by, what: 'Imported from CSV with ' + i.lines.length + ' lines' }] });
+        i.done = true; done++;
+      }
+    } else {
+      const byPo = new Map(); for (const i of P.items) if (!i.dup && !i.done) { if (!byPo.has(i.poId)) byPo.set(i.poId, []); byPo.get(i.poId).push(i); }
+      for (const [id, list] of byPo) {
+        await poMutate(id, cur => {
+          const have = new Set(cur.receipts.map(r => r.id)), add = list.filter(i => !have.has(i.rid)).map(i => ({ id: i.rid, line: i.line, qty: i.qty, date: i.date, ref: i.ref, src: 'csv', at, by }));
+          if (!add.length) return null;
+          return { ...cur, receipts: [...cur.receipts, ...add], history: [...(cur.history || []), { at, by, what: 'Imported ' + add.length + ' supplies from CSV' }] };
+        });
+        list.forEach(i => { i.done = true; done++; });
+      }
+    }
+  }, P.kind === 'po' ? 'Imported POs from CSV.' : 'Imported supplies from CSV.');
+  P.todo = P.items.filter(i => !(i.exists || i.dup || i.done)).length;
+  $('#po-i-error').textContent = ok ? n0(done) + (P.kind === 'po' ? ' POs created.' : ' supplies recorded.') : poState.error + ' ' + n0(done) + ' were saved before the error; import the same file again to finish (saved rows are skipped).';
+  if (!ok && P.kind === 'po') P.items.forEach(i => { if (!i.done) i.exists = poState.rows.some(p => poKey(p.po) === poKey(i.po)); });
+  poRenderImport();
+}
+
+// ---------- settings, confirm, CSV out
+function poOpenSettings() {
+  const s = poState.settings;
+  $('#po-b-amount').value = (s.budgetPaise / 100).toFixed(0); $('#po-b-scope').value = s.scope; $('#po-b-basis').value = s.basis; $('#po-b-error').textContent = ''; $('#po-b-save').disabled = false;
+  $('#po-settings-dialog').showModal();
+}
+async function poSaveSettings(e) {
+  e.preventDefault(); if (poState.busy) return;
+  const amt = poNum($('#po-b-amount').value);
+  if (!(amt > 0 && amt < 1e10) || !/^\d+(\.\d{1,2})?$/.test(String(amt))) { $('#po-b-error').textContent = 'Enter the budget in rupees, e.g. 6000000 for ₹60 lakh.'; return; }
+  const by = await poWho(), value = { ...PO_DEFAULT, budgetPaise: Math.round(amt * 100), scope: $('#po-b-scope').value, basis: $('#po-b-basis').value, updatedAt: new Date().toISOString(), updatedBy: by };
+  $('#po-b-save').disabled = true;
+  const ok = await poRun(async () => {
+    const found = await poReq(PO_PATH + '/items?$select=Id&$filter=' + encodeURIComponent("Title eq '" + PO_SETTINGS + "'"));
+    if (found.value.length) await poReq(PO_PATH + '/items(' + found.value[0].Id + ')', { etag: '*', body: { ShipmentData: JSON.stringify(value) } });
+    else await poReq(PO_PATH + '/items', { body: { Title: PO_SETTINGS, ShipmentData: JSON.stringify(value) } });
+  }, 'Budget settings saved for the team.');
+  if (ok) $('#po-settings-dialog').close(); else { $('#po-b-error').textContent = poState.error; $('#po-b-save').disabled = false; }
+}
+function poConfirm(text, go) { poState.confirm = go; $('#po-confirm-text').textContent = text; $('#po-confirm').showModal(); }
+function poLinesCsv() {
+  const head = ['PO number', 'PO date', 'Expected by', 'Vendor', 'Status', 'City', 'Part', 'Vehicle model', 'Ordered qty', 'Rate excl GST (Rs)', 'GST %', 'Supplied qty', 'Pending qty', 'PO value ' + poBasisLabel() + ' (Rs)', 'Utilised ' + poBasisLabel() + ' (Rs)', 'Pending value (Rs)', 'Utilisation %', 'Supplies recorded'];
+  const rows = [];
+  for (const { po, lines } of poFiltered()) for (const l of lines) rows.push([po.po, po.date, po.due || '', po.vendor, po.status, l.city, l.part, l.model, l.qty, (l.ratePaise / 100).toFixed(2), l.gst, l.supplied, l.pending, (l.ordered / 100).toFixed(2), (l.used / 100).toFixed(2), (l.pendingVal / 100).toFixed(2), l.ordered ? (100 * l.used / l.ordered).toFixed(1) : '', po.receipts.filter(r => r.line === l.id).length]);
+  csv('PO lines ' + (poState.month || 'all months') + '.csv', head, rows);
+}
+function poSumCsv() {
+  const by = poState.by, first = by === 'city' ? ['City'] : by === 'part' ? ['Part', 'Cities'] : by === 'vendor' ? ['Vendor'] : ['City', 'Part'];
+  csv('PO summary by ' + by + ' ' + (poState.month || 'all months') + '.csv', first.concat(['POs', 'Ordered qty', 'Supplied qty', 'Pending qty', 'PO value ' + poBasisLabel() + ' (Rs)', 'Utilised (Rs)', 'Pending value (Rs)', 'Utilisation %']),
+    poGroup(poFiltered(), by).map(g => (by === 'city' ? [g.city] : by === 'part' ? [g.part, [...g.cities].join(' / ')] : by === 'vendor' ? [g.vendor] : [g.city, g.part]).concat([g.pos.size, g.qty, g.supplied, g.pending, (g.ordered / 100).toFixed(2), (g.used / 100).toFixed(2), (g.pendingVal / 100).toFixed(2), g.ordered ? (100 * g.used / g.ordered).toFixed(1) : ''])));
+}
+function poAnyDialog() { return ['#po-dialog', '#po-supply', '#po-import-dialog', '#po-settings-dialog', '#po-confirm'].some(s => $(s).open); }
+
+function bindPo() {
+  $('#po-reload').addEventListener('click', poLoad);
+  $('#po-setup').addEventListener('click', poSetup);
+  $('#po-settings').addEventListener('click', poOpenSettings);
+  $('#po-add').addEventListener('click', () => poOpenForm(null));
+  $('#po-import').addEventListener('click', () => { poDatalists(); poState.imp.plan = null; $('#po-i-file').value = ''; $('#po-i-file-name').textContent = ''; $('#po-i-error').textContent = ''; poRenderImport(); $('#po-import-dialog').showModal(); });
+  $('#po-lines-csv').addEventListener('click', poLinesCsv);
+  $('#po-sum-csv').addEventListener('click', poSumCsv);
+  $('#po-by').addEventListener('click', e => { const b = e.target.closest('[data-po-by]'); if (b) { poState.by = b.dataset.poBy; renderPo(); } });
+  for (const [sel, key] of [['#po-month', 'month'], ['#po-city', 'city'], ['#po-vendor', 'vendor'], ['#po-status', 'status']]) $(sel).addEventListener('change', e => { poState[key] = e.target.value; renderPo(); });
+  $('#po-q').addEventListener('input', e => { poState.q = e.target.value; renderPo(); });
+  $('#po-table').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return; const d = b.dataset, po = id => poState.rows.find(p => p.id === +id);
+    if (d.poOpen) { poState.open = poState.open === +d.poOpen ? null : +d.poOpen; renderPo(); return; }
+    if (d.poSupply) { const p = po(d.poSupply); if (p) poOpenSupply(p); return; }
+    if (d.poEdit) { const p = po(d.poEdit); if (p) poOpenForm(p); return; }
+    if (d.poStatus) { const p = po(d.poStatus), to = d.to; if (!p) return;
+      const text = to === 'Closed' ? 'Short-close PO ' + p.po + '? Pending quantity (' + poQty(poC(p).pending) + ' parts) is released back to the budget. Supplies already recorded stay utilised.' : to === 'Cancelled' ? 'Cancel PO ' + p.po + '? Nothing more is expected from it; anything already supplied stays utilised.' : 'Reopen PO ' + p.po + '? Its pending quantity counts against the budget again.';
+      poConfirm(text, async () => { const by = await poWho(), at = new Date().toISOString(); await poRun(() => poMutate(p.id, cur => cur.status === to ? null : { ...cur, status: to, history: [...(cur.history || []), { at, by, what: 'Status ' + cur.status + ' → ' + to }] }), 'PO ' + p.po + ' is now ' + to.toLowerCase() + '.'); }); return; }
+    if (d.poDelete) { const p = po(d.poDelete); if (!p) return;
+      poConfirm('Delete PO ' + p.po + ' with its ' + p.receipts.length + ' supply entries? It goes to the shared workspace recycle bin.', async () => { await poRun(() => poReq(PO_PATH + '/items(' + p.id + ')/recycle()', { method: 'POST' }), 'PO ' + p.po + ' moved to the recycle bin.'); poState.open = null; renderPo(); }); return; }
+    if (d.poUnreceive) { const p = po(d.poUnreceive), r = p && p.receipts.find(x => x.id === d.rid); if (!r) return;
+      poConfirm('Remove the supply of ' + poQty(r.qty) + ' parts received on ' + poDay(r.date) + (r.ref ? ' (' + r.ref + ')' : '') + ' from PO ' + p.po + '?', async () => { const by = await poWho(), at = new Date().toISOString(); await poRun(() => poMutate(p.id, cur => cur.receipts.some(x => x.id === r.id) ? { ...cur, receipts: cur.receipts.filter(x => x.id !== r.id), history: [...(cur.history || []), { at, by, what: 'Removed supply of ' + poQty(r.qty) + (r.ref ? ' (' + r.ref + ')' : '') }] } : null), 'Supply removed.'); }); return; }
+    if (d.poLink) { const p = po(d.poLink); if (!p || !GRN) return; const [rec, gi] = d.grn.split(':').map(Number), inv = GRN.records.find(x => x.record === rec), gl = inv && inv.lines[gi]; if (!gl) return;
+      (async () => { const by = await poWho(), at = new Date().toISOString(), rid = poNewId();
+        await poRun(() => poMutate(p.id, cur => {
+          if (cur.receipts.some(x => x.grn === d.grn && x.line === d.line && x.id === rid)) return null;
+          const c = poCalc(cur), l = c.lines.find(x => x.id === d.line), left = gl.quantity - (poGrnUsed().get(d.grn) || 0) - cur.receipts.filter(x => x.grn === d.grn).reduce((s, x) => s + x.qty, 0) + p.receipts.filter(x => x.grn === d.grn).reduce((s, x) => s + x.qty, 0);
+          const qty = Math.min(left, l ? l.pending : 0); if (!(qty > 0)) throw new Error('Nothing left to link: this GRN line or PO line is already fully covered. Reload to see the latest.');
+          return { ...cur, receipts: [...cur.receipts, { id: rid, line: d.line, qty, date: inv.date, ref: inv.invoice, src: 'grn', grn: d.grn, at, by }], history: [...(cur.history || []), { at, by, what: 'Linked GRN ' + inv.invoice + ': ' + poQty(qty) + ' × ' + gl.part }] };
+        }), 'GRN line linked as a supply.'); })();
+    }
+  });
+  // PO form
+  $('#po-form').addEventListener('submit', poSaveForm);
+  $('#po-d-close').addEventListener('click', () => $('#po-dialog').close());
+  $('#po-f-addline').addEventListener('click', () => { $('#po-f-lines tbody').insertAdjacentHTML('beforeend', poLineRow()); const r = $$('#po-f-lines tbody tr').at(-1); r.querySelector('[data-f="' + (r.querySelector('[data-f="city"]').value ? 'part' : 'city') + '"]').focus(); });
+  $('#po-f-lines').addEventListener('input', poFormTotal);
+  $('#po-f-lines').addEventListener('click', e => { const x = e.target.closest('[data-po-rmline]'); if (!x) return; const tr = x.closest('tr');
+    if (poState.edit && poState.edit.received.has(tr.dataset.lid)) { $('#po-f-error').textContent = 'This line has supplies recorded. Remove its supplies first, or keep the line.'; return; }
+    tr.remove(); poFormTotal(); });
+  $('#po-f-city').addEventListener('change', e => { const v = e.target.value.trim(); if (v) for (const i of $$('#po-f-lines [data-f="city"]')) if (!i.value.trim()) i.value = v; });
+  // supply form
+  $('#po-s-form').addEventListener('submit', poSaveSupply);
+  $('#po-s-close').addEventListener('click', () => $('#po-supply').close());
+  $('#po-s-fill').addEventListener('click', () => { for (const tr of $$('#po-s-lines tbody tr')) { const p = +tr.dataset.pending; tr.querySelector('input').value = p > 0 ? String(p) : ''; } });
+  // import
+  $('#po-i-close').addEventListener('click', () => $('#po-import-dialog').close());
+  $('#po-i-kind').addEventListener('click', e => { const b = e.target.closest('[data-po-ik]'); if (!b) return; poState.imp.kind = b.dataset.poIk; poState.imp.plan = null; $('#po-i-file').value = ''; $('#po-i-file-name').textContent = ''; $('#po-i-error').textContent = ''; poRenderImport(); });
+  $('#po-i-file').addEventListener('change', e => poReadFile(e.target.files[0]));
+  $('#po-i-template').addEventListener('click', () => { const t = PO_TEMPLATE[poState.imp.kind]; csv(poState.imp.kind === 'po' ? 'PO import template.csv' : 'Supply import template.csv', t[0], t.slice(1)); });
+  $('#po-i-go').addEventListener('click', poImport);
+  // settings and confirm
+  $('#po-b-form').addEventListener('submit', poSaveSettings);
+  $('#po-b-close').addEventListener('click', () => $('#po-settings-dialog').close());
+  $('#po-confirm-cancel').addEventListener('click', () => { poState.confirm = null; $('#po-confirm').close(); });
+  $('#po-confirm-go').addEventListener('click', () => { const go = poState.confirm; poState.confirm = null; $('#po-confirm').close(); if (go) go(); });
+  for (const s of ['#po-dialog', '#po-supply', '#po-import-dialog', '#po-settings-dialog']) $(s).addEventListener('cancel', e => { if (poState.busy) e.preventDefault(); });
+  setInterval(() => { if (state.tab === 'po' && !document.hidden && poState.ready && !poState.busy && !poAnyDialog()) poLoad(); }, 60000);
+  addEventListener('storage', e => { if (e.key === SHIP.authKey && state.tab === 'po' && !poState.busy && !poAnyDialog()) poLoad(); });
+}
+// ===== PO register end
+
 // ---------- CSV, copy
 function csv(name, head, rows) {
   const q = v => { const s = v == null ? '' : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
@@ -2235,6 +3037,7 @@ function bind() {
   bindPrices();
   bindShipments();
   bindNotes();
+  bindPo();
   bindReg();
   bindGst();
   setInterval(refreshBoughtPeriod, 60000);
@@ -2275,7 +3078,7 @@ function bind() {
   document.addEventListener('pointermove', e => { if (!tip.hidden && e.target.closest && e.target.closest('td[data-tip],tr[data-tip]')) placeTip(e); });
   document.addEventListener('pointerout', e => { const c = e.target.closest && e.target.closest('td[data-tip],tr[data-tip]'); if (c && !c.contains(e.relatedTarget)) tip.hidden = true; });
   let rt = 0; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (state.tab === 'fc' && D.fc2) renderAccuracy(); if (state.tab === 'age') ageChart(); if (state.tab === 'proc') renderProc(); if (state.tab === 'grn') renderGrn(); }, 150); });
-  addEventListener('hashchange', () => { const t = location.hash.slice(1); if (['fc', 'age', 'hub', 'proc', 'grn', 'prices', 'shipments', 'notes'].concat(regAllowed ? ['reg'] : []).includes(t) && t !== state.tab) setTab(t); });
+  addEventListener('hashchange', () => { const t = location.hash.slice(1); if (['fc', 'age', 'hub', 'proc', 'grn', 'prices', 'po', 'shipments', 'notes'].concat(regAllowed ? ['reg'] : []).includes(t) && t !== state.tab) setTab(t); });
 }
 function setTab(t) {
   if (REG_ONLY) return;
@@ -2284,7 +3087,7 @@ function setTab(t) {
   if (wasProc !== (t === 'proc')) buildFilters();
   render();
 }
-function readHash() { const t = location.hash.slice(1); if (['fc', 'age', 'hub', 'proc', 'grn', 'prices', 'shipments', 'notes'].includes(t)) { state.tab = t; $('#app').dataset.tab = t; $$('.tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === t)); } }
+function readHash() { const t = location.hash.slice(1); if (['fc', 'age', 'hub', 'proc', 'grn', 'prices', 'po', 'shipments', 'notes'].includes(t)) { state.tab = t; $('#app').dataset.tab = t; $$('.tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === t)); } }
 function writeHash() { const h = '#' + state.tab; if (location.hash !== h) history.replaceState(null, '', h); }
 
 // ---------- Vehicle registry tab: a fixed snapshot sealed into the page (reg-data), opened with the same key
@@ -2448,6 +3251,7 @@ function defs() {
     ['Safety target', 'The forecast plus 1.28 × √(forecast + (0.3 × forecast)²). Historical coverage is shown in the accuracy table. A shared margin is not a calibrated guarantee for every part or supplier lead time.'],
     ['Hub', 'Parts count at the hub on the ticket (where they were fitted). Vehicles count at the hub they were last deployed from in the month. A hub\'s forecast is its share of each part fitted in the last 30 days. S3 locations are shown together as RSA technicians.'],
     ['Part groups', 'Consumables (wear parts) = brakes, tyres and wheels, fasteners. Plastic = body and panels. Electrical = electricals, lighting and mirrors. Mechanical = suspension and chassis, other parts. Motor and controller = motor and drivetrain. Names follow the monthly spare parts plan.'],
+    ['Purchase orders', 'POs given to vendors, entered in the shared Hala Purchase Orders list (Hala Fleet Ops SharePoint, same Microsoft sign-in as Shipment tracking). Each PO line has a city, part, quantity, rate excluding GST and GST %. Supplied = quantities recorded against a line by hand, from a CSV or by linking a Cercle OS GRN line. Utilised = supplied quantity × PO rate; it comes off the budget (₹60 lakh unless changed in Budget settings). Pending = ordered but not yet supplied on open POs. Free to put on new POs = budget − utilised − pending. A short-closed or cancelled PO releases its pending quantity. Values follow the budget setting (including or excluding GST).'],
     ['Procurement', 'Lines of the “Procurement vendor wise data” sheet of the Spares Master Report. Spend = quantity × unit cost, excluding GST; freight is shown apart. Repeated header rows and totals are skipped; an invoice keyed twice, a day and month typed the wrong way round, and a cost that is the line total are corrected and listed under Lines to check.']];
   $('#defs').innerHTML = items.map(([a, b]) => '<dt>' + esc(a) + '</dt><dd>' + esc(b) + '</dd>').join('');
   const c = D.chk;
