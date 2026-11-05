@@ -318,6 +318,7 @@ table.dtbl .z { color: var(--muted); }
 
 
 
+
 /* ---- Purchase orders tab */
 .po-run { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .po-run .neg { color: #c0392b; }
@@ -669,6 +670,7 @@ table.po-inv-rows select { margin-bottom: 4px; }
     <p role="alert" id="notes-detail-error"></p>
     <form id="notes-comment-form"><label class="fld">Your comment<textarea id="notes-comment" rows="3" maxlength="4000" required placeholder="Add an update, decision or next step…"></textarea></label><button type="submit" class="btn" id="notes-comment-save">Post comment</button></form>
   </dialog>
+
 
 
 
@@ -2437,6 +2439,7 @@ function bindNotes() {
 
 
 
+
 // ===== PO register start
 // ---------- Purchase orders and budget, shared through the Hala Fleet Ops site (same Microsoft sign-in as Shipments and Notes).
 // Utilised = value of parts supplied against PO lines; it comes off the budget. Pending = ordered on open POs, not yet supplied.
@@ -2460,7 +2463,8 @@ const poCurMonth = () => shipToday().slice(0, 7);
 // ---------- storage: one JSON file per PO in the Fleet Ops Documents library (Shared Documents/Purchase Orders), plus _settings.json.
 // Files need only Contribute permission; every save sends the file's ETag so a teammate's save in between is never overwritten.
 async function poRaw(path, options = {}) {
-  const url = SHIP.host + SHIP.site + '/_api/web/' + path, headers = { Accept: 'application/json;odata=nometadata', Authorization: 'Bearer ' + await shipToken(), ...(options.headers || {}) };
+  let token; try { token = await shipToken(); } catch (e) { throw Object.assign(new Error('Your Microsoft sign-in has expired. Click "Open Microsoft sign-in", sign in, then come back — the POs load again by themselves.'), { status: 401 }); }
+  const url = SHIP.host + SHIP.site + '/_api/web/' + path, headers = { Accept: 'application/json;odata=nometadata', Authorization: 'Bearer ' + token, ...(options.headers || {}) };
   if (options.body != null) headers['Content-Type'] = options.contentType || 'application/json';
   const response = await fetch(url, { method: options.method || (options.body != null ? 'POST' : 'GET'), headers, body: options.body });
   if (!response.ok) {
