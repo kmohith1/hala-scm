@@ -315,6 +315,7 @@ table.dtbl .z { color: var(--muted); }
 
 
 
+
 /* ---- Purchase orders tab */
 .po-run { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .po-run .neg { color: #c0392b; }
@@ -375,6 +376,10 @@ table.po-inv-rows td .po-badge, table.po-inv-rows td .flag { display: inline-blo
 table.po-inv-rows td small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
 table.po-inv-rows select { margin-bottom: 4px; }
 .po-inv-pages img { display: block; max-width: 100%; margin-top: 10px; border: 1px solid var(--line2); }
+.po-ai { font-size: 14px; color: var(--ink2); }
+.po-ai-form { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-end; padding: 12px 14px; border: 1px solid var(--line2); border-radius: 8px; background: var(--sunk); }
+.po-ai-form .fld > input { min-width: 340px; }
+.po-ai-form .note { flex-basis: 100%; padding: 0; }
 </style>
 </head>
 <body>
@@ -671,6 +676,7 @@ table.po-inv-rows select { margin-bottom: 4px; }
 
 
 
+
   <!-- ===== Purchase orders ===== -->
   <div class="view" id="v-po" hidden>
     <section class="sec">
@@ -765,7 +771,9 @@ table.po-inv-rows select { margin-bottom: 4px; }
   <dialog id="po-inv" class="po-dlg" aria-labelledby="po-inv-title">
     <div class="tools po-dhead"><h2 id="po-inv-title">Upload vendor invoice</h2><button type="button" class="btn" id="po-inv-close">Close</button></div>
     <p class="note">PDF (including scanned or printed PDFs), JPG or PNG. The invoice is read on this computer; item names are matched to our part names and the PO's lines, and the quantities are recorded as supply.</p>
-    <div class="tools"><label class="btn po-primary po-file">Choose invoice<input type="file" id="po-inv-file" accept=".pdf,application/pdf,image/*"></label><span id="po-inv-status" role="status"></span></div>
+    <div class="tools po-ai"><span id="po-ai-status"></span><button type="button" class="btn sm" id="po-ai-set">Turn on AI reading</button><button type="button" class="btn sm" id="po-ai-clear" hidden>Remove AI key</button></div>
+    <div class="po-ai-form" id="po-ai-form" hidden><label class="fld">Claude API key<input type="password" id="po-ai-key" autocomplete="off" spellcheck="false" placeholder="sk-ant-…"></label><button type="button" class="btn po-primary" id="po-ai-save">Save in this browser</button><p class="note">Create a key at console.anthropic.com → API keys (the account needs credit). It is kept only in this browser; invoices are sent only to Anthropic to be read.</p></div>
+    <div class="tools"><label class="btn po-primary po-file">Choose invoice<input type="file" id="po-inv-file" accept=".pdf,application/pdf,image/*"></label><button type="button" class="btn" id="po-inv-reread" hidden>Read again</button><span id="po-inv-status" role="status"></span></div>
     <div id="po-inv-body" hidden>
       <div class="filters">
         <label class="fld">Vendor<input id="po-inv-vendor" list="po-vendors" maxlength="120" autocomplete="off"></label>
@@ -2422,6 +2430,7 @@ function bindNotes() {
 
 
 
+
 // ===== PO register start
 // ---------- Purchase orders and budget, shared through the Hala Fleet Ops site (same Microsoft sign-in as Shipments and Notes).
 // Utilised = value of parts supplied against PO lines; it comes off the budget. Pending = ordered on open POs, not yet supplied.
@@ -3344,20 +3353,74 @@ function invMatch() {
   const lines = po ? poC(po).lines : [], cat = invCatalogue(), taken = new Set();
   const order = invState.rows.map((r, i) => ({ r, i, b: invBest(r.name, lines.map(l => ({ part: l.part, model: l.model, l })), vendor) })).sort((a, b) => (b.b ? b.b.s : 0) - (a.b ? a.b.s : 0));
   for (const { r, b } of order) {
-    r.internal = invBest(r.name, cat, vendor);
+    r.internal = r.ai ? { c: { part: r.ai.part, model: r.ai.model }, s: r.ai.conf, ai: true } : invBest(r.name, cat, vendor);
     if (r.manual) { if (r.line) taken.add(r.line); continue; }
-    r.line = ''; r.score = 0; r.saved = false;
+    r.line = ''; r.score = 0; r.saved = false; r.aiPick = false;
     if (!b) continue;
-    const ranked = lines.map(l => { const al = poState.aliases[poAliasKey(vendor, r.name)], saved = !!(al && poKey(al.part) === poKey(l.part) && poModelNorm(al.model) === poModelNorm(l.model)); return { l, s: saved ? 1 : poNameScore(r.name, l.part, l.model), saved }; }).sort((a, b) => b.s - a.s);
+    const ranked = lines.map(l => { const al = poState.aliases[poAliasKey(vendor, r.name)], saved = !!(al && poKey(al.part) === poKey(l.part) && poModelNorm(al.model) === poModelNorm(l.model)); const aiHit = !!(r.ai && poKey(r.ai.part) === poKey(l.part) && poModelNorm(r.ai.model) === poModelNorm(l.model)), ns = poNameScore(r.name, l.part, l.model); return { l, s: saved ? 1 : aiHit ? Math.max(r.ai.conf, ns, 0.6) : r.ai ? Math.min(ns, 0.5) : ns, saved, ai: aiHit && !saved }; }).sort((a, b) => b.s - a.s);
     const pick = ranked.find(x => x.s >= 0.55 && !taken.has(x.l.id));
-    if (pick) { r.line = pick.l.id; r.score = pick.s; r.saved = pick.saved; taken.add(pick.l.id); }
+    if (pick) { r.line = pick.l.id; r.score = pick.s; r.saved = pick.saved; r.aiPick = pick.ai; taken.add(pick.l.id); }
   }
+}
+
+
+// ---- AI reading (Claude). Reads the invoice the way a person would and suggests our part name for each item.
+// The key is kept only in this browser (localStorage) and the invoice is sent only to Anthropic's API.
+const PO_AI_MODEL = 'claude-sonnet-5-5', PO_AI_KEYNAME = 'hala_ai_key';
+const invAiKey = () => { try { return localStorage.getItem(PO_AI_KEYNAME) || ''; } catch (e) { return ''; } };
+async function invB64(file) { const b = new Uint8Array(await file.arrayBuffer()); let s = ''; for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000)); return btoa(s); }
+async function invAiRead(file, key) {
+  const cat = invCatalogue(), isPdf = /\.pdf$/i.test(file.name) || file.type === 'application/pdf';
+  if (file.size > 20 * 1024 * 1024) throw new Error('The file is over 20 MB.');
+  const media = isPdf ? 'application/pdf' : (/^image\/(jpeg|png|gif|webp)$/.test(file.type) ? file.type : 'image/jpeg');
+  const doc = isPdf ? { type: 'document', source: { type: 'base64', media_type: media, data: await invB64(file) } } : { type: 'image', source: { type: 'base64', media_type: media, data: await invB64(file) } };
+  const prompt = 'This is a vendor tax invoice sent to HALA Mobility, an Indian EV two-wheeler fleet company, for spare parts. Read it carefully and call record_invoice.\n\n' +
+    'Rules:\n- One entry per item row of the invoice table, in order. Skip total, sub-total, tax summary and round-off rows.\n' +
+    '- quantity = the number of units on that row. unit_rate_excl_gst = the price per unit before GST, as printed (a number, no ₹ sign or commas). line_amount = the row amount as printed. gst_percent = the GST % for the row (18 if shown as 18%).\n' +
+    '- Check your reading: quantity × unit_rate_excl_gst should equal the taxable value, and with GST added it should equal the row amount when the amount includes GST. If they do not agree, look again at the digits.\n' +
+    '- invoice_date as YYYY-MM-DD. Indian dates are day first (04/11/2026 = 2026-11-04).\n' +
+    '- city = the HALA city the goods are billed or shipped to (Bill To / Ship To / Place of Supply): Hyderabad (also Telangana, Vijayawada, Andhra Pradesh), Bengaluru (Karnataka), Delhi (Delhi NCR), Mumbai (Maharashtra). Not the vendor\'s own address. Empty if unclear.\n' +
+    '- po_number = the PO number printed on the invoice, empty if none.\n' +
+    '- match = the index of the HALA part below that is the same physical part as the invoice item, or -1 if none is clearly the same. Vendors use other names: mudguard = fender, assy = assembly, speedo meter = speedometer, S/L or SL = SINGLE LIGHT model, Hyfy = ODYSSE HYFY SUN, Snap = ODYSSE SNAP SUN, "old model" and "universal" are not model names. Prefer the part with the right vehicle model; "All models (common part)" fits any model. match_confidence from 0 to 1.\n\n' +
+    'HALA parts (index | part | vehicle model):\n' + cat.map((c, i) => i + ' | ' + c.part + ' | ' + (c.model || '-')).join('\n');
+  const tool = { name: 'record_invoice', description: 'Record the details read from the vendor invoice.', input_schema: { type: 'object', properties: {
+    vendor_name: { type: 'string' }, invoice_number: { type: 'string' }, invoice_date: { type: 'string', description: 'YYYY-MM-DD' }, po_number: { type: 'string' },
+    city: { type: 'string', enum: ['Hyderabad', 'Bengaluru', 'Delhi', 'Mumbai', ''] }, total_quantity: { type: 'number', description: 'Total quantity printed on the invoice, 0 if none' }, taxable_total: { type: 'number', description: 'Total taxable value before GST, 0 if none' },
+    items: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, hsn: { type: 'string' }, quantity: { type: 'number' }, unit: { type: 'string' }, unit_rate_excl_gst: { type: 'number' }, gst_percent: { type: 'number' }, line_amount: { type: 'number' }, match: { type: 'integer', description: 'Index in the HALA parts list, or -1' }, match_confidence: { type: 'number' } }, required: ['name', 'quantity', 'unit_rate_excl_gst', 'match', 'match_confidence'] } } },
+    required: ['vendor_name', 'invoice_number', 'invoice_date', 'items'] } };
+  let response;
+  try {
+    response = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+      body: JSON.stringify({ model: PO_AI_MODEL, max_tokens: 8000, tools: [tool], tool_choice: { type: 'tool', name: 'record_invoice' }, messages: [{ role: 'user', content: [doc, { type: 'text', text: prompt }] }] }) });
+  } catch (e) { throw new Error('Could not reach the AI service. Check the internet connection.'); }
+  if (!response.ok) { const j = await response.json().catch(() => ({})), m = j.error && j.error.message; throw new Error(response.status === 401 ? 'The AI key was not accepted. Check it under AI reading.' : response.status === 429 ? 'The AI service is busy. Try again in a minute.' : response.status === 400 && /credit/i.test(m || '') ? 'The AI account has no credit left.' : 'AI reading failed (' + response.status + (m ? ': ' + m : '') + ').'); }
+  const j = await response.json(), tu = (j.content || []).find(c => c.type === 'tool_use'), x = tu && tu.input;
+  if (!x || !Array.isArray(x.items)) throw new Error('The AI did not return the invoice items.');
+  const num = v => { const n = typeof v === 'number' ? v : Number(String(v == null ? '' : v).replace(/[₹,\s]/g, '')); return Number.isFinite(n) ? n : NaN; };
+  const rows = x.items.map(it => {
+    const row = { name: poNorm(it.name), qty: num(it.quantity), rate: num(it.unit_rate_excl_gst), amount: num(it.line_amount), gstPct: num(it.gst_percent), hsn: String(it.hsn || '').replace(/\D/g, '').slice(0, 8) };
+    const m = Number.isInteger(it.match) && it.match >= 0 ? cat[it.match] : null;
+    row.ai = m ? { part: m.part, model: m.model, conf: Math.max(0, Math.min(1, num(it.match_confidence) || 0.7)) } : null;
+    const base = row.qty * row.rate, g = Number.isFinite(row.gstPct) ? row.gstPct : 18;
+    row.rateOk = row.rate > 0 && (!(row.amount > 0) || Math.abs(row.amount - base) <= Math.max(1.5, base * 0.002) || Math.abs(row.amount - base * (1 + g / 100)) <= Math.max(2, base * 0.003));
+    return row;
+  }).filter(r => r.name && r.qty > 0);
+  const names = new Set(poState.rows.map(p => p.vendor)); if (GRN) for (const r of GRN.records) names.add(r.vendor);
+  const vk = poVendorKey(x.vendor_name || ''); let vendor = poNorm(x.vendor_name || '');
+  for (const v of names) if (poVendorMatch(vk, poVendorKey(v)) || (poVendorKey(v).length >= 4 && vk.includes(poVendorKey(v)))) { vendor = v; break; }
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(x.invoice_date || '') ? x.invoice_date : (poDate(x.invoice_date) || '');
+  return { rows, head: { vendor, no: poNorm(x.invoice_number || ''), date, poNo: poNorm(x.po_number || ''), city: ['Hyderabad', 'Bengaluru', 'Delhi', 'Mumbai'].includes(x.city) ? x.city : '', cityFrom: 'the invoice (AI)' }, tot: num(x.total_quantity) > 0 ? { qty: num(x.total_quantity) } : null };
+}
+function invAiStatus() {
+  const k = invAiKey();
+  $('#po-ai-status').textContent = k ? 'AI reading on (Claude) · key saved in this browser' : 'AI reading off · invoices are read with basic text recognition';
+  $('#po-ai-set').textContent = k ? 'Change AI key' : 'Turn on AI reading'; $('#po-ai-clear').hidden = !k;
 }
 
 // ---- dialog
 function invOpen(poId) {
   Object.assign(invState, { busy: false, file: null, pages: [], rows: [], head: {}, po: poId || '', warned: '', ops: null, tot: null });
-  $('#po-inv-file').value = ''; invStatus(''); $('#po-inv-body').hidden = true; $('#po-inv-error').textContent = ''; $('#po-inv-save').disabled = true; $('#po-inv-pages').innerHTML = '';
+  $('#po-inv-file').value = ''; invStatus(''); invAiStatus(); $('#po-ai-form').hidden = true; $('#po-inv-reread').hidden = true; $('#po-inv-body').hidden = true; $('#po-inv-error').textContent = ''; $('#po-inv-save').disabled = true; $('#po-inv-pages').innerHTML = '';
   $('#po-inv').showModal();
 }
 async function invChoose(file) {
@@ -3365,8 +3428,14 @@ async function invChoose(file) {
   invState.busy = true; invState.file = file; $('#po-inv-error').textContent = ''; $('#po-inv-body').hidden = true; $('#po-inv-save').disabled = true;
   const t0 = Date.now();
   try {
-    invStatus('Loading the invoice reader…');
-    const got = await invRead(file);
+    let got = null, via = 'text recognition', aiErr = '';
+    const key = invAiKey();
+    if (key) {
+      invStatus('Reading the invoice with AI…');
+      try { got = await invAiRead(file, key); via = 'AI'; } catch (e) { aiErr = e.message; }
+      try { invState.pages = await invPages(file); } catch (e) { invState.pages = []; }
+    }
+    if (!got) { invStatus('Loading the invoice reader…'); got = await invRead(file); }
     invState.rows = got.rows.map((r, i) => ({ ...r, i, include: true, manual: false })); invState.head = got.head; invState.tot = got.tot;
     const h = got.head;
     $('#po-inv-vendor').value = h.vendor || ''; $('#po-inv-no').value = h.no || ''; $('#po-inv-date').value = h.date || shipToday(); $('#po-inv-pono').value = h.poNo || '';
@@ -3375,7 +3444,8 @@ async function invChoose(file) {
     invFillPo(); invMatch(); invRender();
     $('#po-inv-pages').innerHTML = ''; for (const pg of invState.pages) { const im = new Image(); im.src = pg.preview; im.alt = 'Invoice page'; $('#po-inv-pages').appendChild(im); }
     $('#po-inv-body').hidden = false;
-    invStatus(got.rows.length ? n0(got.rows.length) + ' items read from ' + file.name + ' in ' + Math.round((Date.now() - t0) / 1000) + ' s. Check them against the invoice before saving.' : 'No item table was found in ' + file.name + '.');
+    invStatus((aiErr ? aiErr + ' Read with text recognition instead. ' : '') + (got.rows.length ? n0(got.rows.length) + ' items read with ' + via + ' from ' + file.name + ' in ' + Math.round((Date.now() - t0) / 1000) + ' s. Check them against the invoice before saving.' : 'No item table was found in ' + file.name + '.'));
+    $('#po-inv-reread').hidden = false;
     if (!got.rows.length) $('#po-inv-error').textContent = 'The item rows could not be read. Try a clearer scan or photo, or record the supply by hand.';
   } catch (e) { invStatus(''); $('#po-inv-error').textContent = e.message || String(e); }
   finally { invState.busy = false; if (invState.rows.length) invRender(); }
@@ -3405,9 +3475,9 @@ function invRender() {
   let t = '<colgroup><col style="width:36px"><col style="width:24%"><col style="width:20%"><col style="width:28%"><col style="width:96px"><col style="width:110px"><col style="width:120px"></colgroup><thead><tr><th>#</th><th>Invoice item</th><th>Our part name</th><th>Record against PO line</th><th class="r">Qty</th><th class="r">Invoice rate</th><th class="r">PO rate</th></tr></thead><tbody>';
   for (const r of invState.rows) {
     const l = byId.get(r.line), diff = l && r.rate > 0 ? 100 * (r.rate * 100 - l.ratePaise) / Math.max(1, l.ratePaise) : NaN;
-    const badge = !r.line ? '<span class="flag">Not matched</span>' : r.manual ? '<span class="po-badge closed">Chosen</span>' : r.saved ? '<span class="po-badge">Saved match</span>' : r.score >= 0.8 ? '<span class="po-badge">Match ' + Math.round(r.score * 100) + '%</span>' : '<span class="flag">Check · ' + Math.round(r.score * 100) + '%</span>';
+    const badge = !r.line ? '<span class="flag">Not matched</span>' : r.manual ? '<span class="po-badge closed">Chosen</span>' : r.saved ? '<span class="po-badge">Saved match</span>' : r.aiPick && r.score >= 0.8 ? '<span class="po-badge">AI match ' + Math.round(r.score * 100) + '%</span>' : r.score >= 0.8 ? '<span class="po-badge">Match ' + Math.round(r.score * 100) + '%</span>' : '<span class="flag">Check · ' + Math.round(r.score * 100) + '%</span>';
     const amtOk = r.qty > 0 && r.rate > 0 && r.amount > 0 ? (Math.abs(r.amount - r.qty * r.rate) < 1.5 || (Number.isFinite(r.gstPct) && Math.abs(r.amount - r.qty * r.rate * (1 + r.gstPct / 100)) < 2) || Math.abs(r.amount - r.qty * r.rate * 1.18) < 2) : true;
-    const internal = r.internal && r.internal.s >= 0.55 ? esc(r.internal.c.part + (r.internal.c.model ? ' · ' + r.internal.c.model : '')) + (r.internal.s < 0.8 ? ' <small>(' + Math.round(r.internal.s * 100) + '%)</small>' : '') : '<small>No close part name</small>';
+    const internal = r.internal && (r.internal.ai || r.internal.s >= 0.55) ? esc(r.internal.c.part + (r.internal.c.model ? ' · ' + r.internal.c.model : '')) + (r.internal.s < 0.8 ? ' <small>(' + Math.round(r.internal.s * 100) + '%)</small>' : '') : '<small>No close part name</small>';
     t += '<tr data-ir="' + r.i + '"><td>' + (r.i + 1) + '</td><td><input data-if="name" value="' + esc(r.name) + '" aria-label="Invoice item name">' + (r.hsn ? '<small>HSN ' + esc(r.hsn) + '</small>' : '') + '</td><td>' + internal + '</td><td><select data-if="line" aria-label="PO line">' + opts(r.line) + '</select>' + badge + '</td><td><input class="n" data-if="qty" inputmode="decimal" value="' + (Number.isFinite(r.qty) ? r.qty : '') + '" aria-label="Quantity">' + (l && r.qty > l.pending + 1e-9 ? '<span class="flag">over pending ' + poQty(l.pending) + '</span>' : '') + '</td><td class="r">' + (r.rate > 0 ? poRsFull(Math.round(r.rate * 100)) : '–') + (r.rateDerived ? '<small>from amount and GST</small>' : '') + (amtOk && r.rateOk !== false ? '' : ' <span class="flag">check rate</span>') + '</td><td class="r">' + (l ? poRsFull(l.ratePaise) + (Number.isFinite(diff) && Math.abs(diff) >= 0.5 ? ' <span class="flag">' + (diff > 0 ? '+' : '') + f1.format(diff) + '%</span>' : '') : '–') + '</td></tr>';
   }
   if (!invState.rows.length) t += '<tr><td colspan="7">No items.</td></tr>';
@@ -3482,6 +3552,10 @@ function bindInvoice() {
     invRender();
   });
   $('#po-inv-save').addEventListener('click', invSave);
+  $('#po-ai-set').addEventListener('click', () => { $('#po-ai-form').hidden = !$('#po-ai-form').hidden; $('#po-ai-key').value = ''; if (!$('#po-ai-form').hidden) $('#po-ai-key').focus(); });
+  $('#po-ai-save').addEventListener('click', () => { const k = $('#po-ai-key').value.trim(); if (!/^sk-ant-[A-Za-z0-9_\-]{20,}$/.test(k)) { $('#po-inv-error').textContent = 'That does not look like a Claude API key (it starts with sk-ant-).'; return; } try { localStorage.setItem(PO_AI_KEYNAME, k); } catch (e) {} $('#po-ai-key').value = ''; $('#po-ai-form').hidden = true; $('#po-inv-error').textContent = ''; invAiStatus(); if (invState.file && !invState.busy) invChoose(invState.file); });
+  $('#po-ai-clear').addEventListener('click', () => { try { localStorage.removeItem(PO_AI_KEYNAME); } catch (e) {} invAiStatus(); });
+  $('#po-inv-reread').addEventListener('click', () => { if (invState.file && !invState.busy) { invState.rows.forEach(r => { r.manual = false; }); invChoose(invState.file); } });
 }
 // ===== PO register end
 
