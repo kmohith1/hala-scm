@@ -729,7 +729,7 @@ table.po-lines .w-qty { width: 90px; } table.po-lines .w-rate { width: 110px; } 
       <div class="tools po-dhead"><h2 id="po-b-title">Budget settings</h2><button type="button" class="btn" id="po-b-close">Close</button></div>
       <label class="fld">Budget (₹)<input id="po-b-amount" inputmode="decimal" required autocomplete="off"></label>
       <label class="fld">Budget covers<select id="po-b-scope"><option value="overall">All POs together</option><option value="month">Each PO month separately</option></select></label>
-      <label class="fld">Count PO values<select id="po-b-basis"><option value="incl">Including GST</option><option value="excl">Excluding GST</option></select></label>
+      <label class="fld">Count PO values<select id="po-b-basis"><option value="excl">Excluding GST (pre-GST)</option><option value="incl">Including GST</option></select></label>
       <p class="note">Shared with everyone who uses this register.</p>
       <p class="po-err" role="alert" id="po-b-error"></p>
       <div class="tools po-dfoot"><button type="submit" class="btn po-primary" id="po-b-save">Save</button></div>
@@ -2372,7 +2372,7 @@ function bindNotes() {
 // one item per PO (Title = PO|<number>, the PO as JSON in ShipmentData) and one settings item for the budget.
 // Utilised = value of parts supplied against PO lines; it comes off the budget. Pending = ordered on open POs, not yet supplied.
 const PO_LIST = 'Hala Purchase Orders', PO_PATH = "lists/getbytitle('" + PO_LIST + "')", PO_SETTINGS = '__settings__';
-const PO_DEFAULT = { version: 1, kind: 'po-settings', budgetPaise: 600000000, scope: 'overall', basis: 'incl' };   // ₹60,00,000
+const PO_DEFAULT = { version: 1, kind: 'po-settings', budgetPaise: 600000000, scope: 'overall', basis: 'excl' };   // ₹60,00,000, pre-GST
 const PO_STATUS = ['Open', 'Closed', 'Cancelled'];
 const poState = { rows: [], settings: { ...PO_DEFAULT }, settingsRow: null, ready: false, loaded: false, loading: false, busy: false, error: '', message: '', refreshed: null,
   by: 'city', month: '', city: '', vendor: '', status: '', q: '', open: null, edit: null, supply: null, supplyWarned: '', imp: { kind: 'po', plan: null }, user: null, confirm: null };
@@ -2382,7 +2382,7 @@ const poCompact = s => poKey(s).replace(/[^A-Z0-9]/g, '');
 const poTitle = no => 'PO|' + poKey(no);
 const poNewId = () => (crypto.randomUUID ? crypto.randomUUID().replace(/-/g, '') : Date.now().toString(16) + Math.random().toString(16).slice(2)).slice(0, 16);
 const poQty = q => q == null || !Number.isFinite(q) ? '–' : Number.isInteger(q) ? n0(q) : f2.format(q);
-const poRs = paise => inr(paise / 100);
+const poRs = paise => paise < 0 ? '−' + inr(-paise / 100) : inr(paise / 100);
 const poRsFull = paise => '₹' + f2.format(paise / 100);
 const poPct = (a, b) => b > 0 ? 100 * a / b : NaN;
 const poDay = ymd => { if (!ymd) return '–'; const [y, m, d] = ymd.split('-'); return +d + ' ' + MON[+m - 1] + ' ' + y; };
@@ -3251,7 +3251,7 @@ function defs() {
     ['Safety target', 'The forecast plus 1.28 × √(forecast + (0.3 × forecast)²). Historical coverage is shown in the accuracy table. A shared margin is not a calibrated guarantee for every part or supplier lead time.'],
     ['Hub', 'Parts count at the hub on the ticket (where they were fitted). Vehicles count at the hub they were last deployed from in the month. A hub\'s forecast is its share of each part fitted in the last 30 days. S3 locations are shown together as RSA technicians.'],
     ['Part groups', 'Consumables (wear parts) = brakes, tyres and wheels, fasteners. Plastic = body and panels. Electrical = electricals, lighting and mirrors. Mechanical = suspension and chassis, other parts. Motor and controller = motor and drivetrain. Names follow the monthly spare parts plan.'],
-    ['Purchase orders', 'POs given to vendors, entered in the shared Hala Purchase Orders list (Hala Fleet Ops SharePoint, same Microsoft sign-in as Shipment tracking). Each PO line has a city, part, quantity, rate excluding GST and GST %. Supplied = quantities recorded against a line by hand, from a CSV or by linking a Cercle OS GRN line. Utilised = supplied quantity × PO rate; it comes off the budget (₹60 lakh unless changed in Budget settings). Pending = ordered but not yet supplied on open POs. Free to put on new POs = budget − utilised − pending. A short-closed or cancelled PO releases its pending quantity. Values follow the budget setting (including or excluding GST).'],
+    ['Purchase orders', 'POs given to vendors, entered in the shared Hala Purchase Orders list (Hala Fleet Ops SharePoint, same Microsoft sign-in as Shipment tracking). Each PO line has a city, part, quantity, rate excluding GST and GST %. Supplied = quantities recorded against a line by hand, from a CSV or by linking a Cercle OS GRN line. Utilised = supplied quantity × PO rate; it comes off the budget (₹60 lakh pre-GST unless changed in Budget settings). Pending = ordered but not yet supplied on open POs. Free to put on new POs = budget − utilised − pending. A short-closed or cancelled PO releases its pending quantity. Values follow the budget setting (including or excluding GST).'],
     ['Procurement', 'Lines of the “Procurement vendor wise data” sheet of the Spares Master Report. Spend = quantity × unit cost, excluding GST; freight is shown apart. Repeated header rows and totals are skipped; an invoice keyed twice, a day and month typed the wrong way round, and a cost that is the line total are corrected and listed under Lines to check.']];
   $('#defs').innerHTML = items.map(([a, b]) => '<dt>' + esc(a) + '</dt><dd>' + esc(b) + '</dd>').join('');
   const c = D.chk;
