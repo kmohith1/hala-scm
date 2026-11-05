@@ -307,6 +307,8 @@ table.dtbl .z { color: var(--muted); }
 }
 @media print { .band { -webkit-print-color-adjust: exact; print-color-adjust: exact; } .filters, .tools, .tabs { display: none; } }
 
+
+
 /* ---- Purchase orders tab */
 .po-run { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .po-run .neg { color: #c0392b; }
@@ -325,7 +327,8 @@ table.dtbl .z { color: var(--muted); }
 .po-dhead { justify-content: space-between; }
 .po-dhead h2 { font: 600 20px/1.25 var(--cond); margin: 0; }
 .po-dfoot { justify-content: flex-end; }
-.po-wide > input { width: 100%; }
+.po-wide > input, .po-wide > textarea { width: 100%; }
+.po-wide > textarea { padding: 8px 10px; background: var(--surface); color: var(--ink); border: 1px solid var(--line2); border-radius: 6px; font: 13px/1.4 ui-monospace, Consolas, monospace; resize: vertical; }
 .po-err { color: #c0392b; font-size: 14px; margin: 0; min-height: 1em; white-space: pre-line; }
 .po-total { margin-left: auto; font-weight: 600; }
 table.po-lines th, table.po-lines td { padding: 5px 6px; text-align: left; vertical-align: middle; }
@@ -647,11 +650,13 @@ table.po-lines .w-qty { width: 90px; } table.po-lines .w-rate { width: 110px; } 
     <form id="notes-comment-form"><label class="fld">Your comment<textarea id="notes-comment" rows="3" maxlength="4000" required placeholder="Add an update, decision or next step…"></textarea></label><button type="submit" class="btn" id="notes-comment-save">Post comment</button></form>
   </dialog>
 
+
+
   <!-- ===== Purchase orders ===== -->
   <div class="view" id="v-po" hidden>
     <section class="sec">
       <header><div><h2>Purchase orders &amp; budget</h2><p id="po-shared"></p></div><span id="po-count"></span></header>
-      <div class="panel pad"><div class="tools"><b id="po-budget-label">Spares budget</b><a class="btn" href="../motor/" target="_blank" rel="noopener">Open Microsoft sign-in</a><button class="btn" id="po-reload" type="button">Load shared POs</button><button class="btn" id="po-setup" type="button">Create shared PO register</button><button class="btn" id="po-settings" type="button">Budget settings</button></div><p class="note">Every PO given to a vendor is entered here, city-wise and part-wise. Supplies are recorded against each PO line, by hand, from a CSV, or by linking a matching GRN line. Utilisation is the value of parts supplied; it comes off the budget.</p></div>
+      <div class="panel pad"><div class="tools"><b id="po-budget-label">Spares budget</b><a class="btn" href="../motor/" target="_blank" rel="noopener">Open Microsoft sign-in</a><button class="btn" id="po-reload" type="button">Load shared POs</button><button class="btn" id="po-setup" type="button">Create shared PO register</button><button class="btn" id="po-settings" type="button">Budget settings</button></div><p class="note">Every PO given to a vendor is entered here, city-wise and part-wise. Supplies are recorded against each PO line, by hand, from a CSV, or by linking a matching GRN line. Saved in Fleet Ops › Documents › Purchase Orders. Utilisation is the value of parts supplied; it comes off the budget.</p></div>
       <p class="ship-notice" role="alert" id="po-error" hidden></p><p class="ship-notice" role="status" id="po-message" hidden></p>
       <div class="panel" id="po-budget-panel"><div class="run po-run" id="po-run"></div><div class="po-meter" id="po-meter"></div><p class="note" id="po-budget-note"></p></div>
     </section>
@@ -719,6 +724,8 @@ table.po-lines .w-qty { width: 90px; } table.po-lines .w-rate { width: 110px; } 
     <div class="seg" id="po-i-kind"><button type="button" data-po-ik="po" aria-pressed="true">Purchase orders</button><button type="button" data-po-ik="supply" aria-pressed="false">Supplies received</button></div>
     <p class="note" id="po-i-help"></p>
     <div class="tools"><button type="button" class="btn" id="po-i-template">Download template</button><label class="btn po-file">Choose CSV file<input type="file" id="po-i-file" accept=".csv,text/csv"></label><span id="po-i-file-name"></span></div>
+    <label class="fld po-wide">Or paste rows copied from Excel / Google Sheets (with the heading row)<textarea id="po-i-paste" rows="5" spellcheck="false" placeholder="PO number&#9;PO date&#9;Vendor&#9;City&#9;Part …"></textarea></label>
+    <div class="tools"><button type="button" class="btn" id="po-i-read">Read pasted rows</button></div>
     <div id="po-i-preview"></div>
     <p class="po-err" role="alert" id="po-i-error"></p>
     <div class="tools po-dfoot"><button type="button" class="btn po-primary" id="po-i-go" disabled>Import</button></div>
@@ -2367,11 +2374,11 @@ function bindNotes() {
   addEventListener('storage', e => { if (e.key === SHIP.authKey && state.tab === 'notes' && !notesState.saving && !$('#notes-dialog').open) notesLoad(); });
 }
 
+
+
 // ===== PO register start
-// ---------- Purchase orders and budget. One shared SharePoint list in the Hala Fleet Ops site, same sign-in as Shipments and Notes:
-// one item per PO (Title = PO|<number>, the PO as JSON in ShipmentData) and one settings item for the budget.
+// ---------- Purchase orders and budget, shared through the Hala Fleet Ops site (same Microsoft sign-in as Shipments and Notes).
 // Utilised = value of parts supplied against PO lines; it comes off the budget. Pending = ordered on open POs, not yet supplied.
-const PO_LIST = 'Hala Purchase Orders', PO_PATH = "lists/getbytitle('" + PO_LIST + "')", PO_SETTINGS = '__settings__';
 const PO_DEFAULT = { version: 1, kind: 'po-settings', budgetPaise: 600000000, scope: 'overall', basis: 'excl' };   // ₹60,00,000, pre-GST
 const PO_STATUS = ['Open', 'Closed', 'Cancelled'];
 const poState = { rows: [], settings: { ...PO_DEFAULT }, settingsRow: null, ready: false, loaded: false, loading: false, busy: false, error: '', message: '', refreshed: null,
@@ -2389,11 +2396,29 @@ const poDay = ymd => { if (!ymd) return '–'; const [y, m, d] = ymd.split('-');
 const poBasisLabel = () => poState.settings.basis === 'excl' ? 'excl. GST' : 'incl. GST';
 const poCurMonth = () => shipToday().slice(0, 7);
 
-// ---------- storage
-async function poReq(path, options = {}) {
-  try { return await shipRequest(path, options); }
-  catch (e) { e.message = e.message.replace(/shared shipments/gi, 'shared POs').replace(/shared shipment list/gi, 'shared PO register').replace(/this shipment/gi, 'this PO'); throw e; }
+// ---------- storage: one JSON file per PO in the Fleet Ops Documents library (Shared Documents/Purchase Orders), plus _settings.json.
+// Files need only Contribute permission; every save sends the file's ETag so a teammate's save in between is never overwritten.
+async function poRaw(path, options = {}) {
+  const url = SHIP.host + SHIP.site + '/_api/web/' + path, headers = { Accept: 'application/json;odata=nometadata', Authorization: 'Bearer ' + await shipToken(), ...(options.headers || {}) };
+  if (options.body != null) headers['Content-Type'] = 'application/json';
+  const response = await fetch(url, { method: options.method || (options.body != null ? 'POST' : 'GET'), headers, body: options.body });
+  if (!response.ok) {
+    const err = new Error(response.status === 412 ? 'A teammate changed this PO at the same time. Reload and try again.' : response.status === 403 ? 'Your Hala account does not have permission for the shared PO register.' : 'Shared workspace request failed (' + response.status + ').');
+    err.status = response.status; throw err;
+  }
+  if (response.status === 204 || options.raw) return response;
+  const text = await response.text(); if (!text) return null; try { return JSON.parse(text); } catch (e) { if (options.json) throw new Error('A PO file could not be read.'); return text; }
 }
+const PO_DIR = SHIP.site + '/Shared Documents/Purchase Orders', PO_SETTINGS_FILE = '_settings.json';
+const poSp = p => "'" + p.replace(/'/g, "''").replace(/ /g, '%20') + "'";
+const poFolder = () => 'GetFolderByServerRelativeUrl(' + poSp(PO_DIR) + ')';
+const poFile = name => 'GetFileByServerRelativeUrl(' + poSp(PO_DIR + '/' + name) + ')';
+function poFileName(no) {
+  const k = poKey(no); let h = 2166136261; for (let i = 0; i < k.length; i++) { h ^= k.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+  return 'PO_' + k.replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 80) + '_' + h.toString(16).padStart(8, '0') + '.json';
+}
+async function poReq(path, options = {}) { return poRaw(path, options); }
+async function poPool(items, n, fn) { const out = new Array(items.length); let i = 0; await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => { while (i < items.length) { const j = i++; out[j] = await fn(items[j]); } })); return out; }
 function poValidate(v) {
   const bad = m => { throw new Error('PO ' + (v && v.po || '') + ': ' + m); };
   if (!v || v.version !== 1 || v.kind !== 'po') bad('unsupported format.');
@@ -2411,11 +2436,10 @@ function poValidate(v) {
   for (const r of v.receipts) if (!r || typeof r.id !== 'string' || !ids.has(r.line) || !(Number.isFinite(r.qty) && r.qty > 0) || !/^\d{4}-\d{2}-\d{2}$/.test(r.date)) bad('a supply entry could not be read.');
   return v;
 }
-function poDecode(raw) {
-  let value; try { value = JSON.parse(raw.ShipmentData); } catch { throw new Error('PO record ' + raw.Id + ' could not be read. No records were changed.'); }
-  if (value && value.kind === 'po-settings') return { settings: true, value, id: raw.Id, etag: raw['@odata.etag'] || raw['odata.etag'] };
+function poDecode(name, value, etag, modified) {
+  if (!value || typeof value !== 'object') throw new Error('PO file ' + name + ' could not be read. No records were changed.');
   poValidate(value);
-  return { ...value, id: raw.Id, etag: raw['@odata.etag'] || raw['odata.etag'], modified: raw.Modified };
+  return { ...value, id: name, etag, modified };
 }
 async function poWho() {
   if (poState.user) return poState.user;
@@ -2426,12 +2450,8 @@ async function poSetup() {
   if (poState.busy) return;
   poState.busy = true; poState.error = ''; renderPo();
   try {
-    try { await poReq(PO_PATH + '?$select=Id'); }
-    catch (e) { if (e.status !== 404) throw e; await poReq('lists', { body: { Title: PO_LIST, Description: 'Purchase orders given to spares vendors, supplies received against them and the spares budget.', BaseTemplate: 100, AllowContentTypes: false } }); }
-    const fields = await poReq(PO_PATH + '/fields?$select=InternalName');
-    if (!fields.value.some(f => f.InternalName === 'ShipmentData')) await poReq(PO_PATH + '/fields', { body: { Title: 'ShipmentData', FieldTypeKind: 3, Required: false } });
-    await poReq(PO_PATH + "/fields/getbyinternalnameortitle('Title')", { etag: '*', body: { Indexed: true, EnforceUniqueValues: true } });
-    poState.message = 'Shared PO register created. POs and supplies are saved for the Hala team.';
+    await poReq('GetFolderByServerRelativeUrl(' + poSp(SHIP.site + '/Shared Documents') + ")/Folders/add('Purchase%20Orders')", { method: 'POST' });
+    poState.message = 'Shared PO register created in Fleet Ops › Documents › Purchase Orders. POs and supplies are saved for the Hala team.';
     poState.busy = false; await poLoad();
   } catch (e) { poState.error = e.message; }
   finally { poState.busy = false; renderPo(); }
@@ -2440,11 +2460,13 @@ async function poLoad() {
   if (poState.loading) return;
   poState.loading = true; poState.error = ''; renderPo();
   try {
-    let rows = [], next = PO_PATH + '/items?$select=Id,Title,ShipmentData,Modified&$top=5000&$orderby=Id desc';
-    while (next) { const page = await poReq(next); rows.push(...page.value); next = page['@odata.nextLink'] || page['odata.nextLink']; }
-    const values = rows.map(poDecode), set = values.find(v => v.settings);
-    poState.rows = values.filter(v => !v.settings);
-    poState.settingsRow = set || null; poState.settings = set ? { ...PO_DEFAULT, ...set.value } : { ...PO_DEFAULT };
+    const folder = await poReq(poFolder() + '?$select=Exists');
+    if (!folder || !folder.Exists) { const e = new Error('missing'); e.status = 404; throw e; }
+    const files = (await poReq(poFolder() + '/Files?$select=Name,ETag,TimeLastModified&$top=5000')).value.filter(f => /\.json$/i.test(f.Name) && (f.Name.startsWith('PO_') || f.Name === PO_SETTINGS_FILE));
+    const got = await poPool(files, 8, async f => ({ f, v: await poReq(poFile(f.Name) + '/$value', { json: true }) }));
+    const set = got.find(x => x.f.Name === PO_SETTINGS_FILE);
+    poState.rows = got.filter(x => x !== set).map(x => poDecode(x.f.Name, x.v, x.f.ETag, x.f.TimeLastModified));
+    poState.settings = set && set.v && set.v.kind === 'po-settings' ? { ...PO_DEFAULT, ...set.v } : { ...PO_DEFAULT };
     poState.ready = true; poState.loaded = true; poState.refreshed = Date.now();
   } catch (e) { if (e.status === 404) { poState.ready = false; poState.loaded = true; poState.error = 'The shared PO register has not been created yet. Use "Create shared PO register".'; } else poState.error = e.message; }
   finally { poState.loading = false; renderPo(); }
@@ -2452,26 +2474,23 @@ async function poLoad() {
 function poSerialize(value) {
   const { id, etag, modified, ...clean } = value;
   const text = JSON.stringify(poValidate(clean));
-  if (text.length > 60000) throw new Error('PO ' + clean.po + ' is too large to store in one record (' + clean.lines.length + ' lines, ' + clean.receipts.length + ' supplies). Split it into two POs.');
+  if (text.length > 2000000) throw new Error('PO ' + clean.po + ' is too large to store. Split it into two POs.');
   return text;
 }
 async function poCreate(value) {
-  const title = poTitle(value.po), text = poSerialize(value);
-  const found = await poReq(PO_PATH + '/items?$select=Id&$filter=' + encodeURIComponent("Title eq '" + title.replace(/'/g, "''") + "'"));
-  if (found.value.length) throw new Error('PO ' + value.po + ' is already in the register.');
-  await poReq(PO_PATH + '/items', { body: { Title: title, ShipmentData: text } });
+  const name = poFileName(value.po), text = poSerialize(value);
+  try { await poReq(poFolder() + "/Files/add(url='" + name + "',overwrite=false)", { body: text }); }
+  catch (e) { if (e.status === 400 || e.status === 409 || e.status === 500) throw new Error('PO ' + value.po + ' is already in the register.'); throw e; }
 }
-// Read the latest copy, apply the change, write it back with its version. A teammate's save in between is merged by re-running the change.
+// Read the latest copy (version first, then content), apply the change, write it back only if the version is unchanged; otherwise re-run the change on the newer copy.
 async function poMutate(id, change) {
   for (let attempt = 0; attempt < 3; attempt++) {
-    const current = poDecode(await poReq(PO_PATH + '/items(' + id + ')'));
-    if (current.settings) throw new Error('Unexpected record.');
-    if (!current.etag) throw new Error('Could not verify the latest version of this PO. Reload and try again.');
+    const meta = await poReq(poFile(id) + '?$select=ETag,TimeLastModified');
+    const current = poDecode(id, await poReq(poFile(id) + '/$value', { json: true }), meta.ETag, meta.TimeLastModified);
     const next = change(JSON.parse(JSON.stringify(current)));
     if (!next) return current;
-    const body = { ShipmentData: poSerialize(next) };
-    if (poKey(next.po) !== poKey(current.po)) body.Title = poTitle(next.po);
-    try { await poReq(PO_PATH + '/items(' + id + ')', { etag: current.etag, body }); return next; }
+    if (poKey(next.po) !== poKey(current.po)) throw new Error('The PO number cannot be changed. Create a new PO and delete this one.');
+    try { await poReq(poFile(id) + '/$value', { headers: { 'X-HTTP-Method': 'PUT', 'IF-MATCH': meta.ETag }, body: poSerialize(next) }); return next; }
     catch (e) { if (e.status !== 412 || attempt === 2) throw e; }
   }
 }
@@ -2522,7 +2541,7 @@ function poFiltered() {
     const lines = c.lines.filter(l => (!poState.city || (l.city || '–') === poState.city) && poMatchQ(po, l, q));
     if (lines.length) out.push({ po, c, lines });
   }
-  return out.sort((a, b) => b.po.date.localeCompare(a.po.date) || b.po.id - a.po.id);
+  return out.sort((a, b) => b.po.date.localeCompare(a.po.date) || b.po.id.localeCompare(a.po.id));
 }
 function poGroup(list, by) {
   const m = new Map();
@@ -2688,7 +2707,7 @@ function poOpenForm(po) {
   poState.edit = po ? { id: po.id, received: new Set(po.receipts.map(r => r.line)) } : { id: null, received: new Set() };
   poDatalists();
   $('#po-d-title').textContent = po ? 'Edit PO ' + po.po : 'New purchase order';
-  $('#po-f-no').value = po ? po.po : ''; $('#po-f-vendor').value = po ? po.vendor : ''; $('#po-f-date').value = po ? po.date : shipToday(); $('#po-f-due').value = po && po.due || '';
+  $('#po-f-no').value = po ? po.po : ''; $('#po-f-no').readOnly = !!po; $('#po-f-vendor').value = po ? po.vendor : ''; $('#po-f-date').value = po ? po.date : shipToday(); $('#po-f-due').value = po && po.due || '';
   $('#po-f-status').value = po ? po.status : 'Open'; $('#po-f-note').value = po && po.note || ''; $('#po-f-city').value = po && po.lines[0] ? po.lines[0].city : (poState.city || '');
   $('#po-f-lines').innerHTML = '<thead><tr><th>City</th><th>Part</th><th>Vehicle model<small>optional</small></th><th class="r">Quantity</th><th class="r">Rate ₹<small>excl. GST</small></th><th class="r">GST %</th><th class="r">Line value<small>' + poBasisLabel() + '</small></th><th></th></tr></thead><tbody>' + (po ? po.lines.map(poLineRow).join('') : poLineRow() + poLineRow() + poLineRow()) + '</tbody>';
   $('#po-f-error').textContent = ''; $('#po-f-save').disabled = false; poFormTotal(); $('#po-dialog').showModal(); $('#po-f-no').focus();
@@ -2796,12 +2815,13 @@ const PO_TEMPLATE = {
 };
 function poCsvParse(text) {
   const rows = []; let row = [], cell = '', q = false;
-  text = text.replace(/^﻿/, '');
+  text = text.replace(/^\uFEFF/, '');
+  const sep = (text.split(/\r?\n/)[0] || '').includes('\t') ? '\t' : ',';   // rows copied from Excel or Google Sheets are tab-separated
   for (let i = 0; i < text.length; i++) {
     const ch = text[i];
     if (q) { if (ch === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += ch; }
     else if (ch === '"') q = true;
-    else if (ch === ',') { row.push(cell); cell = ''; }
+    else if (ch === sep) { row.push(cell); cell = ''; }
     else if (ch === '\n' || ch === '\r') { if (ch === '\r' && text[i + 1] === '\n') i++; row.push(cell); rows.push(row); row = []; cell = ''; }
     else cell += ch;
   }
@@ -2884,15 +2904,19 @@ function poRenderImport() {
   $('#po-i-error').textContent = P && P.errors.length ? P.errors.slice(0, 12).join('\n') + (P.errors.length > 12 ? '\n… and ' + (P.errors.length - 12) + ' more' : '') : $('#po-i-error').textContent;
   $('#po-i-go').disabled = !P || !P.todo || poState.busy; $('#po-i-go').textContent = P && P.todo ? (P.kind === 'po' ? 'Create ' + n0(P.todo) + ' POs' : 'Record ' + n0(P.todo) + ' supplies') : 'Import';
 }
-async function poReadFile(file) {
-  poState.imp.plan = null; $('#po-i-error').textContent = ''; $('#po-i-file-name').textContent = file ? file.name : '';
-  if (!file) return poRenderImport();
+function poReadText(text) {
+  poState.imp.plan = null; $('#po-i-error').textContent = '';
   try {
-    if (/\.xlsx?$/i.test(file.name)) throw new Error('Save the sheet as CSV (File → Save as → CSV UTF-8) and choose that file.');
-    const rows = poCsvParse(await file.text()); if (rows.length < 2) throw new Error('The file has no rows under the headings.');
+    const rows = poCsvParse(text); if (rows.length < 2) throw new Error('No rows found under the headings. Include the heading row.');
     poState.imp.plan = poState.imp.kind === 'po' ? poPlanPo(rows) : poPlanSupply(rows);
   } catch (e) { $('#po-i-error').textContent = e.message; }
   poRenderImport();
+}
+async function poReadFile(file) {
+  $('#po-i-file-name').textContent = file ? file.name : '';
+  if (!file) { poState.imp.plan = null; return poRenderImport(); }
+  if (/\.xlsx?$/i.test(file.name)) { poState.imp.plan = null; $('#po-i-error').textContent = 'Save the sheet as CSV (File → Save as → CSV UTF-8) and choose that file, or copy the rows and paste them below.'; return poRenderImport(); }
+  poReadText(await file.text());
 }
 async function poImport() {
   const P = poState.imp.plan; if (!P || poState.busy) return;
@@ -2936,9 +2960,7 @@ async function poSaveSettings(e) {
   const by = await poWho(), value = { ...PO_DEFAULT, budgetPaise: Math.round(amt * 100), scope: $('#po-b-scope').value, basis: $('#po-b-basis').value, updatedAt: new Date().toISOString(), updatedBy: by };
   $('#po-b-save').disabled = true;
   const ok = await poRun(async () => {
-    const found = await poReq(PO_PATH + '/items?$select=Id&$filter=' + encodeURIComponent("Title eq '" + PO_SETTINGS + "'"));
-    if (found.value.length) await poReq(PO_PATH + '/items(' + found.value[0].Id + ')', { etag: '*', body: { ShipmentData: JSON.stringify(value) } });
-    else await poReq(PO_PATH + '/items', { body: { Title: PO_SETTINGS, ShipmentData: JSON.stringify(value) } });
+    await poReq(poFolder() + "/Files/add(url='" + PO_SETTINGS_FILE + "',overwrite=true)", { body: JSON.stringify(value) });
   }, 'Budget settings saved for the team.');
   if (ok) $('#po-settings-dialog').close(); else { $('#po-b-error').textContent = poState.error; $('#po-b-save').disabled = false; }
 }
@@ -2961,22 +2983,22 @@ function bindPo() {
   $('#po-setup').addEventListener('click', poSetup);
   $('#po-settings').addEventListener('click', poOpenSettings);
   $('#po-add').addEventListener('click', () => poOpenForm(null));
-  $('#po-import').addEventListener('click', () => { poDatalists(); poState.imp.plan = null; $('#po-i-file').value = ''; $('#po-i-file-name').textContent = ''; $('#po-i-error').textContent = ''; poRenderImport(); $('#po-import-dialog').showModal(); });
+  $('#po-import').addEventListener('click', () => { poDatalists(); poState.imp.plan = null; $('#po-i-file').value = ''; $('#po-i-file-name').textContent = ''; $('#po-i-paste').value = ''; $('#po-i-error').textContent = ''; poRenderImport(); $('#po-import-dialog').showModal(); });
   $('#po-lines-csv').addEventListener('click', poLinesCsv);
   $('#po-sum-csv').addEventListener('click', poSumCsv);
   $('#po-by').addEventListener('click', e => { const b = e.target.closest('[data-po-by]'); if (b) { poState.by = b.dataset.poBy; renderPo(); } });
   for (const [sel, key] of [['#po-month', 'month'], ['#po-city', 'city'], ['#po-vendor', 'vendor'], ['#po-status', 'status']]) $(sel).addEventListener('change', e => { poState[key] = e.target.value; renderPo(); });
   $('#po-q').addEventListener('input', e => { poState.q = e.target.value; renderPo(); });
   $('#po-table').addEventListener('click', e => {
-    const b = e.target.closest('button'); if (!b) return; const d = b.dataset, po = id => poState.rows.find(p => p.id === +id);
-    if (d.poOpen) { poState.open = poState.open === +d.poOpen ? null : +d.poOpen; renderPo(); return; }
+    const b = e.target.closest('button'); if (!b) return; const d = b.dataset, po = id => poState.rows.find(p => p.id === id);
+    if (d.poOpen) { poState.open = poState.open === d.poOpen ? null : d.poOpen; renderPo(); return; }
     if (d.poSupply) { const p = po(d.poSupply); if (p) poOpenSupply(p); return; }
     if (d.poEdit) { const p = po(d.poEdit); if (p) poOpenForm(p); return; }
     if (d.poStatus) { const p = po(d.poStatus), to = d.to; if (!p) return;
       const text = to === 'Closed' ? 'Short-close PO ' + p.po + '? Pending quantity (' + poQty(poC(p).pending) + ' parts) is released back to the budget. Supplies already recorded stay utilised.' : to === 'Cancelled' ? 'Cancel PO ' + p.po + '? Nothing more is expected from it; anything already supplied stays utilised.' : 'Reopen PO ' + p.po + '? Its pending quantity counts against the budget again.';
       poConfirm(text, async () => { const by = await poWho(), at = new Date().toISOString(); await poRun(() => poMutate(p.id, cur => cur.status === to ? null : { ...cur, status: to, history: [...(cur.history || []), { at, by, what: 'Status ' + cur.status + ' → ' + to }] }), 'PO ' + p.po + ' is now ' + to.toLowerCase() + '.'); }); return; }
     if (d.poDelete) { const p = po(d.poDelete); if (!p) return;
-      poConfirm('Delete PO ' + p.po + ' with its ' + p.receipts.length + ' supply entries? It goes to the shared workspace recycle bin.', async () => { await poRun(() => poReq(PO_PATH + '/items(' + p.id + ')/recycle()', { method: 'POST' }), 'PO ' + p.po + ' moved to the recycle bin.'); poState.open = null; renderPo(); }); return; }
+      poConfirm('Delete PO ' + p.po + ' with its ' + p.receipts.length + ' supply entries? It goes to the shared workspace recycle bin.', async () => { await poRun(() => poReq(poFile(p.id) + '/recycle()', { method: 'POST' }), 'PO ' + p.po + ' moved to the recycle bin.'); poState.open = null; renderPo(); }); return; }
     if (d.poUnreceive) { const p = po(d.poUnreceive), r = p && p.receipts.find(x => x.id === d.rid); if (!r) return;
       poConfirm('Remove the supply of ' + poQty(r.qty) + ' parts received on ' + poDay(r.date) + (r.ref ? ' (' + r.ref + ')' : '') + ' from PO ' + p.po + '?', async () => { const by = await poWho(), at = new Date().toISOString(); await poRun(() => poMutate(p.id, cur => cur.receipts.some(x => x.id === r.id) ? { ...cur, receipts: cur.receipts.filter(x => x.id !== r.id), history: [...(cur.history || []), { at, by, what: 'Removed supply of ' + poQty(r.qty) + (r.ref ? ' (' + r.ref + ')' : '') }] } : null), 'Supply removed.'); }); return; }
     if (d.poLink) { const p = po(d.poLink); if (!p || !GRN) return; const [rec, gi] = d.grn.split(':').map(Number), inv = GRN.records.find(x => x.record === rec), gl = inv && inv.lines[gi]; if (!gl) return;
@@ -3006,6 +3028,7 @@ function bindPo() {
   $('#po-i-close').addEventListener('click', () => $('#po-import-dialog').close());
   $('#po-i-kind').addEventListener('click', e => { const b = e.target.closest('[data-po-ik]'); if (!b) return; poState.imp.kind = b.dataset.poIk; poState.imp.plan = null; $('#po-i-file').value = ''; $('#po-i-file-name').textContent = ''; $('#po-i-error').textContent = ''; poRenderImport(); });
   $('#po-i-file').addEventListener('change', e => poReadFile(e.target.files[0]));
+  $('#po-i-read').addEventListener('click', () => { $('#po-i-file').value = ''; $('#po-i-file-name').textContent = ''; poReadText($('#po-i-paste').value); });
   $('#po-i-template').addEventListener('click', () => { const t = PO_TEMPLATE[poState.imp.kind]; csv(poState.imp.kind === 'po' ? 'PO import template.csv' : 'Supply import template.csv', t[0], t.slice(1)); });
   $('#po-i-go').addEventListener('click', poImport);
   // settings and confirm
@@ -3251,7 +3274,7 @@ function defs() {
     ['Safety target', 'The forecast plus 1.28 × √(forecast + (0.3 × forecast)²). Historical coverage is shown in the accuracy table. A shared margin is not a calibrated guarantee for every part or supplier lead time.'],
     ['Hub', 'Parts count at the hub on the ticket (where they were fitted). Vehicles count at the hub they were last deployed from in the month. A hub\'s forecast is its share of each part fitted in the last 30 days. S3 locations are shown together as RSA technicians.'],
     ['Part groups', 'Consumables (wear parts) = brakes, tyres and wheels, fasteners. Plastic = body and panels. Electrical = electricals, lighting and mirrors. Mechanical = suspension and chassis, other parts. Motor and controller = motor and drivetrain. Names follow the monthly spare parts plan.'],
-    ['Purchase orders', 'POs given to vendors, entered in the shared Hala Purchase Orders list (Hala Fleet Ops SharePoint, same Microsoft sign-in as Shipment tracking). Each PO line has a city, part, quantity, rate excluding GST and GST %. Supplied = quantities recorded against a line by hand, from a CSV or by linking a Cercle OS GRN line. Utilised = supplied quantity × PO rate; it comes off the budget (₹60 lakh pre-GST unless changed in Budget settings). Pending = ordered but not yet supplied on open POs. Free to put on new POs = budget − utilised − pending. A short-closed or cancelled PO releases its pending quantity. Values follow the budget setting (including or excluding GST).'],
+    ['Purchase orders', 'POs given to vendors, saved as one file per PO in Hala Fleet Ops SharePoint › Documents › Purchase Orders (same Microsoft sign-in as Shipment tracking). Each PO line has a city, part, quantity, rate excluding GST and GST %. Supplied = quantities recorded against a line by hand, from a CSV or by linking a Cercle OS GRN line. Utilised = supplied quantity × PO rate; it comes off the budget (₹60 lakh pre-GST unless changed in Budget settings). Pending = ordered but not yet supplied on open POs. Free to put on new POs = budget − utilised − pending. A short-closed or cancelled PO releases its pending quantity. Values follow the budget setting (including or excluding GST).'],
     ['Procurement', 'Lines of the “Procurement vendor wise data” sheet of the Spares Master Report. Spend = quantity × unit cost, excluding GST; freight is shown apart. Repeated header rows and totals are skipped; an invoice keyed twice, a day and month typed the wrong way round, and a cost that is the line total are corrected and listed under Lines to check.']];
   $('#defs').innerHTML = items.map(([a, b]) => '<dt>' + esc(a) + '</dt><dd>' + esc(b) + '</dd>').join('');
   const c = D.chk;
