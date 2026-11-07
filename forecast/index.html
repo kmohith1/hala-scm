@@ -357,6 +357,7 @@ table.po-lines .w-qty { width: 90px; } table.po-lines .w-rate { width: 110px; } 
 #po-table > tbody > tr.detail > td { padding: 0; }
 #po-table small, #po-sum small, #po-nopo small { display: block; }
 #po-sum > tbody > tr.detail > td, #po-nopo > tbody > tr.detail > td { padding: 0; background: var(--sunk); }
+.po-th { cursor: pointer; user-select: none; } .po-th:hover { color: var(--ink); text-decoration: underline; } .po-th.on { color: var(--ink); }
 .po-sortfld { flex-direction: row; align-items: center; gap: 8px; } .po-sortfld select { min-width: 150px; }
 #po-sum tr.detail table.dtbl { margin: 0; min-width: 100%; }
 #po-sum tr.detail tr.detail > td { padding: 0; background: var(--surface); }
@@ -702,7 +703,7 @@ table.po-inv-rows select { margin-bottom: 4px; }
     <section class="sec">
       <header>
         <div><h2>Summary</h2><p id="po-sum-sub"></p></div>
-        <div class="tools"><div class="seg" id="po-by"><button type="button" data-po-by="city" aria-pressed="true">City</button><button type="button" data-po-by="part" aria-pressed="false">Part</button><button type="button" data-po-by="citypart" aria-pressed="false">City × part</button><button type="button" data-po-by="vendor" aria-pressed="false">Vendor</button></div><label class="fld po-sortfld">Sort by<select id="po-sort" aria-label="Sort summary by"><option value="val">PO value</option><option value="util">Utilisation %</option><option value="qty">RFQ / ordered qty</option><option value="supplied">Provided qty</option><option value="pending">Pending qty</option><option value="pendingVal">Pending value</option><option value="np">GRN without PO</option><option value="name">Name (A–Z)</option></select></label><button class="btn" id="po-sort-dir" type="button" aria-label="Sort direction">High → low</button><button class="btn" id="po-sum-csv" type="button">Download CSV</button></div>
+        <div class="tools"><div class="seg" id="po-by"><button type="button" data-po-by="city" aria-pressed="true">City</button><button type="button" data-po-by="part" aria-pressed="false">Part</button><button type="button" data-po-by="citypart" aria-pressed="false">City × part</button><button type="button" data-po-by="vendor" aria-pressed="false">Vendor</button></div><label class="fld po-sortfld">Sort by<select id="po-sort" aria-label="Sort summary by"><option value="val">PO value</option><option value="util">Utilisation %</option><option value="qty">RFQ / ordered qty</option><option value="supplied">Provided qty</option><option value="pending">Pending qty</option><option value="used">Utilised value</option><option value="pendingVal">Pending value</option><option value="np">GRN without PO</option><option value="name">Name (A–Z)</option></select></label><button class="btn" id="po-sort-dir" type="button" aria-label="Sort direction">High → low</button><button class="btn" id="po-sum-csv" type="button">Download CSV</button></div>
       </header>
       <div class="filters">
         <label class="fld">PO month<select id="po-month" aria-label="PO month"></select></label>
@@ -2684,6 +2685,8 @@ function poGroup(list, by, noPo = []) {
   const rows = [...m.values()], size = g => g.ordered + g.npVal;
   return by === 'citypart' ? rows.sort((a, b) => a.city.localeCompare(b.city) || size(b) - size(a)) : rows.sort((a, b) => size(b) - size(a));
 }
+// Clickable column headings: same key flips the direction, a new key starts high → low (names A → Z)
+const poTh = (k, label, sub, cls) => { const on = poState.sort[0] === k, arrow = on ? (poState.sort[1] < 0 ? (k === 'name' ? ' ▲' : ' ▼') : (k === 'name' ? ' ▼' : ' ▲')) : ''; return '<th class="po-th' + (cls ? ' ' + cls : '') + (on ? ' on' : '') + '" data-po-sort-k="' + k + '" tabindex="0" title="Sort by this column"' + (cls === 'lab' || cls === 'l' ? ' style="text-align:left"' : '') + '>' + label + arrow + (sub ? '<small>' + sub + '</small>' : '') + '</th>'; };
 // Sort summary rows (and the parts inside an opened city / vendor) by the chosen measure; City × part keeps cities together
 function poSortGroups(rows, by) {
   const [k, d] = poState.sort, name = g => by === 'city' ? g.city : by === 'vendor' ? g.vendor : g.part;
@@ -2965,7 +2968,7 @@ function renderPo() {
   const npQty = noPo.reduce((n, x) => n + x.qty, 0), npVal = noPo.reduce((n, x) => n + poNoPoVal(x), 0);
   const npCell = (q, v) => '<td>' + (v || q ? poRs(v) + '<small>' + poQty(q) + ' parts</small>' : '–') + '</td>';
   const firstCols = by === 'city' ? ['City'] : by === 'part' ? ['Part', 'Cities'] : by === 'vendor' ? ['Vendor'] : ['City', 'Part'];
-  let h = '<thead><tr>' + firstCols.map((t, i) => '<th class="' + (i ? 'l' : 'lab') + '" style="text-align:left">' + t + '</th>').join('') + '<th>POs</th><th>Ordered</th><th>Supplied</th><th>Pending</th><th>PO value<small>' + poBasisLabel() + '</small></th><th>Utilised<small>value supplied</small></th><th>Pending value</th><th>Utilisation<small>of PO value</small></th><th>GRN without PO<small>received, no PO line</small></th></tr></thead><tbody>';
+  let h = '<thead><tr>' + firstCols.map((t, i) => i ? '<th class="l" style="text-align:left">' + t + '</th>' : poTh('name', t, '', 'lab')).join('') + '<th>POs</th>' + poTh('qty', 'Ordered', 'RFQ qty') + poTh('supplied', 'Supplied', 'provided qty') + poTh('pending', 'Pending') + poTh('val', 'PO value', poBasisLabel()) + poTh('used', 'Utilised', 'value supplied') + poTh('pendingVal', 'Pending value') + poTh('util', 'Utilisation', 'of PO value') + poTh('np', 'GRN without PO', 'received, no PO line') + '</tr></thead><tbody>';
   const canOpen = by === 'city' || by === 'vendor', gKey = g => by + '|' + (by === 'city' ? g.city : g.vendor);
   if (!canOpen || !groups.some(g => gKey(g) === poState.sumOpen)) poState.sumOpen = null;
   for (const g of groups) {
@@ -2978,7 +2981,7 @@ function renderPo() {
       const sub = list.map(x => ({ ...x, lines: x.lines.filter(l => inG(x.po, l)) })).filter(x => x.lines.length);
       const subNo = noPo.filter(x => by === 'city' ? x.city === g.city : g.vendors.has(x.vendor) || poVendorMatch(poVendorKey(g.vendor), poVendorKey(x.vendor)));
       const parts = poSortGroups(poGroup(sub, 'part', subNo), 'part');
-      let d = '<tr class="detail"><td colspan="' + (firstCols.length + 9) + '"><div class="pad"><h3>' + esc(by === 'city' ? g.city : g.vendor) + ' · parts</h3><div class="scroll"><table class="dtbl"><thead><tr><th class="lab" style="text-align:left">Part</th>' + (by === 'vendor' ? '<th class="l" style="text-align:left">Cities</th>' : '') + '<th>RFQ qty<small>ordered on POs</small></th><th>Provided qty<small>supplied</small></th><th>Pending</th><th>PO value<small>' + poBasisLabel() + '</small></th><th>Utilised</th><th>Utilisation<small>of PO value</small></th><th>GRN without PO</th></tr></thead><tbody>';
+      let d = '<tr class="detail"><td colspan="' + (firstCols.length + 9) + '"><div class="pad"><h3>' + esc(by === 'city' ? g.city : g.vendor) + ' · parts</h3><div class="scroll"><table class="dtbl"><thead><tr>' + poTh('name', 'Part', 'click a heading to sort', 'lab') + (by === 'vendor' ? '<th class="l" style="text-align:left">Cities</th>' : '') + poTh('qty', 'RFQ qty', 'ordered on POs') + poTh('supplied', 'Provided qty', 'supplied') + poTh('pending', 'Pending') + poTh('val', 'PO value', poBasisLabel()) + poTh('used', 'Utilised') + poTh('util', 'Utilisation', 'of PO value') + poTh('np', 'GRN without PO') + '</tr></thead><tbody>';
       const pCols = by === 'vendor' ? 9 : 8;
       for (const p of parts) {
         const pk = poKey(p.part), pOpen = poState.sumPartOpen === gKey(g) + '|' + pk;
@@ -3343,7 +3346,9 @@ function bindPo() {
   $('#po-np-sort').addEventListener('change', e => { poState.npSort = e.target.value; renderPo(); });
   $('#po-np-csv').addEventListener('click', poNoPoCsv);
   $('#po-nopo').addEventListener('click', e => { const b = e.target.closest('[data-po-np-open]'); if (!b) return; const k = b.dataset.poNpOpen; poState.npOpen = poState.npOpen === k ? null : k; renderPo(); });
-  $('#po-sum').addEventListener('click', e => { const pb = e.target.closest('[data-po-part-open]'); if (pb) { const k = pb.dataset.poPartOpen; poState.sumPartOpen = poState.sumPartOpen === k ? null : k; renderPo(); return; } const b = e.target.closest('[data-po-sum-open]'); if (!b) return; const k = b.dataset.poSumOpen; poState.sumOpen = poState.sumOpen === k ? null : k; renderPo(); });
+  const poSortClick = th => { const k = th.dataset.poSortK; poState.sort = [k, poState.sort[0] === k ? -poState.sort[1] : -1]; renderPo(); };
+  $('#po-sum').addEventListener('keydown', e => { const th = e.target.closest('[data-po-sort-k]'); if (th && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); poSortClick(th); } });
+  $('#po-sum').addEventListener('click', e => { const th = e.target.closest('[data-po-sort-k]'); if (th) { poSortClick(th); return; } const pb = e.target.closest('[data-po-part-open]'); if (pb) { const k = pb.dataset.poPartOpen; poState.sumPartOpen = poState.sumPartOpen === k ? null : k; renderPo(); return; } const b = e.target.closest('[data-po-sum-open]'); if (!b) return; const k = b.dataset.poSumOpen; poState.sumOpen = poState.sumOpen === k ? null : k; renderPo(); });
   $('#po-by').addEventListener('click', e => { const b = e.target.closest('[data-po-by]'); if (b) { poState.by = b.dataset.poBy; renderPo(); } });
   for (const [sel, key] of [['#po-month', 'month'], ['#po-city', 'city'], ['#po-vendor', 'vendor'], ['#po-status', 'status']]) $(sel).addEventListener('change', e => { poState[key] = e.target.value; renderPo(); });
   $('#po-q').addEventListener('input', e => { poState.q = e.target.value; renderPo(); });
