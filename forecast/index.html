@@ -552,6 +552,8 @@ table.po-inv-rows select { margin-bottom: 4px; }
         <label class="fld">Search<input type="search" id="grn-search" placeholder="Invoice or vendor" aria-label="Search GRN purchases"></label>
       </div>
       <div class="panel"><div class="run" id="grn-run"></div></div>
+      <div class="panel" style="margin-top:12px"><div class="scroll" tabindex="0" role="region" aria-label="Recorded spend by category"><table id="grn-cat-table"></table></div></div>
+      <p class="note" id="grn-cat-note"></p>
     </section>
     <section class="sec">
       <header><h2>Spend by month</h2><button class="btn" id="grn-month-csv" type="button">Download monthly CSV</button></header>
@@ -1907,6 +1909,44 @@ function grnFilters() {
   $('#grn-month').innerHTML = opt('', 'All months', grnState.month) + months.map(m => opt(m, grnMonthLabel(m), grnState.month)).join('');
   $('#grn-vendor').innerHTML = opt('', 'All vendors', grnState.vendor) + vendors.map(v => opt(v, v, grnState.vendor)).join('');
 }
+// Spend by category. Cercle OS has no category or GST field: categories come from part and vendor names,
+// and the recorded Paid Price includes GST (18%), so "without GST" = recorded ÷ 1.18.
+const GRN_CATS = ['Spares', 'Tyres', 'Keyfob', 'Printing', 'Helmets'], GRN_GST = 18;
+const GRN_PRINT = /\bPRINT(?:ING|ERS?|S|ED)?\b/i;   // whole word, so ESPRINTO / E-SPRINTO stay spares
+const grnVendorCat = vendor => /HELMET/i.test(vendor) ? 'Helmets' : GRN_PRINT.test(vendor) ? 'Printing' : '';
+function grnLineCat(line, vendor) {
+  const name = String(line.part || '').normalize('NFKC');
+  if (/HELMET/i.test(name)) return 'Helmets';
+  const byVendor = grnVendorCat(vendor); if (byVendor) return byVendor;
+  if (GRN_PRINT.test(name) || /STI?CKER|STRICKER|\bLABELS?\b|\bFLEX\b|BANNER|BROCHURE|PAMPHLET|VISITING CARD|CONSENT FORM/i.test(name)) return 'Printing';
+  if (/KEY\s*-?\s*FOB/i.test(name)) return 'Keyfob';
+  if (isTyrePart(name) && !/FLAP|GUARD/i.test(name)) return 'Tyres';
+  return 'Spares';
+}
+// invoice total split across categories in proportion to its item lines, so categories add up to Recorded spend
+function grnCategories(rows) {
+  const out = Object.fromEntries(GRN_CATS.map(c => [c, 0]));
+  for (const r of rows) {
+    const share = {}; let sum = 0;
+    for (const line of r.lines || []) { const v = Number.isFinite(line.quantity) && Number.isFinite(line.paid) ? line.quantity * line.paid : 0; if (v > 0) { const c = grnLineCat(line, r.vendor); share[c] = (share[c] || 0) + v; sum += v; } }
+    if (!sum) { out[grnVendorCat(r.vendor) || 'Spares'] += r.paise; continue; }
+    let left = r.paise; const cats = Object.keys(share);
+    cats.forEach((c, i) => { const p = i === cats.length - 1 ? left : Math.round(r.paise * share[c] / sum); out[c] += p; left -= p; });
+  }
+  return out;
+}
+const grnExGst = paise => Math.round(paise / (1 + GRN_GST / 100));
+function renderGrnCats(rows, total, period) {
+  const cats = grnCategories(rows), show = GRN_CATS.filter(c => cats[c] || c !== 'Helmets');
+  let h = '<thead><tr><th class="lab">' + esc(period) + '</th><th>Total</th>' + show.map(c => '<th>' + c + '</th>').join('') + '</tr></thead><tbody>';
+  h += '<tr><td class="lab">With GST</td><td><b>' + inr(total / 100) + '</b></td>' + show.map(c => '<td>' + inr(cats[c] / 100) + '</td>').join('') + '</tr>';
+  h += '<tr><td class="lab">Without GST</td><td><b>' + inr(grnExGst(total) / 100) + '</b></td>' + show.map(c => '<td>' + inr(grnExGst(cats[c]) / 100) + '</td>').join('') + '</tr>';
+  h += '<tr><td class="lab">GST</td><td>' + inr((total - grnExGst(total)) / 100) + '</td>' + show.map(c => '<td>' + inr((cats[c] - grnExGst(cats[c])) / 100) + '</td>').join('') + '</tr>';
+  h += '<tr><td class="lab">Share</td><td>' + (total ? '100%' : '–') + '</td>' + show.map(c => '<td>' + (total ? pct(cats[c] / total * 100) : '–') + '</td>').join('') + '</tr>';
+  $('#grn-cat-table').innerHTML = h + '</tbody>';
+  $('#grn-cat-note').textContent = 'Recorded Paid Prices include 18% GST; without GST = recorded ÷ 1.18. Categories come from part names: Tyres = tyres (not tubes or valves), Keyfob = key fobs, Printing = stickers and printing vendors, Helmets = helmet vendors and parts, Spares = everything else. Invoices without item lines are counted under their vendor, otherwise Spares.';
+  return cats;
+}
 // Part-wise totals across the invoices that match the GRN filters (year, month, vendor, invoice search)
 const grnQty = q => q == null || !Number.isFinite(q) ? '–' : Number.isInteger(q) ? n0(q) : f2.format(q);
 function grnParts(rows) {
@@ -1981,6 +2021,7 @@ function renderGrn() {
     '<div><b class="num">' + n0(totals.count) + '</b><span>Purchase records</span></div>' +
     '<div><b class="num">' + n0(totals.vendors) + '</b><span>Vendor names</span></div>' +
     '<div><b class="num">' + n0(totals.zero) + '</b><span>Zero-value records</span></div>';
+  renderGrnCats(rows, totals.paise, period);
   $('#grn-chart-wrap').style.minWidth = Math.max(520, monthly.months.length * 66 + 52) + 'px';
   barChart('#grn-chart', '#grn-chart-x', monthly.months.map(m => ({ k: m.ym, l: grnMonthLabel(m.ym).replace(' 20', ' ’'), v: m.paise / 100, dim: !!grnState.month && grnState.month !== m.ym })),
     v => inr(v).replace('₹', '').replace(' ', ''), p => grnMonthLabel(p.k) + '\n' + grnMoney(Math.round(p.v * 100)));
@@ -2018,8 +2059,11 @@ function bindGrn() {
         (invoice.lines || []).map(line => { const best = lowest.get(grnPartKey(line)); return [invoice.invoice, invoice.date, invoice.vendor, line.part, line.model, line.quantity, line.paid, line.paid != null && line.quantity != null ? (Math.round(line.quantity * line.paid * 100) / 100).toFixed(2) : '', best ? best.line.paid : '', best ? best.invoice.vendor : '', best ? best.invoice.invoice : '', best ? best.invoice.date : '']; }));
     }
   });
-  $('#grn-month-csv').addEventListener('click', () => csv('GRN monthly spend.csv', ['Month', 'Spend (Rs)', 'Purchase records', 'Vendor names', 'Zero-value records'],
-    grnSummary(grnRows(true)).months.map(m => [m.ym, (m.paise / 100).toFixed(2), m.count, m.vendors, m.zero])));
+  $('#grn-month-csv').addEventListener('click', () => {
+    const rows = grnRows(true), rs = paise => (paise / 100).toFixed(2);
+    csv('GRN monthly spend.csv', ['Month', 'Spend with GST (Rs)', 'Spend without GST (Rs)', ...GRN_CATS.flatMap(c => [c + ' with GST (Rs)', c + ' without GST (Rs)']), 'Purchase records', 'Vendor names', 'Zero-value records'],
+      grnSummary(rows).months.map(m => { const cats = grnCategories(rows.filter(r => r.date.startsWith(m.ym))); return [m.ym, rs(m.paise), rs(grnExGst(m.paise)), ...GRN_CATS.flatMap(c => [rs(cats[c]), rs(grnExGst(cats[c]))]), m.count, m.vendors, m.zero]; }));
+  });
   $('#grn-record-csv').addEventListener('click', () => csv('GRN purchase records.csv', ['Recorded date', 'Invoice / reference', 'Vendor', 'Total Purchase Cost (Rs)'],
     [...grnRows()].sort((a, b) => b.date.localeCompare(a.date) || a.record - b.record).map(r => [r.date, r.invoice, r.vendor, (r.paise / 100).toFixed(2)])));
 }
