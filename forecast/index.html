@@ -2840,8 +2840,11 @@ const grnBasePart = name => poNorm(name).replace(/\((?:BLR|DEL|BOM|MUM|HYD|BANGA
 function poAutoPartMatch(l, inv, gl) {
   const al = poState.aliases && poState.aliases[poAliasKey(inv.vendor, gl.part)];
   const gPart = al ? al.part : grnBasePart(gl.part), gModel = al ? poModelNorm(al.model) : poModelNorm(gl.model) || poModelHint(gl.part);
-  const a = poCompact(l.part), b = poCompact(gPart);
-  if (!a || !b || !(a === b || (Math.min(a.length, b.length) >= 6 && (a.includes(b) || b.includes(a))))) return false;
+  // same words both ways (synonyms, plurals, model and filler words ignored; one-letter typos allowed), so
+  // "SPEEDOMETER" does not take "Speedometer Decorative Cover"
+  const ta = [...new Set(poTokens(l.part))], tb = [...new Set(poTokens(gPart))];
+  const has = (xs, t) => xs.some(x => x === t || (Math.min(x.length, t.length) >= 5 && poLev1(x, t)));
+  if (!ta.length || !tb.length || !ta.every(t => has(tb, t)) || !tb.every(t => has(ta, t))) return false;
   const ma = poModelNorm(l.model) || poModelHint(l.part);
   return !ma || !gModel || ma === gModel;
 }
