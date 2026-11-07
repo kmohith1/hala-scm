@@ -2622,6 +2622,7 @@ function poCalc(po) {
   });
   const t = { lines, ordered: 0, used: 0, committed: 0, pendingVal: 0, qty: 0, supplied: 0, pending: 0 };
   for (const l of lines) { t.ordered += l.ordered; t.used += l.used; t.committed += l.committed; t.pendingVal += l.pendingVal; t.qty += l.qty; t.supplied += l.supplied; t.pending += l.pending; }
+  t.excess = lines.reduce((n, l) => n + l.excess, 0);
   t.untraced = live && !po.receipts.length && !lines.some(l => l.autoQty > 0);
   t.overdue = !!(live && t.pending > 0 && po.due && po.due < shipToday());
   t.cities = [...new Set(po.lines.map(l => l.city || '–'))];
@@ -2659,7 +2660,7 @@ function poGroup(list, by) {
     const key = by === 'city' ? city : by === 'vendor' ? po.vendor : by === 'part' ? poKey(part) : city + '\u0001' + poKey(part);
     let g = m.get(key); if (!g) m.set(key, g = { city, part, vendor: po.vendor, pos: new Set(), cities: new Set(), vendors: new Set(), lines: 0, qty: 0, supplied: 0, pending: 0, ordered: 0, used: 0, pendingVal: 0 });
     g.pos.add(po.id); g.cities.add(city); g.vendors.add(po.vendor); g.lines++;
-    g.qty += l.qty; g.supplied += l.supplied; g.pending += l.pending; g.ordered += l.ordered; g.used += l.used; g.pendingVal += l.pendingVal;
+    g.qty += l.qty; g.supplied += l.supplied; g.excess = (g.excess || 0) + l.excess; g.pending += l.pending; g.ordered += l.ordered; g.used += l.used; g.pendingVal += l.pendingVal;
   }
   const rows = [...m.values()];
   return by === 'citypart' ? rows.sort((a, b) => a.city.localeCompare(b.city) || b.ordered - a.ordered) : rows.sort((a, b) => b.ordered - a.ordered);
@@ -2682,7 +2683,7 @@ function poPartMatch(l, gl) {
 // ---------- GRN lines counted automatically as supplies against matching PO lines
 // Match: vendor name, GRN dated on/after the PO, same part and model, same city. City comes from the GRN part
 // or invoice tag ((BLR), (DEL), (BOM), (HYD)); a GRN with no city tag is Hyderabad. Oldest PO line fills first,
-// up to its ordered quantity; GRN beyond what the POs ordered is not counted. Cancelled POs are skipped.
+// up to its ordered quantity; anything beyond goes on the latest matching line as extra supply. Cancelled POs are skipped.
 const PO_CITY_TAGS = [[/\b(BLR|BANG?A?LORE|BENGALURU|BENGALORE)\b/, 'BENGALURU'], [/\b(DEL|DELHI|NCR|GURGAON|GURUGRAM|NOIDA)\b/, 'DELHI'], [/\b(BOM|MUM|MUMBAI|BOMBAY)\b/, 'MUMBAI'], [/\b(HYD|HYDERABAD)\b/, 'HYDERABAD']];
 const poCityTag = t => { const k = ' ' + poKey(t).replace(/[^A-Z0-9]+/g, ' ') + ' '; for (const [re, c] of PO_CITY_TAGS) if (re.test(k)) return c; return ''; };
 const poCityKey = c => poCityTag(c) || poKey(c);
@@ -2715,15 +2716,19 @@ function poAuto() {
     (inv.lines || []).forEach((gl, i) => {
       const key = inv.record + ':' + i;
       let left = (gl.quantity > 0 ? gl.quantity : 0) - (linked.get(key) || 0); if (left <= 1e-9) return;
-      const city = grnCityOf(inv, gl);
-      for (const s of slots) {
-        if (left <= 1e-9) break;
-        if (s.left <= 1e-9 || inv.date < s.po.date || s.city !== city || !poVendorMatch(s.vk, ivk) || !poAutoPartMatch(s.l, inv, gl)) continue;
-        const q = Math.min(left, s.left); s.left -= q; left -= q;
+      const city = grnCityOf(inv, gl), add = (s, q, extra) => {
         let m = map.get(s.po.id); if (!m) map.set(s.po.id, m = new Map());
         let x = m.get(s.l.id); if (!x) m.set(s.l.id, x = { qty: 0, items: [] });
-        x.qty += q; x.items.push({ inv, i, gl, qty: q, key });
+        x.qty += q; x.items.push({ inv, i, gl, qty: q, key, extra });
+      };
+      let last = null;
+      for (const s of slots) {
+        if (left <= 1e-9) break;
+        if (inv.date < s.po.date || s.city !== city || !poVendorMatch(s.vk, ivk) || !poAutoPartMatch(s.l, inv, gl)) continue;
+        last = s; if (s.left <= 1e-9) continue;
+        const q = Math.min(left, s.left); s.left -= q; left -= q; add(s, q, false);
       }
+      if (left > 1e-9 && last) add(last, left, true);   // supplied beyond the PO: counted in full, shown as extra
     });
   }
   return map;
@@ -2792,10 +2797,10 @@ function renderPo() {
   $('#po-status').value = poState.status;
   $$('#po-by button').forEach(b => b.setAttribute('aria-pressed', b.dataset.poBy === poState.by));
   const list = poFiltered();
-  let qty = 0, sup = 0, ord = 0, used = 0, pend = 0, pendQ = 0; for (const { lines } of list) for (const l of lines) { qty += l.qty; sup += l.supplied; ord += l.ordered; used += l.used; pend += l.pendingVal; pendQ += l.pending; }
+  let qty = 0, sup = 0, ord = 0, used = 0, pend = 0, pendQ = 0, extra = 0; for (const { lines } of list) for (const l of lines) { qty += l.qty; sup += l.supplied; extra += l.excess; ord += l.ordered; used += l.used; pend += l.pendingVal; pendQ += l.pending; }
   $('#po-frun').innerHTML = '<div><b class="num">' + n0(list.length) + '</b><span>POs in view</span><small>' + n0(list.reduce((n, x) => n + x.lines.length, 0)) + ' lines · ' + n0(list.filter(x => x.c.untraced).length) + ' with no supply recorded</small></div>' +
     '<div><b class="num">' + poQty(qty) + '</b><span>Parts ordered</span></div>' +
-    '<div><b class="num">' + poQty(sup) + '</b><span>Parts supplied</span><small>' + pct(poPct(sup, qty)) + ' of ordered · ' + poQty(pendQ) + ' pending</small></div>' +
+    '<div><b class="num">' + poQty(sup) + '</b><span>Parts supplied</span><small>' + pct(poPct(sup, qty)) + ' of ordered · ' + poQty(pendQ) + ' pending' + (extra ? ' · ' + poQty(extra) + ' extra provided' : '') + '</small></div>' +
     '<div><b class="num">' + poRs(ord) + '</b><span>PO value</span><small>' + poBasisLabel() + '</small></div>' +
     '<div><b class="num">' + poRs(used) + '</b><span>Utilised</span><small>' + pct(poPct(used, ord)) + ' of PO value · ' + poRs(pend) + ' pending</small></div>';
   // summary
@@ -2804,17 +2809,17 @@ function renderPo() {
   let h = '<thead><tr>' + firstCols.map((t, i) => '<th class="' + (i ? 'l' : 'lab') + '" style="text-align:left">' + t + '</th>').join('') + '<th>POs</th><th>Ordered</th><th>Supplied</th><th>Pending</th><th>PO value<small>' + poBasisLabel() + '</small></th><th>Utilised<small>value supplied</small></th><th>Pending value</th><th>Utilisation<small>of PO value</small></th></tr></thead><tbody>';
   for (const g of groups) {
     const first = by === 'city' ? [g.city] : by === 'part' ? [g.part, [...g.cities].join(', ')] : by === 'vendor' ? [g.vendor] : [g.city, g.part];
-    h += '<tr>' + first.map((t, i) => '<td class="' + (i ? '' : 'lab') + '" style="text-align:left;white-space:normal">' + esc(t) + '</td>').join('') + '<td>' + n0(g.pos.size) + '</td><td>' + poQty(g.qty) + '</td><td>' + poQty(g.supplied) + '</td><td>' + (g.pending ? '<b>' + poQty(g.pending) + '</b>' : '0') + '</td><td>' + poRs(g.ordered) + '</td><td>' + poRs(g.used) + '</td><td>' + poRs(g.pendingVal) + '</td>' + poPctCell(g.used, g.ordered) + '</tr>';
+    h += '<tr>' + first.map((t, i) => '<td class="' + (i ? '' : 'lab') + '" style="text-align:left;white-space:normal">' + esc(t) + '</td>').join('') + '<td>' + n0(g.pos.size) + '</td><td>' + poQty(g.qty) + '</td><td>' + poQty(g.supplied) + (g.excess ? '<small>' + poQty(g.excess) + ' extra provided</small>' : '') + '</td><td>' + (g.pending ? '<b>' + poQty(g.pending) + '</b>' : '0') + '</td><td>' + poRs(g.ordered) + '</td><td>' + poRs(g.used) + '</td><td>' + poRs(g.pendingVal) + '</td>' + poPctCell(g.used, g.ordered) + '</tr>';
   }
   if (!groups.length) h += '<tr><td class="lab" colspan="' + (firstCols.length + 8) + '">' + (poState.loading ? 'Loading shared POs…' : !ready ? 'Load or create the shared PO register.' : poState.rows.length ? 'No PO lines match these filters.' : 'No POs yet. Add one with New PO, or import a CSV.') + '</td></tr>';
-  else h += '<tr class="total"><td class="lab" colspan="' + firstCols.length + '">Total</td><td>' + n0(list.length) + '</td><td>' + poQty(qty) + '</td><td>' + poQty(sup) + '</td><td>' + poQty(pendQ) + '</td><td>' + poRs(ord) + '</td><td>' + poRs(used) + '</td><td>' + poRs(pend) + '</td>' + poPctCell(used, ord) + '</tr>';
+  else h += '<tr class="total"><td class="lab" colspan="' + firstCols.length + '">Total</td><td>' + n0(list.length) + '</td><td>' + poQty(qty) + '</td><td>' + poQty(sup) + (extra ? '<small>' + poQty(extra) + ' extra provided</small>' : '') + '</td><td>' + poQty(pendQ) + '</td><td>' + poRs(ord) + '</td><td>' + poRs(used) + '</td><td>' + poRs(pend) + '</td>' + poPctCell(used, ord) + '</tr>';
   $('#po-sum').innerHTML = h + '</tbody>';
   $('#po-sum-sub').textContent = (poState.month ? grnMonthLabel(poState.month) : 'All months') + ' · by ' + { city: 'city', part: 'part', citypart: 'city and part', vendor: 'vendor' }[by] + '. Ordered, supplied and pending are numbers of parts; values are ' + poBasisLabel() + '. Pending on closed or cancelled POs is released.';
   // PO list
   h = '<thead><tr><th class="lab">PO / vendor</th><th class="l">PO date<small>expected by</small></th><th class="l">Cities</th><th>Lines</th><th>Ordered</th><th>Supplied</th><th>PO value<small>' + poBasisLabel() + '</small></th><th>Utilised</th><th>Utilisation</th><th class="l">Status</th></tr></thead><tbody>';
   for (const { po, c, lines } of list) {
-    const isOpen = poState.open === po.id, flags = (c.overdue ? ' <span class="flag">Overdue</span>' : '') + (c.untraced ? ' <span class="flag">No supply recorded</span>' : '') + (c.lines.some(l => l.excess > 0) ? ' <span class="flag">Excess supply</span>' : '');
-    h += '<tr><td class="lab"><button type="button" class="link" data-po-open="' + po.id + '" aria-expanded="' + isOpen + '">' + (isOpen ? '▾ ' : '▸ ') + esc(po.po) + '</button><small>' + esc(po.vendor) + '</small></td><td class="l">' + esc(poDay(po.date)) + '<small>' + (po.due ? esc(poDay(po.due)) : '–') + '</small></td><td class="l">' + esc(c.cities.join(', ')) + '</td><td>' + n0(po.lines.length) + (lines.length !== po.lines.length ? '<small>' + n0(lines.length) + ' in view</small>' : '') + '</td><td>' + poQty(c.qty) + '</td><td>' + poQty(c.supplied) + '<small>' + (c.pending ? poQty(c.pending) + ' pending' : '') + '</small></td><td>' + poRs(c.ordered) + '</td><td>' + poRs(c.used) + '</td>' + poPctCell(c.used, c.ordered) + '<td class="l"><span class="po-badge ' + po.status.toLowerCase() + '">' + esc(po.status) + '</span>' + flags + '</td></tr>';
+    const isOpen = poState.open === po.id, flags = (c.overdue ? ' <span class="flag">Overdue</span>' : '') + (c.untraced ? ' <span class="flag">No supply recorded</span>' : '') + (c.lines.some(l => l.excess > 0) ? ' <span class="flag">Extra supplied</span>' : '');
+    h += '<tr><td class="lab"><button type="button" class="link" data-po-open="' + po.id + '" aria-expanded="' + isOpen + '">' + (isOpen ? '▾ ' : '▸ ') + esc(po.po) + '</button><small>' + esc(po.vendor) + '</small></td><td class="l">' + esc(poDay(po.date)) + '<small>' + (po.due ? esc(poDay(po.due)) : '–') + '</small></td><td class="l">' + esc(c.cities.join(', ')) + '</td><td>' + n0(po.lines.length) + (lines.length !== po.lines.length ? '<small>' + n0(lines.length) + ' in view</small>' : '') + '</td><td>' + poQty(c.qty) + '</td><td>' + poQty(c.supplied) + '<small>' + (c.pending ? poQty(c.pending) + ' pending' : '') + (c.excess ? (c.pending ? ' · ' : '') + poQty(c.excess) + ' extra provided' : '') + '</small></td><td>' + poRs(c.ordered) + '</td><td>' + poRs(c.used) + '</td>' + poPctCell(c.used, c.ordered) + '<td class="l"><span class="po-badge ' + po.status.toLowerCase() + '">' + esc(po.status) + '</span>' + flags + '</td></tr>';
     if (isOpen) h += '<tr class="detail"><td colspan="10">' + poDetail(po, c) + '</td></tr>';
   }
   if (!list.length) h += '<tr><td class="lab" colspan="10">' + (poState.loading ? 'Loading shared POs…' : !ready ? 'Load or create the shared PO register to see team POs.' : poState.rows.length ? 'No POs match these filters.' : 'No POs yet. Add one with New PO, or import a CSV.') + '</td></tr>';
@@ -2830,8 +2835,8 @@ function poDetail(po, c) {
     (po.status === 'Open' ? '<button class="btn" type="button" data-po-status="' + po.id + '" data-to="Closed">Short-close PO</button><button class="btn" type="button" data-po-status="' + po.id + '" data-to="Cancelled">Cancel PO</button>' : '<button class="btn" type="button" data-po-status="' + po.id + '" data-to="Open">Reopen PO</button>') +
     '<button class="btn" type="button" data-po-delete="' + po.id + '">Delete</button></div>';
   h += '<div class="scroll"><table class="dtbl"><thead><tr><th class="l">City</th><th class="l">Part</th><th class="l">Vehicle model</th><th>Ordered</th><th>Rate<small>excl. GST</small></th><th>GST</th><th>Supplied</th><th>Pending</th><th>PO value<small>' + poBasisLabel() + '</small></th><th>Utilised</th><th>Utilisation</th></tr></thead><tbody>';
-  for (const l of c.lines) h += '<tr><td class="l">' + esc(l.city || '–') + '</td><td class="l">' + esc(l.part) + '</td><td class="l">' + esc(l.model || '–') + '</td><td>' + poQty(l.qty) + '</td><td>' + poRsFull(l.ratePaise) + '</td><td>' + poQty(l.gst) + '%</td><td>' + poQty(l.supplied) + (l.excess ? ' <span class="flag">+' + poQty(l.excess) + ' excess</span>' : '') + '</td><td>' + (l.pending ? '<b>' + poQty(l.pending) + '</b>' : po.status === 'Open' ? '<span class="ok">Complete</span>' : '0') + '</td><td>' + poRs(l.ordered) + '</td><td>' + poRs(l.used) + '</td>' + poPctCell(l.used, l.ordered) + '</tr>';
-  h += '<tr class="total"><td class="l" colspan="3">PO total</td><td>' + poQty(c.qty) + '</td><td></td><td></td><td>' + poQty(c.supplied) + '</td><td>' + poQty(c.pending) + '</td><td>' + poRs(c.ordered) + '</td><td>' + poRs(c.used) + '</td>' + poPctCell(c.used, c.ordered) + '</tr></tbody></table></div>';
+  for (const l of c.lines) h += '<tr><td class="l">' + esc(l.city || '–') + '</td><td class="l">' + esc(l.part) + '</td><td class="l">' + esc(l.model || '–') + '</td><td>' + poQty(l.qty) + '</td><td>' + poRsFull(l.ratePaise) + '</td><td>' + poQty(l.gst) + '%</td><td>' + poQty(l.supplied) + (l.excess ? ' <span class="flag">' + poQty(l.excess) + ' extra provided</span>' : '') + '</td><td>' + (l.pending ? '<b>' + poQty(l.pending) + '</b>' : po.status === 'Open' ? '<span class="ok">Complete</span>' : '0') + '</td><td>' + poRs(l.ordered) + '</td><td>' + poRs(l.used) + '</td>' + poPctCell(l.used, l.ordered) + '</tr>';
+  h += '<tr class="total"><td class="l" colspan="3">PO total</td><td>' + poQty(c.qty) + '</td><td></td><td></td><td>' + poQty(c.supplied) + (c.excess ? '<small>' + poQty(c.excess) + ' extra provided</small>' : '') + '</td><td>' + poQty(c.pending) + '</td><td>' + poRs(c.ordered) + '</td><td>' + poRs(c.used) + '</td>' + poPctCell(c.used, c.ordered) + '</tr></tbody></table></div>';
   const autoRows = c.lines.flatMap(l => l.autoItems.map(it => ({ l, it })));
   h += '<h3>Supplies received · ' + n0(po.receipts.length + autoRows.length) + '</h3>';
   if (po.receipts.length || autoRows.length) {
@@ -2842,7 +2847,7 @@ function poDetail(po, c) {
     }
     for (const { l, it } of autoRows.sort((a, b) => b.it.inv.date.localeCompare(a.it.inv.date))) {
       const v = Math.round(it.qty * l.ratePaise * (poState.settings.basis === 'excl' ? 1 : (100 + l.gst) / 100));
-      h += '<tr><td class="l">' + esc(poDay(it.inv.date)) + '</td><td class="l">' + (it.inv.sourceUrl ? '<a href="' + esc(it.inv.sourceUrl) + '" target="_blank" rel="noopener noreferrer">' + esc(it.inv.invoice) + '</a>' : esc(it.inv.invoice)) + '</td><td class="l">' + esc(l.city || '–') + '</td><td class="l">' + esc(l.part) + '<small> GRN: ' + esc(it.gl.part) + '</small></td><td>' + poQty(it.qty) + '</td><td>' + poRs(v) + '</td><td class="l">Cercle OS GRN · automatic</td><td></td></tr>';
+      h += '<tr><td class="l">' + esc(poDay(it.inv.date)) + '</td><td class="l">' + (it.inv.sourceUrl ? '<a href="' + esc(it.inv.sourceUrl) + '" target="_blank" rel="noopener noreferrer">' + esc(it.inv.invoice) + '</a>' : esc(it.inv.invoice)) + '</td><td class="l">' + esc(l.city || '–') + '</td><td class="l">' + esc(l.part) + '<small> GRN: ' + esc(it.gl.part) + '</small></td><td>' + poQty(it.qty) + '</td><td>' + poRs(v) + '</td><td class="l">Cercle OS GRN · automatic' + (it.extra ? ' <span class="flag">extra over PO</span>' : '') + '</td><td></td></tr>';
     }
     h += '</tbody></table></div>';
     if (autoRows.length && po.receipts.some(r => !r.grn)) h += '<p class="po-meta">Where a line has both a supply typed by hand and GRN, the larger quantity is counted, not both.</p>';
