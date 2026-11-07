@@ -923,7 +923,7 @@ async function unlock() {
 // To add one: copy a line below, change the id, the recorded part name, and the correct part / vehicle model.
 const GRN_FIXES = [
   { purchase: '6aec44279413378aeb7a7ff2', invoice: 'Baluka_1744_03-11-2026 - Central', recorded: 'Speedometer-Common', part: 'HEAD COVER', model: 'SINGLE LIGHT', note: 'Head cover, wrongly entered as speedometer in Cercle OS (7 Nov 2026)' },
-  { purchase: '6aec5b259413378aeb7a8442', invoice: 'Baluka_1748_03-11-2026 - Central', recorded: 'Speedometer-Common', part: 'VISOR', model: 'COMMON', note: 'Visor, wrongly entered as speedometer in Cercle OS (7 Nov 2026)' },
+  { purchase: '6aec5b259413378aeb7a8442', invoice: 'Baluka_1748_03-11-2026 - Central', recorded: 'Speedometer-Common', part: 'HEAD COVER', model: 'COMMON', note: 'Visor (head cover), wrongly entered as speedometer in Cercle OS (7 Nov 2026)' },
 ];
 function grnApplyFixes(G) {
   for (const fix of GRN_FIXES) for (const r of G.records) {
