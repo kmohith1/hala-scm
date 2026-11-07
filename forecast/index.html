@@ -2758,14 +2758,14 @@ function poPartDetail(sub, subNo, pk, name) {
   for (const { po, c } of sub) for (const l of c.lines) {
     if (lineKey(l) !== pk) continue;
     poLines.push({ po, l });
-    for (const it of l.autoItems) sup.push({ date: it.inv.date, ref: link(it.inv, it.inv.invoice), vendor: it.inv.vendor, po, l, qty: it.qty, paidIncl: it.gl.paid, src: 'Cercle OS GRN' + (it.extra ? ' · extra over PO' : ''), extra: it.extra });
+    for (const it of l.autoItems) sup.push({ date: it.inv.date, ref: link(it.inv, it.inv.invoice), gpart: it.gl.part, vendor: it.inv.vendor, po, l, qty: it.qty, paidIncl: it.gl.paid, src: 'Cercle OS GRN' + (it.extra ? ' · extra over PO' : ''), extra: it.extra });
     for (const r of po.receipts) {
       if (r.line !== l.id) continue;
-      let paidIncl = null, ref = esc(r.ref || '–'), src = r.src === 'grn' ? 'GRN linked by hand' : r.src === 'invoice' ? 'Vendor invoice upload' : r.src === 'csv' ? 'CSV import' : 'Typed by hand';
-      if (r.grn) { const [rec, gi] = r.grn.split(':').map(Number), inv = grnBy.get(rec), gl = inv && inv.lines[gi]; if (inv) ref = link(inv, inv.invoice); if (gl) paidIncl = gl.paid; }
+      let paidIncl = null, gpart = '', ref = esc(r.ref || '–'), src = r.src === 'grn' ? 'GRN linked by hand' : r.src === 'invoice' ? 'Vendor invoice upload' : r.src === 'csv' ? 'CSV import' : 'Typed by hand';
+      if (r.grn) { const [rec, gi] = r.grn.split(':').map(Number), inv = grnBy.get(rec), gl = inv && inv.lines[gi]; if (inv) ref = link(inv, inv.invoice); if (gl) { paidIncl = gl.paid; gpart = gl.part; } }
       else if (r.inv && r.inv.ratePaise != null) paidIncl = r.inv.ratePaise / 100 * (100 + l.gst) / 100;
       if (r.src === 'invoice' && r.file) ref = '<a href="' + esc(r.file) + '" target="_blank" rel="noopener">' + esc(r.ref || 'Vendor invoice') + '</a>';
-      sup.push({ date: r.date, ref, vendor: po.vendor, po, l, qty: r.qty, paidIncl, src: src + (r.by ? ' · ' + r.by : '') });
+      sup.push({ date: r.date, ref, gpart: gpart || (r.inv && r.inv.name) || '', vendor: po.vendor, po, l, qty: r.qty, paidIncl, src: src + (r.by ? ' · ' + r.by : '') });
     }
   }
   const np = subNo.filter(x => poKey(x.part) === pk);
@@ -2793,7 +2793,7 @@ function poPartDetail(sub, subNo, pk, name) {
       const ex = x.paidIncl > 0 ? x.paidIncl / 1.18 : NaN, rate = x.l.ratePaise / 100, cost = Number.isFinite(ex) ? Math.round(x.qty * ex * 100) : NaN, val = atBasis(x.l, x.qty);
       tq += x.qty; if (Number.isFinite(cost)) tc += cost; tv += val;
       const diff = Number.isFinite(ex) && Math.abs(ex - rate) > 0.005 ? '<small class="' + (ex > rate ? 'flag' : 'ok') + '">' + (ex > rate ? '+' : '−') + grnUnitMoney(Math.abs(ex - rate)) + ' vs PO</small>' : '';
-      h += '<tr><td class="l">' + esc(poDay(x.date)) + '</td><td class="l">' + x.ref + '</td><td class="l">' + esc(x.vendor) + '</td><td class="l">' + esc(x.po.po) + '</td><td>' + poQty(x.qty) + '</td><td>' + grnUnitMoney(x.paidIncl > 0 ? x.paidIncl : null) + '</td><td>' + grnUnitMoney(ex) + diff + '</td><td>' + grnUnitMoney(rate) + '</td><td>' + (Number.isFinite(cost) ? poRs(cost) : '–') + '</td><td>' + poRs(val) + '</td><td class="l">' + esc(x.src) + '</td></tr>';
+      h += '<tr><td class="l">' + esc(poDay(x.date)) + '</td><td class="l">' + x.ref + (x.gpart ? '<small>Billed as: ' + esc(x.gpart) + '</small>' : '') + '</td><td class="l">' + esc(x.vendor) + '</td><td class="l">' + esc(x.po.po) + '</td><td>' + poQty(x.qty) + '</td><td>' + grnUnitMoney(x.paidIncl > 0 ? x.paidIncl : null) + '</td><td>' + grnUnitMoney(ex) + diff + '</td><td>' + grnUnitMoney(rate) + '</td><td>' + (Number.isFinite(cost) ? poRs(cost) : '–') + '</td><td>' + poRs(val) + '</td><td class="l">' + esc(x.src) + '</td></tr>';
     }
     h += '<tr class="total"><td class="l" colspan="4">Total</td><td>' + poQty(tq) + '</td><td colspan="3"></td><td>' + poRs(tc) + '</td><td>' + poRs(tv) + '</td><td></td></tr></tbody></table></div>';
   }
