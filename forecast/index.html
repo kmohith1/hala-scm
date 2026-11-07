@@ -928,7 +928,7 @@ async function load() {
     return;
   }
   prepare(); readHash(); buildFilters(); bind(); defs(); render();
-  $('#loading').hidden = true; $('#filters').hidden = ['fc', 'grn', 'prices', 'po', 'shipments', 'notes', 'reg'].includes(state.tab); $('#defs-sec').hidden = false;
+  $('#loading').hidden = true; $('#filters').hidden = ['fc', 'grn', 'prices', 'po', 'shipments', 'notes', 'reg'].includes(state.tab);
   gstLoad(); regAccess();
   addEventListener('focus', () => { if (!regAllowed) regAccess(); });   // picks up a sign-in done in the other tab
 }
