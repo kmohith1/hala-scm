@@ -2612,22 +2612,23 @@ async function poRun(fn, done) {
 
 // ---------- figures
 function poCalc(po) {
-  const basis = poState.settings.basis, live = po.status === 'Open', sup = new Map();
-  for (const r of po.receipts) sup.set(r.line, (sup.get(r.line) || 0) + r.qty);
+  const basis = poState.settings.basis, live = po.status === 'Open', hand = new Map(), linked = new Map(), auto = poAuto().get(po.id) || new Map();
+  for (const r of po.receipts) { const m = r.grn ? linked : hand; m.set(r.line, (m.get(r.line) || 0) + r.qty); }
   const lines = po.lines.map(l => {
-    const supplied = sup.get(l.id) || 0, val = q => { const ex = Math.round(q * l.ratePaise); return basis === 'excl' ? ex : Math.round(ex * (100 + l.gst) / 100); };
+    // a supply typed by hand and the same goods arriving in GRN are one delivery: count the larger of the two
+    const a = auto.get(l.id), autoQty = a ? a.qty : 0, supplied = (linked.get(l.id) || 0) + Math.max(hand.get(l.id) || 0, autoQty), val = q => { const ex = Math.round(q * l.ratePaise); return basis === 'excl' ? ex : Math.round(ex * (100 + l.gst) / 100); };
     const pending = live ? Math.max(0, l.qty - supplied) : 0, ordered = val(l.qty), used = val(supplied), committed = val(live ? Math.max(l.qty, supplied) : supplied);
-    return { ...l, supplied, pending, excess: Math.max(0, supplied - l.qty), ordered, used, committed, pendingVal: committed - used };
+    return { ...l, supplied, autoQty, autoItems: a ? a.items : [], pending, excess: Math.max(0, supplied - l.qty), ordered, used, committed, pendingVal: committed - used };
   });
   const t = { lines, ordered: 0, used: 0, committed: 0, pendingVal: 0, qty: 0, supplied: 0, pending: 0 };
   for (const l of lines) { t.ordered += l.ordered; t.used += l.used; t.committed += l.committed; t.pendingVal += l.pendingVal; t.qty += l.qty; t.supplied += l.supplied; t.pending += l.pending; }
-  t.untraced = live && !po.receipts.length;
+  t.untraced = live && !po.receipts.length && !lines.some(l => l.autoQty > 0);
   t.overdue = !!(live && t.pending > 0 && po.due && po.due < shipToday());
   t.cities = [...new Set(po.lines.map(l => l.city || '–'))];
   return t;
 }
 const poCache = new WeakMap();
-const poC = po => { let c = poCache.get(po); if (!c || c.basis !== poState.settings.basis || c.day !== shipToday()) poCache.set(po, c = { basis: poState.settings.basis, day: shipToday(), v: poCalc(po) }); return c.v; };
+const poC = po => { const ver = poAuto().ver; let c = poCache.get(po); if (!c || c.ver !== ver || c.basis !== poState.settings.basis || c.day !== shipToday()) poCache.set(po, c = { ver, basis: poState.settings.basis, day: shipToday(), v: poCalc(po) }); return c.v; };
 function poBudget() {
   const s = poState.settings, month = s.scope === 'month' ? (poState.month || poCurMonth()) : '';
   const rows = poState.rows.filter(po => !month || po.date.startsWith(month));
@@ -2678,15 +2679,65 @@ function poPartMatch(l, gl) {
   const ma = poCompact(l.model), mb = poCompact(gl.model);
   return !ma || !mb || ma === mb || ma.includes(mb) || mb.includes(ma);
 }
+// ---------- GRN lines counted automatically as supplies against matching PO lines
+// Match: vendor name, GRN dated on/after the PO, same part and model, same city. City comes from the GRN part
+// or invoice tag ((BLR), (DEL), (BOM), (HYD)); a GRN with no city tag is Hyderabad. Oldest PO line fills first,
+// up to its ordered quantity; GRN beyond what the POs ordered is not counted. Cancelled POs are skipped.
+const PO_CITY_TAGS = [[/\b(BLR|BANG?A?LORE|BENGALURU|BENGALORE)\b/, 'BENGALURU'], [/\b(DEL|DELHI|NCR|GURGAON|GURUGRAM|NOIDA)\b/, 'DELHI'], [/\b(BOM|MUM|MUMBAI|BOMBAY)\b/, 'MUMBAI'], [/\b(HYD|HYDERABAD)\b/, 'HYDERABAD']];
+const poCityTag = t => { const k = ' ' + poKey(t).replace(/[^A-Z0-9]+/g, ' ') + ' '; for (const [re, c] of PO_CITY_TAGS) if (re.test(k)) return c; return ''; };
+const poCityKey = c => poCityTag(c) || poKey(c);
+const grnCityOf = (inv, gl) => poCityTag(gl.part) || poCityTag(inv.invoice) || 'HYDERABAD';
+const grnBasePart = name => poNorm(name).replace(/\((?:BLR|DEL|BOM|MUM|HYD|BANGALORE|BENGALURU|DELHI|MUMBAI|HYDERABAD)\)/gi, ' ').replace(/_(?:BLR|DEL|BOM|MUM|HYD)\b/gi, ' ').replace(/[-\s]*\bCOMMON\b/gi, ' ');
+function poAutoPartMatch(l, inv, gl) {
+  const al = poState.aliases && poState.aliases[poAliasKey(inv.vendor, gl.part)];
+  const gPart = al ? al.part : grnBasePart(gl.part), gModel = al ? poModelNorm(al.model) : poModelNorm(gl.model) || poModelHint(gl.part);
+  const a = poCompact(l.part), b = poCompact(gPart);
+  if (!a || !b || !(a === b || (Math.min(a.length, b.length) >= 6 && (a.includes(b) || b.includes(a))))) return false;
+  const ma = poModelNorm(l.model) || poModelHint(l.part);
+  return !ma || !gModel || ma === gModel;
+}
+let poAutoMemo = { rows: null, grn: null, aliases: null, ver: 0, map: new Map() };
+function poAuto() {
+  if (poAutoMemo.rows === poState.rows && poAutoMemo.grn === GRN && poAutoMemo.aliases === poState.aliases) return poAutoMemo.map;
+  const map = new Map(); map.ver = poAutoMemo.ver + 1;
+  poAutoMemo = { rows: poState.rows, grn: GRN, aliases: poState.aliases, ver: map.ver, map };
+  if (!GRN || !poState.rows.length) return map;
+  const slots = [], linked = new Map();
+  for (const po of poState.rows) for (const r of po.receipts) if (r.grn) linked.set(r.grn, (linked.get(r.grn) || 0) + r.qty);
+  for (const po of [...poState.rows].filter(p => p.status !== 'Cancelled').sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))) {
+    const vk = poVendorKey(po.vendor), have = new Map();
+    for (const r of po.receipts) if (r.grn) have.set(r.line, (have.get(r.line) || 0) + r.qty);
+    for (const l of po.lines) slots.push({ po, l, vk, city: poCityKey(l.city), left: Math.max(0, l.qty - (have.get(l.id) || 0)) });
+  }
+  const invs = [...GRN.records].sort((a, b) => a.date.localeCompare(b.date) || a.record - b.record);
+  for (const inv of invs) {
+    const ivk = poVendorKey(inv.vendor);
+    (inv.lines || []).forEach((gl, i) => {
+      const key = inv.record + ':' + i;
+      let left = (gl.quantity > 0 ? gl.quantity : 0) - (linked.get(key) || 0); if (left <= 1e-9) return;
+      const city = grnCityOf(inv, gl);
+      for (const s of slots) {
+        if (left <= 1e-9) break;
+        if (s.left <= 1e-9 || inv.date < s.po.date || s.city !== city || !poVendorMatch(s.vk, ivk) || !poAutoPartMatch(s.l, inv, gl)) continue;
+        const q = Math.min(left, s.left); s.left -= q; left -= q;
+        let m = map.get(s.po.id); if (!m) map.set(s.po.id, m = new Map());
+        let x = m.get(s.l.id); if (!x) m.set(s.l.id, x = { qty: 0, items: [] });
+        x.qty += q; x.items.push({ inv, i, gl, qty: q, key });
+      }
+    });
+  }
+  return map;
+}
+function poAutoUsed() { const m = new Map(); for (const lines of poAuto().values()) for (const x of lines.values()) for (const it of x.items) m.set(it.key, (m.get(it.key) || 0) + it.qty); return m; }
 function poGrnUsed() { const m = new Map(); for (const po of poState.rows) for (const r of po.receipts) if (r.grn) m.set(r.grn, (m.get(r.grn) || 0) + r.qty); return m; }
 function poGrnCandidates(po, c) {
   if (!GRN || po.status !== 'Open' || !c.pending) return [];
-  const vk = poVendorKey(po.vendor), used = poGrnUsed(), out = [];
+  const vk = poVendorKey(po.vendor), used = poGrnUsed(), auto = poAutoUsed(), out = [];
   for (const inv of GRN.records) {
     if (inv.date < po.date || !poVendorMatch(vk, poVendorKey(inv.vendor))) continue;
     (inv.lines || []).forEach((gl, i) => {
       if (!(gl.quantity > 0)) return;
-      const left = gl.quantity - (used.get(inv.record + ':' + i) || 0); if (left <= 1e-9) return;
+      const left = gl.quantity - (used.get(inv.record + ':' + i) || 0) - (auto.get(inv.record + ':' + i) || 0); if (left <= 1e-9) return;
       for (const l of c.lines) if (l.pending > 0 && poPartMatch(l, gl)) out.push({ inv, i, gl, left, line: l });
     });
   }
@@ -2781,14 +2832,20 @@ function poDetail(po, c) {
   h += '<div class="scroll"><table class="dtbl"><thead><tr><th class="l">City</th><th class="l">Part</th><th class="l">Vehicle model</th><th>Ordered</th><th>Rate<small>excl. GST</small></th><th>GST</th><th>Supplied</th><th>Pending</th><th>PO value<small>' + poBasisLabel() + '</small></th><th>Utilised</th><th>Utilisation</th></tr></thead><tbody>';
   for (const l of c.lines) h += '<tr><td class="l">' + esc(l.city || '–') + '</td><td class="l">' + esc(l.part) + '</td><td class="l">' + esc(l.model || '–') + '</td><td>' + poQty(l.qty) + '</td><td>' + poRsFull(l.ratePaise) + '</td><td>' + poQty(l.gst) + '%</td><td>' + poQty(l.supplied) + (l.excess ? ' <span class="flag">+' + poQty(l.excess) + ' excess</span>' : '') + '</td><td>' + (l.pending ? '<b>' + poQty(l.pending) + '</b>' : po.status === 'Open' ? '<span class="ok">Complete</span>' : '0') + '</td><td>' + poRs(l.ordered) + '</td><td>' + poRs(l.used) + '</td>' + poPctCell(l.used, l.ordered) + '</tr>';
   h += '<tr class="total"><td class="l" colspan="3">PO total</td><td>' + poQty(c.qty) + '</td><td></td><td></td><td>' + poQty(c.supplied) + '</td><td>' + poQty(c.pending) + '</td><td>' + poRs(c.ordered) + '</td><td>' + poRs(c.used) + '</td>' + poPctCell(c.used, c.ordered) + '</tr></tbody></table></div>';
-  h += '<h3>Supplies received · ' + n0(po.receipts.length) + '</h3>';
-  if (po.receipts.length) {
+  const autoRows = c.lines.flatMap(l => l.autoItems.map(it => ({ l, it })));
+  h += '<h3>Supplies received · ' + n0(po.receipts.length + autoRows.length) + '</h3>';
+  if (po.receipts.length || autoRows.length) {
     h += '<div class="scroll"><table class="dtbl"><thead><tr><th class="l">Received on</th><th class="l">Invoice / DC / GRN</th><th class="l">City</th><th class="l">Part</th><th>Quantity</th><th>Value<small>' + poBasisLabel() + '</small></th><th class="l">Recorded</th><th></th></tr></thead><tbody>';
     for (const r of [...po.receipts].sort((a, b) => b.date.localeCompare(a.date))) {
       const l = lineOf.get(r.line), v = l ? Math.round(r.qty * l.ratePaise * (poState.settings.basis === 'excl' ? 1 : (100 + l.gst) / 100)) : 0;
       h += '<tr><td class="l">' + esc(poDay(r.date)) + '</td><td class="l">' + esc(r.ref || '–') + '</td><td class="l">' + esc(l ? l.city || '–' : '–') + '</td><td class="l">' + esc(l ? l.part : '–') + '</td><td>' + poQty(r.qty) + '</td><td>' + poRs(v) + '</td><td class="l">' + (r.src === 'invoice' ? (r.file ? '<a href="' + esc(r.file) + '" target="_blank" rel="noopener">Vendor invoice</a>' : 'Vendor invoice') + (r.inv && r.inv.name ? ' · read as “' + esc(r.inv.name) + '”' : '') + (r.inv && r.inv.ratePaise != null && l && r.inv.ratePaise !== l.ratePaise ? ' · billed ' + poRsFull(r.inv.ratePaise) : '') : esc(r.src === 'grn' ? 'Linked GRN' : r.src === 'csv' ? 'CSV import' : 'By hand')) + (r.by ? ' · ' + esc(r.by) : '') + '</td><td><button type="button" class="link" data-po-unreceive="' + po.id + '" data-rid="' + esc(r.id) + '">Remove</button></td></tr>';
     }
+    for (const { l, it } of autoRows.sort((a, b) => b.it.inv.date.localeCompare(a.it.inv.date))) {
+      const v = Math.round(it.qty * l.ratePaise * (poState.settings.basis === 'excl' ? 1 : (100 + l.gst) / 100));
+      h += '<tr><td class="l">' + esc(poDay(it.inv.date)) + '</td><td class="l">' + (it.inv.sourceUrl ? '<a href="' + esc(it.inv.sourceUrl) + '" target="_blank" rel="noopener noreferrer">' + esc(it.inv.invoice) + '</a>' : esc(it.inv.invoice)) + '</td><td class="l">' + esc(l.city || '–') + '</td><td class="l">' + esc(l.part) + '<small> GRN: ' + esc(it.gl.part) + '</small></td><td>' + poQty(it.qty) + '</td><td>' + poRs(v) + '</td><td class="l">Cercle OS GRN · automatic</td><td></td></tr>';
+    }
     h += '</tbody></table></div>';
+    if (autoRows.length && po.receipts.some(r => !r.grn)) h += '<p class="po-meta">Where a line has both a supply typed by hand and GRN, the larger quantity is counted, not both.</p>';
   } else h += '<p class="po-meta">No supplies recorded yet.' + (po.status === 'Open' ? ' Use Record supply, or link a GRN line below.' : '') + '</p>';
   const cand = poGrnCandidates(po, c);
   if (po.status === 'Open' && c.pending) {
