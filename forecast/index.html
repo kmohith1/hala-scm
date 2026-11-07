@@ -359,6 +359,8 @@ table.po-lines .w-qty { width: 90px; } table.po-lines .w-rate { width: 110px; } 
 #po-sum > tbody > tr.detail > td, #po-nopo > tbody > tr.detail > td { padding: 0; background: var(--sunk); }
 .po-sortfld { flex-direction: row; align-items: center; gap: 8px; } .po-sortfld select { min-width: 150px; }
 #po-sum tr.detail table.dtbl { margin: 0; min-width: 100%; }
+#po-sum tr.detail tr.detail > td { padding: 0; background: var(--surface); }
+#po-sum tr.detail tr.detail td.l, #po-sum tr.detail tr.detail th.l { text-align: left; }
 #po-nopo td:not(.l), #po-nopo th:not(.l) { text-align: right; }
 .po-badge { display: inline-block; padding: 2px 10px; border-radius: 99px; font-size: 13px; font-weight: 600; background: var(--accent-wash); color: var(--accent); }
 .po-badge.closed { background: var(--sunk); color: var(--ink2); } .po-badge.cancelled { background: #fbe1de; color: #922b21; }
@@ -2497,7 +2499,7 @@ function bindNotes() {
 const PO_DEFAULT = { version: 1, kind: 'po-settings', budgetPaise: 600000000, scope: 'overall', basis: 'excl' };   // ₹60,00,000, pre-GST
 const PO_STATUS = ['Open', 'Closed', 'Cancelled'];
 const poState = { rows: [], settings: { ...PO_DEFAULT }, settingsRow: null, ready: false, loaded: false, loading: false, busy: false, error: '', message: '', refreshed: null,
-  by: 'city', month: '', city: '', vendor: '', status: '', q: '', open: null, sumOpen: null, sort: ['val', -1], npBy: 'city', npSort: 'val', npOpen: null, edit: null, supply: null, supplyWarned: '', imp: { kind: 'po', plan: null }, user: null, confirm: null, aliases: {} };
+  by: 'city', month: '', city: '', vendor: '', status: '', q: '', open: null, sumOpen: null, sumPartOpen: null, sort: ['val', -1], npBy: 'city', npSort: 'val', npOpen: null, edit: null, supply: null, supplyWarned: '', imp: { kind: 'po', plan: null }, user: null, confirm: null, aliases: {} };
 const poNorm = s => String(s == null ? '' : s).normalize('NFKC').trim().replace(/\s+/g, ' ');
 const poKey = s => poNorm(s).toUpperCase();
 const poCompact = s => poKey(s).replace(/[^A-Z0-9]/g, '');
@@ -2745,6 +2747,63 @@ function renderPoNoPo(noPo, npQty, npVal) {
   }
   $('#po-nopo').innerHTML = t + '</tbody>';
 }
+// One part inside an opened city / vendor: its PO lines, every invoice supplied against them (GRN, uploaded invoice
+// or typed by hand) with paid price vs PO rate, and any GRN for the part that came without a PO.
+function poPartDetail(sub, subNo, pk, name) {
+  const excl = poState.settings.basis === 'excl', grnBy = new Map((GRN ? GRN.records : []).map(r => [r.record, r]));
+  const atBasis = (l, q) => Math.round(q * l.ratePaise * (excl ? 1 : (100 + l.gst) / 100));
+  const lineKey = l => poKey(l.part + (l.model ? ' · ' + l.model : ''));
+  const link = (inv, text) => inv && inv.sourceUrl ? '<a href="' + esc(inv.sourceUrl) + '" target="_blank" rel="noopener noreferrer">' + esc(text) + '</a>' : esc(text);
+  const poLines = [], sup = [];
+  for (const { po, c } of sub) for (const l of c.lines) {
+    if (lineKey(l) !== pk) continue;
+    poLines.push({ po, l });
+    for (const it of l.autoItems) sup.push({ date: it.inv.date, ref: link(it.inv, it.inv.invoice), vendor: it.inv.vendor, po, l, qty: it.qty, paidIncl: it.gl.paid, src: 'Cercle OS GRN' + (it.extra ? ' · extra over PO' : ''), extra: it.extra });
+    for (const r of po.receipts) {
+      if (r.line !== l.id) continue;
+      let paidIncl = null, ref = esc(r.ref || '–'), src = r.src === 'grn' ? 'GRN linked by hand' : r.src === 'invoice' ? 'Vendor invoice upload' : r.src === 'csv' ? 'CSV import' : 'Typed by hand';
+      if (r.grn) { const [rec, gi] = r.grn.split(':').map(Number), inv = grnBy.get(rec), gl = inv && inv.lines[gi]; if (inv) ref = link(inv, inv.invoice); if (gl) paidIncl = gl.paid; }
+      else if (r.inv && r.inv.ratePaise != null) paidIncl = r.inv.ratePaise / 100 * (100 + l.gst) / 100;
+      if (r.src === 'invoice' && r.file) ref = '<a href="' + esc(r.file) + '" target="_blank" rel="noopener">' + esc(r.ref || 'Vendor invoice') + '</a>';
+      sup.push({ date: r.date, ref, vendor: po.vendor, po, l, qty: r.qty, paidIncl, src: src + (r.by ? ' · ' + r.by : '') });
+    }
+  }
+  const np = subNo.filter(x => poKey(x.part) === pk);
+  let h = '<div class="pad"><h3>' + esc(name) + '</h3>';
+  // rate summary
+  const paidQty = sup.filter(x => x.paidIncl > 0).reduce((n, x) => n + x.qty, 0), paidSum = sup.filter(x => x.paidIncl > 0).reduce((n, x) => n + x.qty * x.paidIncl, 0);
+  const ordQ = poLines.reduce((n, x) => n + x.l.qty, 0), poRate = ordQ ? poLines.reduce((n, x) => n + x.l.qty * x.l.ratePaise, 0) / ordQ / 100 : NaN;
+  const avgEx = paidQty ? paidSum / paidQty / 1.18 : NaN;
+  const meta = [];
+  if (Number.isFinite(poRate)) meta.push('PO rate <b>' + grnUnitMoney(poRate) + '</b> excl. GST' + (poLines.length > 1 ? ' (weighted)' : ''));
+  if (Number.isFinite(avgEx)) meta.push('Paid on invoices <b>' + grnUnitMoney(avgEx) + '</b> excl. GST' + (Number.isFinite(poRate) && Math.abs(avgEx - poRate) > 0.005 ? ' · <span class="' + (avgEx > poRate ? 'flag' : 'ok') + '">' + (avgEx > poRate ? '+' : '−') + grnUnitMoney(Math.abs(avgEx - poRate)) + ' a unit vs PO</span>' : ' · same as PO'));
+  meta.push(n0(new Set(sup.map(x => x.ref)).size) + ' invoice' + (new Set(sup.map(x => x.ref)).size === 1 ? '' : 's') + ' against POs' + (np.length ? ' · ' + n0(new Set(np.map(x => x.inv.record)).size) + ' without a PO' : ''));
+  h += '<div class="po-meta">' + meta.map(m => '<span>' + m + '</span>').join('') + '</div>';
+  if (poLines.length) {
+    h += '<h3>PO lines</h3><div class="scroll"><table class="dtbl"><thead><tr><th class="l">PO</th><th class="l">Vendor</th><th class="l">PO date</th><th class="l">City</th><th>RFQ qty</th><th>Rate<small>excl. GST</small></th><th>GST</th><th>Provided</th><th>Pending</th><th>PO value<small>' + poBasisLabel() + '</small></th><th>Utilised</th></tr></thead><tbody>';
+    for (const { po, l } of poLines) h += '<tr><td class="l">' + esc(po.po) + '</td><td class="l">' + esc(po.vendor) + '</td><td class="l">' + esc(poDay(po.date)) + '</td><td class="l">' + esc(l.city || '–') + '</td><td>' + poQty(l.qty) + '</td><td>' + poRsFull(l.ratePaise) + '</td><td>' + poQty(l.gst) + '%</td><td>' + poQty(l.supplied) + (l.excess ? '<small>' + poQty(l.excess) + ' extra provided</small>' : '') + '</td><td>' + (l.pending ? poQty(l.pending) : '<span class="ok">Complete</span>') + '</td><td>' + poRs(l.ordered) + '</td><td>' + poRs(l.used) + '</td></tr>';
+    h += '</tbody></table></div>';
+  }
+  h += '<h3>Invoices supplied · ' + n0(sup.length) + '</h3>';
+  if (!sup.length) h += '<p class="po-meta">No supply against these PO lines yet.</p>';
+  else {
+    h += '<div class="scroll"><table class="dtbl"><thead><tr><th class="l">Date</th><th class="l">Invoice</th><th class="l">Vendor</th><th class="l">PO</th><th>Quantity</th><th>Paid<small>per item, incl. GST</small></th><th>Paid<small>per item, excl. GST</small></th><th>PO rate<small>excl. GST</small></th><th>Invoice cost<small>excl. GST</small></th><th>Counted<small>at PO rate, ' + poBasisLabel() + '</small></th><th class="l">Source</th></tr></thead><tbody>';
+    let tq = 0, tc = 0, tv = 0;
+    for (const x of sup.sort((a, b) => b.date.localeCompare(a.date))) {
+      const ex = x.paidIncl > 0 ? x.paidIncl / 1.18 : NaN, rate = x.l.ratePaise / 100, cost = Number.isFinite(ex) ? Math.round(x.qty * ex * 100) : NaN, val = atBasis(x.l, x.qty);
+      tq += x.qty; if (Number.isFinite(cost)) tc += cost; tv += val;
+      const diff = Number.isFinite(ex) && Math.abs(ex - rate) > 0.005 ? '<small class="' + (ex > rate ? 'flag' : 'ok') + '">' + (ex > rate ? '+' : '−') + grnUnitMoney(Math.abs(ex - rate)) + ' vs PO</small>' : '';
+      h += '<tr><td class="l">' + esc(poDay(x.date)) + '</td><td class="l">' + x.ref + '</td><td class="l">' + esc(x.vendor) + '</td><td class="l">' + esc(x.po.po) + '</td><td>' + poQty(x.qty) + '</td><td>' + grnUnitMoney(x.paidIncl > 0 ? x.paidIncl : null) + '</td><td>' + grnUnitMoney(ex) + diff + '</td><td>' + grnUnitMoney(rate) + '</td><td>' + (Number.isFinite(cost) ? poRs(cost) : '–') + '</td><td>' + poRs(val) + '</td><td class="l">' + esc(x.src) + '</td></tr>';
+    }
+    h += '<tr class="total"><td class="l" colspan="4">Total</td><td>' + poQty(tq) + '</td><td colspan="3"></td><td>' + poRs(tc) + '</td><td>' + poRs(tv) + '</td><td></td></tr></tbody></table></div>';
+  }
+  if (np.length) {
+    h += '<h3>GRN without a PO · ' + n0(np.length) + '</h3><div class="scroll"><table class="dtbl"><thead><tr><th class="l">GRN date</th><th class="l">Invoice</th><th class="l">Vendor</th><th class="l">City</th><th class="l">GRN part</th><th>Quantity</th><th>Paid<small>per item, incl. GST</small></th><th>Paid<small>per item, excl. GST</small></th><th>Value<small>' + poBasisLabel() + '</small></th></tr></thead><tbody>';
+    for (const x of [...np].sort((a, b) => b.inv.date.localeCompare(a.inv.date))) h += '<tr><td class="l">' + esc(poDay(x.inv.date)) + '</td><td class="l">' + link(x.inv, x.inv.invoice) + '</td><td class="l">' + esc(x.vendor) + '</td><td class="l">' + esc(x.city) + '</td><td class="l">' + esc(x.gl.part) + '</td><td>' + poQty(x.qty) + '</td><td>' + grnUnitMoney(x.gl.paid) + '</td><td>' + grnUnitMoney(x.gl.paid > 0 ? x.gl.paid / 1.18 : null) + '</td><td>' + poRs(poNoPoVal(x)) + '</td></tr>';
+    h += '</tbody></table></div>';
+  }
+  return h + '</div>';
+}
 function poPctCell(used, ordered) {
   const p = poPct(used, ordered); if (!Number.isFinite(p)) return '<td>–</td>';
   return '<td><div class="po-pct' + (p > 100.05 ? ' over' : '') + '"><span>' + pct(p) + '</span><i><b style="width:' + Math.min(100, p).toFixed(1) + '%"></b></i></div></td>';
@@ -2917,7 +2976,12 @@ function renderPo() {
       const subNo = noPo.filter(x => by === 'city' ? x.city === g.city : g.vendors.has(x.vendor) || poVendorMatch(poVendorKey(g.vendor), poVendorKey(x.vendor)));
       const parts = poSortGroups(poGroup(sub, 'part', subNo), 'part');
       let d = '<tr class="detail"><td colspan="' + (firstCols.length + 9) + '"><div class="pad"><h3>' + esc(by === 'city' ? g.city : g.vendor) + ' · parts</h3><div class="scroll"><table class="dtbl"><thead><tr><th class="lab" style="text-align:left">Part</th>' + (by === 'vendor' ? '<th class="l" style="text-align:left">Cities</th>' : '') + '<th>RFQ qty<small>ordered on POs</small></th><th>Provided qty<small>supplied</small></th><th>Pending</th><th>PO value<small>' + poBasisLabel() + '</small></th><th>Utilised</th><th>Utilisation<small>of PO value</small></th><th>GRN without PO</th></tr></thead><tbody>';
-      for (const p of parts) d += '<tr><td class="lab" style="text-align:left;white-space:normal">' + esc(p.part) + '</td>' + (by === 'vendor' ? '<td style="text-align:left">' + esc([...p.cities].join(', ')) + '</td>' : '') + '<td>' + (p.qty ? poQty(p.qty) : '–') + '</td><td>' + poQty(p.supplied) + (p.excess ? '<small>' + poQty(p.excess) + ' extra provided</small>' : '') + '</td><td>' + (p.pending ? '<b>' + poQty(p.pending) + '</b>' : p.qty ? '<span class="ok">Complete</span>' : '–') + '</td><td>' + (p.qty ? poRs(p.ordered) : '–') + '</td><td>' + poRs(p.used) + '</td>' + poPctCell(p.used, p.ordered) + npCell(p.npQty, p.npVal) + '</tr>';
+      const pCols = by === 'vendor' ? 9 : 8;
+      for (const p of parts) {
+        const pk = poKey(p.part), pOpen = poState.sumPartOpen === gKey(g) + '|' + pk;
+        d += '<tr><td class="lab" style="text-align:left;white-space:normal"><button type="button" class="link" data-po-part-open="' + esc(gKey(g) + '|' + pk) + '" aria-expanded="' + pOpen + '">' + (pOpen ? '▾ ' : '▸ ') + esc(p.part) + '</button></td>' + (by === 'vendor' ? '<td style="text-align:left">' + esc([...p.cities].join(', ')) + '</td>' : '') + '<td>' + (p.qty ? poQty(p.qty) : '–') + '</td><td>' + poQty(p.supplied) + (p.excess ? '<small>' + poQty(p.excess) + ' extra provided</small>' : '') + '</td><td>' + (p.pending ? '<b>' + poQty(p.pending) + '</b>' : p.qty ? '<span class="ok">Complete</span>' : '–') + '</td><td>' + (p.qty ? poRs(p.ordered) : '–') + '</td><td>' + poRs(p.used) + '</td>' + poPctCell(p.used, p.ordered) + npCell(p.npQty, p.npVal) + '</tr>';
+        if (pOpen) d += '<tr class="detail"><td colspan="' + pCols + '">' + poPartDetail(sub, subNo, pk, p.part) + '</td></tr>';
+      }
       d += '<tr class="total"><td class="lab" style="text-align:left"' + (by === 'vendor' ? ' colspan="2"' : '') + '>Total · ' + n0(parts.length) + ' parts</td><td>' + poQty(g.qty) + '</td><td>' + poQty(g.supplied) + (g.excess ? '<small>' + poQty(g.excess) + ' extra provided</small>' : '') + '</td><td>' + poQty(g.pending) + '</td><td>' + poRs(g.ordered) + '</td><td>' + poRs(g.used) + '</td>' + poPctCell(g.used, g.ordered) + npCell(g.npQty, g.npVal) + '</tr></tbody></table></div></div></td></tr>';
       h += d;
     }
@@ -3276,7 +3340,7 @@ function bindPo() {
   $('#po-np-sort').addEventListener('change', e => { poState.npSort = e.target.value; renderPo(); });
   $('#po-np-csv').addEventListener('click', poNoPoCsv);
   $('#po-nopo').addEventListener('click', e => { const b = e.target.closest('[data-po-np-open]'); if (!b) return; const k = b.dataset.poNpOpen; poState.npOpen = poState.npOpen === k ? null : k; renderPo(); });
-  $('#po-sum').addEventListener('click', e => { const b = e.target.closest('[data-po-sum-open]'); if (!b) return; const k = b.dataset.poSumOpen; poState.sumOpen = poState.sumOpen === k ? null : k; renderPo(); });
+  $('#po-sum').addEventListener('click', e => { const pb = e.target.closest('[data-po-part-open]'); if (pb) { const k = pb.dataset.poPartOpen; poState.sumPartOpen = poState.sumPartOpen === k ? null : k; renderPo(); return; } const b = e.target.closest('[data-po-sum-open]'); if (!b) return; const k = b.dataset.poSumOpen; poState.sumOpen = poState.sumOpen === k ? null : k; renderPo(); });
   $('#po-by').addEventListener('click', e => { const b = e.target.closest('[data-po-by]'); if (b) { poState.by = b.dataset.poBy; renderPo(); } });
   for (const [sel, key] of [['#po-month', 'month'], ['#po-city', 'city'], ['#po-vendor', 'vendor'], ['#po-status', 'status']]) $(sel).addEventListener('change', e => { poState[key] = e.target.value; renderPo(); });
   $('#po-q').addEventListener('input', e => { poState.q = e.target.value; renderPo(); });
