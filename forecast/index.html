@@ -553,7 +553,6 @@ table.po-inv-rows select { margin-bottom: 4px; }
       </div>
       <div class="panel"><div class="run" id="grn-run"></div></div>
       <div class="panel" style="margin-top:12px"><div class="scroll" tabindex="0" role="region" aria-label="Recorded spend by category"><table id="grn-cat-table"></table></div></div>
-      <p class="note" id="grn-cat-note"></p>
     </section>
     <section class="sec">
       <header><h2>Spend by month</h2><button class="btn" id="grn-month-csv" type="button">Download monthly CSV</button></header>
@@ -1944,7 +1943,6 @@ function renderGrnCats(rows, total, period) {
   h += '<tr><td class="lab">GST</td><td>' + inr((total - grnExGst(total)) / 100) + '</td>' + show.map(c => '<td>' + inr((cats[c] - grnExGst(cats[c])) / 100) + '</td>').join('') + '</tr>';
   h += '<tr><td class="lab">Share</td><td>' + (total ? '100%' : '–') + '</td>' + show.map(c => '<td>' + (total ? pct(cats[c] / total * 100) : '–') + '</td>').join('') + '</tr>';
   $('#grn-cat-table').innerHTML = h + '</tbody>';
-  $('#grn-cat-note').textContent = 'Recorded Paid Prices include 18% GST; without GST = recorded ÷ 1.18. Categories come from part names: Tyres = tyres (not tubes or valves), Keyfob = key fobs, Printing = stickers and printing vendors, Helmets = helmet vendors and parts, Spares = everything else. Invoices without item lines are counted under their vendor, otherwise Spares.';
   return cats;
 }
 // Part-wise totals across the invoices that match the GRN filters (year, month, vendor, invoice search)
