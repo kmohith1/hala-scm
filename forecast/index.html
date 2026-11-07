@@ -355,7 +355,8 @@ table.po-lines .w-qty { width: 90px; } table.po-lines .w-rate { width: 110px; } 
 #po-table td:not(:first-child), #po-table th:not(:first-child) { text-align: right; }
 #po-table td.l, #po-table th.l { text-align: left; }
 #po-table > tbody > tr.detail > td { padding: 0; }
-#po-table small, #po-sum small { display: block; }
+#po-table small, #po-sum small, #po-nopo small { display: block; }
+#po-nopo td:not(.l), #po-nopo th:not(.l) { text-align: right; }
 .po-badge { display: inline-block; padding: 2px 10px; border-radius: 99px; font-size: 13px; font-weight: 600; background: var(--accent-wash); color: var(--accent); }
 .po-badge.closed { background: var(--sunk); color: var(--ink2); } .po-badge.cancelled { background: #fbe1de; color: #922b21; }
 .po-detail { padding: 14px 16px 6px; display: flex; flex-direction: column; gap: 12px; }
@@ -715,6 +716,11 @@ table.po-inv-rows select { margin-bottom: 4px; }
         <div class="tools"><button class="btn po-primary" id="po-add" type="button">New PO</button><button class="btn po-primary" id="po-inv-open" type="button">Upload vendor invoice</button><button class="btn" id="po-import" type="button">Import POs / supplies (CSV)</button><button class="btn" id="po-lines-csv" type="button">Download PO lines CSV</button></div>
       </header>
       <div class="panel"><div class="scroll" tabindex="0" role="region" aria-label="Purchase orders"><table class="dtbl" id="po-table"></table></div></div>
+    </section>
+
+    <section class="sec" id="po-nopo-sec" hidden>
+      <header><div><h2>GRN received without a PO</h2><p id="po-nopo-sub"></p></div></header>
+      <div class="panel"><div class="scroll" tabindex="0" role="region" aria-label="GRN received without a PO"><table class="dtbl" id="po-nopo"></table></div></div>
     </section>
   </div>
 
@@ -2634,7 +2640,8 @@ function poBudget() {
   const s = poState.settings, month = s.scope === 'month' ? (poState.month || poCurMonth()) : '';
   const rows = poState.rows.filter(po => !month || po.date.startsWith(month));
   let used = 0, committed = 0, pendingVal = 0; for (const po of rows) { const c = poC(po); used += c.used; committed += c.committed; pendingVal += c.pendingVal; }
-  return { budget: s.budgetPaise, used, committed, pendingVal, month, n: rows.length };
+  const noPo = (poAuto().noPo || []).filter(x => !month || x.ym === month).reduce((n, x) => n + poNoPoVal(x), 0);
+  return { budget: s.budgetPaise, used: used + noPo, noPo, committed: committed + noPo, pendingVal, month, n: rows.length };
 }
 function poMatchQ(po, l, q) { return !q || [po.po, po.vendor, po.note, l.part, l.model, l.city].join(' ').toUpperCase().includes(q); }
 function poFiltered() {
@@ -2653,17 +2660,24 @@ function poFiltered() {
   }
   return out.sort((a, b) => b.po.date.localeCompare(a.po.date) || b.po.id.localeCompare(a.po.id));
 }
-function poGroup(list, by) {
-  const m = new Map();
+function poGroup(list, by, noPo = []) {
+  const m = new Map(), blank = (city, part, vendor) => ({ city, part, vendor, pos: new Set(), cities: new Set(), vendors: new Set(), lines: 0, qty: 0, supplied: 0, pending: 0, ordered: 0, used: 0, pendingVal: 0, npQty: 0, npVal: 0 });
   for (const { po, lines } of list) for (const l of lines) {
     const city = l.city || '–', part = l.part + (l.model ? ' · ' + l.model : '');
     const key = by === 'city' ? city : by === 'vendor' ? po.vendor : by === 'part' ? poKey(part) : city + '\u0001' + poKey(part);
-    let g = m.get(key); if (!g) m.set(key, g = { city, part, vendor: po.vendor, pos: new Set(), cities: new Set(), vendors: new Set(), lines: 0, qty: 0, supplied: 0, pending: 0, ordered: 0, used: 0, pendingVal: 0 });
+    let g = m.get(key); if (!g) m.set(key, g = blank(city, part, po.vendor));
     g.pos.add(po.id); g.cities.add(city); g.vendors.add(po.vendor); g.lines++;
     g.qty += l.qty; g.supplied += l.supplied; g.excess = (g.excess || 0) + l.excess; g.pending += l.pending; g.ordered += l.ordered; g.used += l.used; g.pendingVal += l.pendingVal;
   }
-  const rows = [...m.values()];
-  return by === 'citypart' ? rows.sort((a, b) => a.city.localeCompare(b.city) || b.ordered - a.ordered) : rows.sort((a, b) => b.ordered - a.ordered);
+  for (const x of noPo) {
+    const vendorRow = [...m.values()].find(g => poVendorMatch(poVendorKey(g.vendor), poVendorKey(x.vendor)));
+    const vendor = vendorRow ? vendorRow.vendor : x.vendor;
+    const key = by === 'city' ? x.city : by === 'vendor' ? vendor : by === 'part' ? poKey(x.part) : x.city + '\u0001' + poKey(x.part);
+    let g = m.get(key); if (!g) m.set(key, g = blank(x.city, x.part, vendor));
+    g.cities.add(x.city); g.vendors.add(vendor); g.npQty += x.qty; g.npVal += poNoPoVal(x);
+  }
+  const rows = [...m.values()], size = g => g.ordered + g.npVal;
+  return by === 'citypart' ? rows.sort((a, b) => a.city.localeCompare(b.city) || size(b) - size(a)) : rows.sort((a, b) => size(b) - size(a));
 }
 function poPctCell(used, ordered) {
   const p = poPct(used, ordered); if (!Number.isFinite(p)) return '<td>–</td>';
@@ -2681,12 +2695,21 @@ function poPartMatch(l, gl) {
   return !ma || !mb || ma === mb || ma.includes(mb) || mb.includes(ma);
 }
 // ---------- GRN lines counted automatically as supplies against matching PO lines
-// Match: vendor name, GRN dated on/after the PO, same part and model, same city. City comes from the GRN part
+// Match: vendor name, GRN in the PO month or later, same part and model, same city. City comes from the GRN part
 // or invoice tag ((BLR), (DEL), (BOM), (HYD)); a GRN with no city tag is Hyderabad. Oldest PO line fills first,
 // up to its ordered quantity; anything beyond goes on the latest matching line as extra supply. Cancelled POs are skipped.
 const PO_CITY_TAGS = [[/\b(BLR|BANG?A?LORE|BENGALURU|BENGALORE)\b/, 'BENGALURU'], [/\b(DEL|DELHI|NCR|GURGAON|GURUGRAM|NOIDA)\b/, 'DELHI'], [/\b(BOM|MUM|MUMBAI|BOMBAY)\b/, 'MUMBAI'], [/\b(HYD|HYDERABAD)\b/, 'HYDERABAD']];
 const poCityTag = t => { const k = ' ' + poKey(t).replace(/[^A-Z0-9]+/g, ' ') + ' '; for (const [re, c] of PO_CITY_TAGS) if (re.test(k)) return c; return ''; };
 const poCityKey = c => poCityTag(c) || poKey(c);
+const poCityName = key => { for (const c of poCityList()) if (poCityKey(c) === key) return c; return key.charAt(0) + key.slice(1).toLowerCase(); };
+// GRN Paid Prices include GST (18%); PO values follow the budget basis
+const poNoPoVal = x => poState.settings.basis === 'excl' ? grnExGst(x.grossPaise) : x.grossPaise;
+function poNoPoFiltered() {
+  const q = poKey(poState.q), st = poState.status;
+  if (st && st !== 'Open' && st !== 'pending') return [];
+  return (poAuto().noPo || []).filter(x => (!poState.month || x.ym === poState.month) && (!poState.city || x.city === poState.city) &&
+    (!poState.vendor || poVendorMatch(poVendorKey(poState.vendor), poVendorKey(x.vendor))) && (!q || [x.part, x.vendor, x.inv.invoice, x.city].join(' ').toUpperCase().includes(q)));
+}
 const grnCityOf = (inv, gl) => poCityTag(gl.part) || poCityTag(inv.invoice) || 'HYDERABAD';
 const grnBasePart = name => poNorm(name).replace(/\((?:BLR|DEL|BOM|MUM|HYD|BANGALORE|BENGALURU|DELHI|MUMBAI|HYDERABAD)\)/gi, ' ').replace(/_(?:BLR|DEL|BOM|MUM|HYD)\b/gi, ' ').replace(/[-\s]*\bCOMMON\b/gi, ' ');
 function poAutoPartMatch(l, inv, gl) {
@@ -2700,7 +2723,7 @@ function poAutoPartMatch(l, inv, gl) {
 let poAutoMemo = { rows: null, grn: null, aliases: null, ver: 0, map: new Map() };
 function poAuto() {
   if (poAutoMemo.rows === poState.rows && poAutoMemo.grn === GRN && poAutoMemo.aliases === poState.aliases) return poAutoMemo.map;
-  const map = new Map(); map.ver = poAutoMemo.ver + 1;
+  const map = new Map(); map.ver = poAutoMemo.ver + 1; map.noPo = [];
   poAutoMemo = { rows: poState.rows, grn: GRN, aliases: poState.aliases, ver: map.ver, map };
   if (!GRN || !poState.rows.length) return map;
   const slots = [], linked = new Map();
@@ -2710,6 +2733,7 @@ function poAuto() {
     for (const r of po.receipts) if (r.grn) have.set(r.line, (have.get(r.line) || 0) + r.qty);
     for (const l of po.lines) slots.push({ po, l, vk, city: poCityKey(l.city), left: Math.max(0, l.qty - (have.get(l.id) || 0)) });
   }
+  const live = poState.rows.filter(p => p.status !== 'Cancelled'), firstMonth = live.length ? live.map(p => p.date.slice(0, 7)).sort()[0] : '9999';
   const invs = [...GRN.records].sort((a, b) => a.date.localeCompare(b.date) || a.record - b.record);
   for (const inv of invs) {
     const ivk = poVendorKey(inv.vendor);
@@ -2724,11 +2748,15 @@ function poAuto() {
       let last = null;
       for (const s of slots) {
         if (left <= 1e-9) break;
-        if (inv.date < s.po.date || s.city !== city || !poVendorMatch(s.vk, ivk) || !poAutoPartMatch(s.l, inv, gl)) continue;
+        if (inv.date.slice(0, 7) < s.po.date.slice(0, 7) || s.city !== city || !poVendorMatch(s.vk, ivk) || !poAutoPartMatch(s.l, inv, gl)) continue;
         last = s; if (s.left <= 1e-9) continue;
         const q = Math.min(left, s.left); s.left -= q; left -= q; add(s, q, false);
       }
       if (left > 1e-9 && last) add(last, left, true);   // supplied beyond the PO: counted in full, shown as extra
+      else if (left > 1e-9 && inv.date.slice(0, 7) >= firstMonth && !['Helmets', 'Printing'].includes(grnLineCat(gl, inv.vendor))) {
+        const paid = Number.isFinite(gl.paid) ? gl.paid : 0;
+        map.noPo.push({ inv, gl, i, key, qty: left, city: poCityName(city), part: poNorm(grnBasePart(gl.part)), vendor: inv.vendor, ym: inv.date.slice(0, 7), grossPaise: Math.round(left * paid * 100) });
+      }
     });
   }
   return map;
@@ -2781,7 +2809,7 @@ function renderPo() {
   $('#po-budget-label').textContent = 'Spares budget ' + poRs(B.budget) + (s.scope === 'month' ? ' a month' : '') + ' · ' + poBasisLabel();
   const neg = v => v < 0 ? ' class="num neg"' : ' class="num"';
   $('#po-run').innerHTML = '<div><b class="num">' + poRs(B.budget) + '</b><span>Budget</span><small>' + esc(scope) + ' · ' + poBasisLabel() + '</small></div>' +
-    '<div><b class="num">' + poRs(B.used) + '</b><span>Utilised</span><small>parts supplied · ' + pct(poPct(B.used, B.budget)) + ' of budget</small></div>' +
+    '<div><b class="num">' + poRs(B.used) + '</b><span>Utilised</span><small>parts supplied · ' + pct(poPct(B.used, B.budget)) + ' of budget' + (B.noPo ? ' · incl. ' + poRs(B.noPo) + ' GRN without PO' : '') + '</small></div>' +
     '<div><b' + neg(bal) + '>' + poRs(bal) + '</b><span>Balance budget</span><small>budget − utilised</small></div>' +
     '<div><b class="num">' + poRs(B.pendingVal) + '</b><span>Pending supply</span><small>on open POs, not yet supplied</small></div>' +
     '<div><b' + neg(free) + '>' + poRs(free) + '</b><span>' + (free < 0 ? 'Over-committed' : 'Free to put on new POs') + '</span><small>budget − utilised − pending</small></div>';
@@ -2804,15 +2832,17 @@ function renderPo() {
     '<div><b class="num">' + poRs(ord) + '</b><span>PO value</span><small>' + poBasisLabel() + '</small></div>' +
     '<div><b class="num">' + poRs(used) + '</b><span>Utilised</span><small>' + pct(poPct(used, ord)) + ' of PO value · ' + poRs(pend) + ' pending</small></div>';
   // summary
-  const by = poState.by, groups = poGroup(list, by);
+  const by = poState.by, noPo = poNoPoFiltered(), groups = poGroup(list, by, noPo);
+  const npQty = noPo.reduce((n, x) => n + x.qty, 0), npVal = noPo.reduce((n, x) => n + poNoPoVal(x), 0);
+  const npCell = (q, v) => '<td>' + (v || q ? poRs(v) + '<small>' + poQty(q) + ' parts</small>' : '–') + '</td>';
   const firstCols = by === 'city' ? ['City'] : by === 'part' ? ['Part', 'Cities'] : by === 'vendor' ? ['Vendor'] : ['City', 'Part'];
-  let h = '<thead><tr>' + firstCols.map((t, i) => '<th class="' + (i ? 'l' : 'lab') + '" style="text-align:left">' + t + '</th>').join('') + '<th>POs</th><th>Ordered</th><th>Supplied</th><th>Pending</th><th>PO value<small>' + poBasisLabel() + '</small></th><th>Utilised<small>value supplied</small></th><th>Pending value</th><th>Utilisation<small>of PO value</small></th></tr></thead><tbody>';
+  let h = '<thead><tr>' + firstCols.map((t, i) => '<th class="' + (i ? 'l' : 'lab') + '" style="text-align:left">' + t + '</th>').join('') + '<th>POs</th><th>Ordered</th><th>Supplied</th><th>Pending</th><th>PO value<small>' + poBasisLabel() + '</small></th><th>Utilised<small>value supplied</small></th><th>Pending value</th><th>Utilisation<small>of PO value</small></th><th>GRN without PO<small>received, no PO line</small></th></tr></thead><tbody>';
   for (const g of groups) {
     const first = by === 'city' ? [g.city] : by === 'part' ? [g.part, [...g.cities].join(', ')] : by === 'vendor' ? [g.vendor] : [g.city, g.part];
-    h += '<tr>' + first.map((t, i) => '<td class="' + (i ? '' : 'lab') + '" style="text-align:left;white-space:normal">' + esc(t) + '</td>').join('') + '<td>' + n0(g.pos.size) + '</td><td>' + poQty(g.qty) + '</td><td>' + poQty(g.supplied) + (g.excess ? '<small>' + poQty(g.excess) + ' extra provided</small>' : '') + '</td><td>' + (g.pending ? '<b>' + poQty(g.pending) + '</b>' : '0') + '</td><td>' + poRs(g.ordered) + '</td><td>' + poRs(g.used) + '</td><td>' + poRs(g.pendingVal) + '</td>' + poPctCell(g.used, g.ordered) + '</tr>';
+    h += '<tr>' + first.map((t, i) => '<td class="' + (i ? '' : 'lab') + '" style="text-align:left;white-space:normal">' + esc(t) + '</td>').join('') + '<td>' + n0(g.pos.size) + '</td><td>' + poQty(g.qty) + '</td><td>' + poQty(g.supplied) + (g.excess ? '<small>' + poQty(g.excess) + ' extra provided</small>' : '') + '</td><td>' + (g.pending ? '<b>' + poQty(g.pending) + '</b>' : '0') + '</td><td>' + poRs(g.ordered) + '</td><td>' + poRs(g.used) + '</td><td>' + poRs(g.pendingVal) + '</td>' + poPctCell(g.used, g.ordered) + npCell(g.npQty, g.npVal) + '</tr>';
   }
-  if (!groups.length) h += '<tr><td class="lab" colspan="' + (firstCols.length + 8) + '">' + (poState.loading ? 'Loading shared POs…' : !ready ? 'Load or create the shared PO register.' : poState.rows.length ? 'No PO lines match these filters.' : 'No POs yet. Add one with New PO, or import a CSV.') + '</td></tr>';
-  else h += '<tr class="total"><td class="lab" colspan="' + firstCols.length + '">Total</td><td>' + n0(list.length) + '</td><td>' + poQty(qty) + '</td><td>' + poQty(sup) + (extra ? '<small>' + poQty(extra) + ' extra provided</small>' : '') + '</td><td>' + poQty(pendQ) + '</td><td>' + poRs(ord) + '</td><td>' + poRs(used) + '</td><td>' + poRs(pend) + '</td>' + poPctCell(used, ord) + '</tr>';
+  if (!groups.length) h += '<tr><td class="lab" colspan="' + (firstCols.length + 9) + '">' + (poState.loading ? 'Loading shared POs…' : !ready ? 'Load or create the shared PO register.' : poState.rows.length ? 'No PO lines match these filters.' : 'No POs yet. Add one with New PO, or import a CSV.') + '</td></tr>';
+  else h += '<tr class="total"><td class="lab" colspan="' + firstCols.length + '">Total</td><td>' + n0(list.length) + '</td><td>' + poQty(qty) + '</td><td>' + poQty(sup) + (extra ? '<small>' + poQty(extra) + ' extra provided</small>' : '') + '</td><td>' + poQty(pendQ) + '</td><td>' + poRs(ord) + '</td><td>' + poRs(used) + '</td><td>' + poRs(pend) + '</td>' + poPctCell(used, ord) + npCell(npQty, npVal) + '</tr>';
   $('#po-sum').innerHTML = h + '</tbody>';
   $('#po-sum-sub').textContent = (poState.month ? grnMonthLabel(poState.month) : 'All months') + ' · by ' + { city: 'city', part: 'part', citypart: 'city and part', vendor: 'vendor' }[by] + '. Ordered, supplied and pending are numbers of parts; values are ' + poBasisLabel() + '. Pending on closed or cancelled POs is released.';
   // PO list
@@ -2824,6 +2854,15 @@ function renderPo() {
   }
   if (!list.length) h += '<tr><td class="lab" colspan="10">' + (poState.loading ? 'Loading shared POs…' : !ready ? 'Load or create the shared PO register to see team POs.' : poState.rows.length ? 'No POs match these filters.' : 'No POs yet. Add one with New PO, or import a CSV.') + '</td></tr>';
   $('#po-table').innerHTML = h + '</tbody>';
+  // GRN lines in the PO months that no PO line covers
+  $('#po-nopo-sec').hidden = !noPo.length;
+  if (noPo.length) {
+    $('#po-nopo-sub').textContent = n0(noPo.length) + ' GRN line' + (noPo.length === 1 ? '' : 's') + ' · ' + poQty(npQty) + ' parts · ' + poRs(npVal) + ' ' + poBasisLabel() + ' · counted in budget utilised. Cercle OS GRN from the PO months onward that matched no PO line (vendor, part, model and city); helmets and printing are left out.';
+    let t = '<thead><tr><th class="l">GRN date</th><th class="l">Invoice</th><th class="l">Vendor</th><th class="l">City</th><th class="l">GRN part</th><th>Quantity</th><th>Paid<small>per item, incl. GST</small></th><th>Value<small>' + poBasisLabel() + '</small></th></tr></thead><tbody>';
+    for (const x of [...noPo].sort((a, b) => b.inv.date.localeCompare(a.inv.date) || poNoPoVal(b) - poNoPoVal(a)))
+      t += '<tr><td class="l">' + esc(poDay(x.inv.date)) + '</td><td class="l">' + (x.inv.sourceUrl ? '<a href="' + esc(x.inv.sourceUrl) + '" target="_blank" rel="noopener noreferrer">' + esc(x.inv.invoice) + '</a>' : esc(x.inv.invoice)) + '</td><td class="l">' + esc(x.vendor) + '</td><td class="l">' + esc(x.city) + '</td><td class="l">' + esc(x.gl.part) + '</td><td>' + poQty(x.qty) + '</td><td>' + grnUnitMoney(x.gl.paid) + '</td><td>' + poRs(poNoPoVal(x)) + '</td></tr>';
+    $('#po-nopo').innerHTML = t + '<tr class="total"><td class="l" colspan="5">Total</td><td>' + poQty(npQty) + '</td><td></td><td>' + poRs(npVal) + '</td></tr></tbody>';
+  }
   $('#po-list-sub').textContent = 'Newest first. Open a PO to see its lines, record supplies or link GRN lines.';
 }
 function poDetail(po, c) {
@@ -3143,8 +3182,8 @@ function poLinesCsv() {
 }
 function poSumCsv() {
   const by = poState.by, first = by === 'city' ? ['City'] : by === 'part' ? ['Part', 'Cities'] : by === 'vendor' ? ['Vendor'] : ['City', 'Part'];
-  csv('PO summary by ' + by + ' ' + (poState.month || 'all months') + '.csv', first.concat(['POs', 'Ordered qty', 'Supplied qty', 'Pending qty', 'PO value ' + poBasisLabel() + ' (Rs)', 'Utilised (Rs)', 'Pending value (Rs)', 'Utilisation %']),
-    poGroup(poFiltered(), by).map(g => (by === 'city' ? [g.city] : by === 'part' ? [g.part, [...g.cities].join(' / ')] : by === 'vendor' ? [g.vendor] : [g.city, g.part]).concat([g.pos.size, g.qty, g.supplied, g.pending, (g.ordered / 100).toFixed(2), (g.used / 100).toFixed(2), (g.pendingVal / 100).toFixed(2), g.ordered ? (100 * g.used / g.ordered).toFixed(1) : ''])));
+  csv('PO summary by ' + by + ' ' + (poState.month || 'all months') + '.csv', first.concat(['POs', 'Ordered qty', 'Supplied qty', 'Pending qty', 'PO value ' + poBasisLabel() + ' (Rs)', 'Utilised (Rs)', 'Pending value (Rs)', 'Utilisation %', 'GRN without PO qty', 'GRN without PO (Rs)']),
+    poGroup(poFiltered(), by, poNoPoFiltered()).map(g => (by === 'city' ? [g.city] : by === 'part' ? [g.part, [...g.cities].join(' / ')] : by === 'vendor' ? [g.vendor] : [g.city, g.part]).concat([g.pos.size, g.qty, g.supplied, g.pending, (g.ordered / 100).toFixed(2), (g.used / 100).toFixed(2), (g.pendingVal / 100).toFixed(2), g.ordered ? (100 * g.used / g.ordered).toFixed(1) : '', g.npQty, (g.npVal / 100).toFixed(2)])));
 }
 function poAnyDialog() { return ['#po-dialog', '#po-supply', '#po-import-dialog', '#po-settings-dialog', '#po-confirm', '#po-inv'].some(s => $(s).open); }
 
