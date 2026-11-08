@@ -945,7 +945,7 @@ function grnApplyFixes(G) {
 const GRN_SAME_AS = [
   { re: /^\s*SIDE\s*-?\s*STAND\s*(-?\s*COMMON)?\s*(\([^)]*\))?\s*$/i, part: 'SIDE STAND ASSY', note: 'Side stand counts as the side stand assembly (8 Nov 2026)' },
   { re: /\bVISOR\b/i, part: 'HEAD COVER', note: 'Visor is the head cover (8 Nov 2026)' },
-  { re: /\b(LEFT|RIGHT|LH|RH)\s*-?\s*INDICATOR\s*ASS(E)?MB?L?Y|INDICATOR\s*ASS(E)?MB?L?Y\s*-?\s*(LEFT|RIGHT|LH|RH)\b/i, part: 'INDICATOR ASSEMBLY', note: 'Left / right indicator assembly counts as the indicator assembly (8 Nov 2026)' },
+  { re: /\b(LEFT|RIGHT|LH|RH)\s*-?\s*INDICATOR\s*(ASSY|ASS(E)?MB?L?Y)|INDICATOR\s*(ASSY|ASS(E)?MB?L?Y)\s*-?\s*(LEFT|RIGHT|LH|RH)\b/i, part: 'INDICATOR ASSEMBLY', note: 'Left / right indicator assembly counts as the indicator assembly (8 Nov 2026)' },
   { re: /SIDE\s*-?\s*STAND\s*-?\s*SPRING/i, part: 'SIDE STAND ASSY', note: 'Side stand spring is the side stand assembly (side stand with spring) (8 Nov 2026)' },
   { re: /FLASHER\s*-?\s*[23]\s*-?\s*PIN/i, part: 'FLASHER', note: 'Flasher 2 pin / 3 pin is the flasher (8 Nov 2026)' },
   { re: /TAIL\s*-?\s*LIGHT\s*UPPER\s*CONNECTION/i, part: 'BODY CONNECTION', note: 'Tail light upper connection (ENLITE) is the body connection (8 Nov 2026)' },
