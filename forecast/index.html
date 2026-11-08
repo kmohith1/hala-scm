@@ -322,6 +322,9 @@ table.dtbl .z { color: var(--muted); }
 
 /* ---- Purchase orders tab */
 .po-run { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.po-subhead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin-bottom: 10px; }
+.po-subhead h3 { margin: 0; }
+.po-partq { height: 34px; width: min(320px, 100%); padding: 0 10px; background: var(--surface); border: 1px solid var(--line2); border-radius: 6px; font-size: 14px; color: var(--ink); }
 .po-run .neg { color: #c0392b; }
 .po-meter { display: flex; height: 14px; margin: 0 20px 4px; border-radius: 7px; overflow: hidden; background: var(--track); }
 .po-meter i { display: block; height: 100%; }
@@ -2571,7 +2574,7 @@ function bindNotes() {
 const PO_DEFAULT = { version: 1, kind: 'po-settings', budgetPaise: 600000000, scope: 'overall', basis: 'excl' };   // ₹60,00,000, pre-GST
 const PO_STATUS = ['Open', 'Closed', 'Cancelled'];
 const poState = { rows: [], settings: { ...PO_DEFAULT }, settingsRow: null, ready: false, loaded: false, loading: false, busy: false, error: '', message: '', refreshed: null,
-  by: 'city', month: '', city: '', vendor: '', status: '', q: '', open: null, sumOpen: null, sumPartOpen: null, sort: ['val', -1], npBy: 'city', npSort: 'val', npOpen: null, edit: null, supply: null, supplyWarned: '', imp: { kind: 'po', plan: null }, user: null, confirm: null, aliases: {} };
+  by: 'city', month: '', city: '', vendor: '', status: '', q: '', partQ: '', open: null, sumOpen: null, sumPartOpen: null, sort: ['val', -1], npBy: 'city', npSort: 'val', npOpen: null, edit: null, supply: null, supplyWarned: '', imp: { kind: 'po', plan: null }, user: null, confirm: null, aliases: {} };
 const poNorm = s => String(s == null ? '' : s).normalize('NFKC').trim().replace(/\s+/g, ' ');
 const poKey = s => poNorm(s).toUpperCase();
 const poCompact = s => poKey(s).replace(/[^A-Z0-9]/g, '');
@@ -3051,15 +3054,19 @@ function renderPo() {
       const inG = (po, l) => by === 'city' ? (l.city || '–') === g.city : po.vendor === g.vendor;
       const sub = list.map(x => ({ ...x, lines: x.lines.filter(l => inG(x.po, l)) })).filter(x => x.lines.length);
       const subNo = noPo.filter(x => by === 'city' ? x.city === g.city : g.vendors.has(x.vendor) || poVendorMatch(poVendorKey(g.vendor), poVendorKey(x.vendor)));
-      const parts = poSortGroups(poGroup(sub, 'part', subNo), 'part');
-      let d = '<tr class="detail"><td colspan="' + (firstCols.length + 9) + '"><div class="pad"><h3>' + esc(by === 'city' ? g.city : g.vendor) + ' · parts</h3><div class="scroll"><table class="dtbl"><thead><tr>' + poTh('name', 'Part', 'click a heading to sort', 'lab') + (by === 'vendor' ? '<th class="l" style="text-align:left">Cities</th>' : '') + poTh('qty', 'RFQ qty', 'ordered on POs') + poTh('supplied', 'Provided qty', 'supplied') + poTh('pending', 'Pending') + poTh('val', 'PO value', poBasisLabel()) + poTh('used', 'Utilised') + poTh('util', 'Utilisation', 'of PO value') + poTh('np', 'GRN without PO') + '</tr></thead><tbody>';
+      const allParts = poSortGroups(poGroup(sub, 'part', subNo), 'part');
+      const pq = poKey(poState.partQ || '').split(/\s+/).filter(Boolean);
+      const parts = pq.length ? allParts.filter(p => { const k = poKey(p.part) + ' ' + poKey([...(p.cities || [])].join(' ')); return pq.every(w => k.includes(w)); }) : allParts;
+      let d = '<tr class="detail"><td colspan="' + (firstCols.length + 9) + '"><div class="pad"><div class="po-subhead"><h3>' + esc(by === 'city' ? g.city : g.vendor) + ' · parts</h3><input type="search" class="po-partq" data-po-part-q placeholder="Search parts in ' + esc(by === 'city' ? g.city : g.vendor) + '" aria-label="Search parts" value="' + esc(poState.partQ || '') + '"></div><div class="scroll"><table class="dtbl"><thead><tr>' + poTh('name', 'Part', 'click a heading to sort', 'lab') + (by === 'vendor' ? '<th class="l" style="text-align:left">Cities</th>' : '') + poTh('qty', 'RFQ qty', 'ordered on POs') + poTh('supplied', 'Provided qty', 'supplied') + poTh('pending', 'Pending') + poTh('val', 'PO value', poBasisLabel()) + poTh('used', 'Utilised') + poTh('util', 'Utilisation', 'of PO value') + poTh('np', 'GRN without PO') + '</tr></thead><tbody>';
       const pCols = by === 'vendor' ? 9 : 8;
       for (const p of parts) {
         const pk = poKey(p.part), pOpen = poState.sumPartOpen === gKey(g) + '|' + pk;
         d += '<tr><td class="lab" style="text-align:left;white-space:normal"><button type="button" class="link" data-po-part-open="' + esc(gKey(g) + '|' + pk) + '" aria-expanded="' + pOpen + '">' + (pOpen ? '▾ ' : '▸ ') + esc(p.part) + '</button></td>' + (by === 'vendor' ? '<td style="text-align:left">' + esc([...p.cities].join(', ')) + '</td>' : '') + '<td>' + (p.qty ? poQty(p.qty) : '–') + '</td><td>' + poQty(p.supplied) + (p.excess ? '<small>' + poQty(p.excess) + ' extra provided</small>' : '') + '</td><td>' + (p.pending ? '<b>' + poQty(p.pending) + '</b>' : p.qty ? '<span class="ok">Complete</span>' : '–') + '</td><td>' + (p.qty ? poRs(p.ordered) : '–') + '</td><td>' + poRs(p.used) + '</td>' + poPctCell(p.used, p.ordered) + npCell(p.npQty, p.npVal) + '</tr>';
         if (pOpen) d += '<tr class="detail"><td colspan="' + pCols + '">' + poPartDetail(sub, subNo, pk, p.part) + '</td></tr>';
       }
-      d += '<tr class="total"><td class="lab" style="text-align:left"' + (by === 'vendor' ? ' colspan="2"' : '') + '>Total · ' + n0(parts.length) + ' parts</td><td>' + poQty(g.qty) + '</td><td>' + poQty(g.supplied) + (g.excess ? '<small>' + poQty(g.excess) + ' extra provided</small>' : '') + '</td><td>' + poQty(g.pending) + '</td><td>' + poRs(g.ordered) + '</td><td>' + poRs(g.used) + '</td>' + poPctCell(g.used, g.ordered) + npCell(g.npQty, g.npVal) + '</tr></tbody></table></div></div></td></tr>';
+      if (!parts.length) d += '<tr><td class="lab" style="text-align:left" colspan="' + pCols + '">No parts match “' + esc(poState.partQ) + '”.</td></tr>';
+      const t = pq.length ? parts.reduce((a, p) => { for (const k of ['qty', 'supplied', 'excess', 'pending', 'ordered', 'used', 'npQty', 'npVal']) a[k] += p[k] || 0; return a; }, { qty: 0, supplied: 0, excess: 0, pending: 0, ordered: 0, used: 0, npQty: 0, npVal: 0 }) : g;
+      d += '<tr class="total"><td class="lab" style="text-align:left"' + (by === 'vendor' ? ' colspan="2"' : '') + '>Total · ' + (pq.length ? n0(parts.length) + ' of ' + n0(allParts.length) : n0(parts.length)) + ' parts</td><td>' + poQty(t.qty) + '</td><td>' + poQty(t.supplied) + (t.excess ? '<small>' + poQty(t.excess) + ' extra provided</small>' : '') + '</td><td>' + poQty(t.pending) + '</td><td>' + poRs(t.ordered) + '</td><td>' + poRs(t.used) + '</td>' + poPctCell(t.used, t.ordered) + npCell(t.npQty, t.npVal) + '</tr></tbody></table></div></div></td></tr>';
       h += d;
     }
   }
@@ -3420,6 +3427,11 @@ function bindPo() {
   const poSortClick = th => { const k = th.dataset.poSortK; poState.sort = [k, poState.sort[0] === k ? -poState.sort[1] : -1]; renderPo(); };
   $('#po-sum').addEventListener('keydown', e => { const th = e.target.closest('[data-po-sort-k]'); if (th && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); poSortClick(th); } });
   $('#po-sum').addEventListener('click', e => { const th = e.target.closest('[data-po-sort-k]'); if (th) { poSortClick(th); return; } const pb = e.target.closest('[data-po-part-open]'); if (pb) { const k = pb.dataset.poPartOpen; poState.sumPartOpen = poState.sumPartOpen === k ? null : k; renderPo(); return; } const b = e.target.closest('[data-po-sum-open]'); if (!b) return; const k = b.dataset.poSumOpen; poState.sumOpen = poState.sumOpen === k ? null : k; renderPo(); });
+  $('#po-sum').addEventListener('input', e => {
+    const inp = e.target.closest('[data-po-part-q]'); if (!inp) return;
+    const pos = inp.selectionStart; poState.partQ = inp.value; renderPo();
+    const again = $('#po-sum [data-po-part-q]'); if (again) { again.focus(); try { again.setSelectionRange(pos, pos); } catch (er) {} }
+  });
   $('#po-by').addEventListener('click', e => { const b = e.target.closest('[data-po-by]'); if (b) { poState.by = b.dataset.poBy; renderPo(); } });
   for (const [sel, key] of [['#po-month', 'month'], ['#po-city', 'city'], ['#po-vendor', 'vendor'], ['#po-status', 'status']]) $(sel).addEventListener('change', e => { poState[key] = e.target.value; renderPo(); });
   $('#po-q').addEventListener('input', e => { poState.q = e.target.value; renderPo(); });
