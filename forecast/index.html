@@ -937,15 +937,17 @@ function grnApplyFixes(G) {
     const tag = GRN_CITY_SHORT[poCityTag(line.part)];
     line.fixedFrom = line.part; line.fixNote = same.note || ''; const hint = poModelHint(line.part);
     line.part = same.part + (tag ? ' (' + tag + ')' : ''); if (same.model) line.model = same.model; else if (hint === 'SL' && !poModelNorm(line.model)) line.model = 'SINGLE LIGHT';
+    if (same.half) { if (Number.isFinite(line.quantity)) line.quantity /= 2; if (Number.isFinite(line.paid)) line.paid *= 2; }
   }
   grnSplitSideRails(G);
 }
 // Cercle OS GRN part names that are the same part as a HALA part name, on every invoice. City tags such as (BLR) are
 // kept. To add one: copy a line, change the pattern (matched against the Cercle OS name), the part and the model.
+// half: true means two Cercle OS pieces (a left and a right) make one part: quantity is halved, price per part doubled.
 const GRN_SAME_AS = [
   { re: /^\s*SIDE\s*-?\s*STAND\s*(-?\s*COMMON)?\s*(\([^)]*\))?\s*$/i, part: 'SIDE STAND ASSY', note: 'Side stand counts as the side stand assembly (8 Nov 2026)' },
   { re: /\bVISOR\b/i, part: 'HEAD COVER', note: 'Visor is the head cover (8 Nov 2026)' },
-  { re: /\b(LEFT|RIGHT|LH|RH)\s*-?\s*INDICATOR\s*(ASSY|ASS(E)?MB?L?Y)|INDICATOR\s*(ASSY|ASS(E)?MB?L?Y)\s*-?\s*(LEFT|RIGHT|LH|RH)\b/i, part: 'INDICATOR ASSEMBLY', note: 'Left / right indicator assembly counts as the indicator assembly (8 Nov 2026)' },
+  { re: /\b(LEFT|RIGHT|LH|RH)\s*-?\s*INDICATOR\s*(ASSY|ASS(E)?MB?L?Y)|INDICATOR\s*(ASSY|ASS(E)?MB?L?Y)\s*-?\s*(LEFT|RIGHT|LH|RH)\b/i, part: 'INDICATOR ASSEMBLY', half: true, note: 'One indicator assembly = one left + one right; each left or right piece counts as half an assembly (8 Nov 2026)' },
   { re: /SIDE\s*-?\s*STAND\s*-?\s*SPRING/i, part: 'SIDE STAND ASSY', note: 'Side stand spring is the side stand assembly (side stand with spring) (8 Nov 2026)' },
   { re: /FLASHER\s*-?\s*[23]\s*-?\s*PIN/i, part: 'FLASHER', note: 'Flasher 2 pin / 3 pin is the flasher (8 Nov 2026)' },
   { re: /TAIL\s*-?\s*LIGHT\s*UPPER\s*CONNECTION/i, part: 'BODY CONNECTION', note: 'Tail light upper connection (ENLITE) is the body connection (8 Nov 2026)' },
