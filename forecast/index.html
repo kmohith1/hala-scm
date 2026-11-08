@@ -949,6 +949,9 @@ const GRN_SAME_AS = [
   { re: /SWING\s*-?\s*ARM\s*COVER\s*-?\s*(RH|RIGHT)\b/i, part: 'RIGHT WHEEL PROTECTOR', note: 'Swing arm cover RH is the right wheel protector (8 Nov 2026)' },
   { re: /SPEEDO\s*METER\s*DECORATI?VE/i, part: 'SPEEDOMETER CHROME', note: 'Speedometer decorative cover is the speedometer chrome (8 Nov 2026)' },
   { re: /REAR\s*SHOCK\s*ABSOR(?!BER)/i, part: 'REAR SHOCK ABSORBER', note: 'Rear shockabsor is the rear shock absorber, all models (8 Nov 2026)' },
+  { re: /^\s*TYRE\s*AIR\s*VALVE(?!.*STRAIGHT)/i, part: 'TYRE AIR VALVE - STRAIGHT', note: 'Tyre air valve is the tyre air valve - straight (8 Nov 2026)' },
+  { re: /^\s*(TYRE|TIRE)\s*3\.00\s*\*\s*10\b/i, part: 'TYRES', note: 'Tyre 3.00*10 is tyres (8 Nov 2026)' },
+  { re: /^\s*REAR\s*CARRIER(?!\s*NUT)/i, part: 'SEAT RING', note: 'Rear carrier is the seat ring (HM-CM-M-0012) (8 Nov 2026)' },
   { re: /SINGLE\s*INDICATOR\s*ASS(E)?MBL?Y\s*PANEL|INDICATOR\s*ASS(E)?MBL?Y\s*PANEL.*ENLITE/i, part: 'INDICATOR ASSEMBLY', model: 'SINGLE LIGHT', note: 'Single Indicator Assembly Panel (ENLITE) is the Single Light indicator assembly (8 Nov 2026)' },
 ];
 // Cercle OS GRN lines that are a left + right pair: one set = one left + one right part. Each such line becomes the
@@ -1011,6 +1014,7 @@ async function load() {
 // Names match ignoring case and spaces. Add a line here when two names turn out to be the same part.
 const SAME_PART = [
   ['TYRE 3.00*10', 'TYRE'],
+  ['SEAT RING', 'REAR CARRIER'],
 ];
 function mergeParts() {
   const norm = s => String(s).toUpperCase().replace(/\s+/g, ''), byName = new Map();
@@ -3680,7 +3684,7 @@ const PO_NOISE = new Set(['OLD', 'NEW', 'MODEL', 'UNIVERSAL', 'WITH', 'AND', 'TH
 const poModelNorm = m => { const k = poKey(m); return /ROAMY|SINGLE\s*LIGHT|\bSL\b/.test(k) ? 'SL' : /HYFY/.test(k) ? 'HYFY' : /SNAP/.test(k) ? 'SNAP' : /ALL|COMMON/.test(k) || !k ? '' : k; };
 const poModelHint = s => { const k = ' ' + poKey(s).replace(/[^A-Z0-9/ ]+/g, ' ') + ' '; return /\bS\s*\/\s*L\b|\bSL\b|SINGLE\s*LIGHT|ROAMY/.test(k) ? 'SL' : /HYFY/.test(k) ? 'HYFY' : /SNAP/.test(k) ? 'SNAP' : ''; };
 function poTokens(s) {
-  let k = ' ' + poKey(s).replace(/[^A-Z0-9/ ]+/g, ' ') + ' ';
+  let k = ' ' + poKey(s).replace(/\bHM-[A-Z]{2}-[A-Z]-\d{3,5}\b/g, ' ').replace(/[^A-Z0-9/ ]+/g, ' ') + ' ';   // HALA part codes such as HM-CM-M-0001 are not part words
   k = k.replace(/\bS\s*\/\s*L\b|\bSL\b|\bSINGLE\s+LIGHT\b|\bROAMY\b|\bODYSSE\b|\bHYFY\b|\bSNAP\b|\bSUN\b/g, ' ');
   for (const [re, t] of PO_SYN) k = k.replace(re, t);
   return k.split(/[\s/]+/).filter(t => t && !PO_NOISE.has(t)).map(t => t.length > 3 && /S$/.test(t) && !/SS$/.test(t) ? t.slice(0, -1) : t);
