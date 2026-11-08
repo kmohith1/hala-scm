@@ -2740,10 +2740,12 @@ function poFiltered() {
   }
   return out.sort((a, b) => b.po.date.localeCompare(a.po.date) || b.po.id.localeCompare(a.po.id));
 }
+// part + vehicle model as shown in the summary; a line with no model counts with the common-part line
+const poPartLabel = l => poNorm(l.part) + ' · ' + (!poNorm(l.model) || /^(ALL|COMMON)\b|COMMON PART/i.test(poNorm(l.model)) ? 'All models (common part)' : poNorm(l.model));
 function poGroup(list, by, noPo = []) {
   const m = new Map(), blank = (city, part, vendor) => ({ city, part, vendor, pos: new Set(), cities: new Set(), vendors: new Set(), lines: 0, qty: 0, supplied: 0, pending: 0, ordered: 0, used: 0, pendingVal: 0, npQty: 0, npVal: 0 });
   for (const { po, lines } of list) for (const l of lines) {
-    const city = l.city || '–', part = l.part + (l.model ? ' · ' + l.model : '');
+    const city = l.city || '–', part = poPartLabel(l);
     const key = by === 'city' ? city : by === 'vendor' ? po.vendor : by === 'part' ? poKey(part) : city + '\u0001' + poKey(part);
     let g = m.get(key); if (!g) m.set(key, g = blank(city, part, po.vendor));
     g.pos.add(po.id); g.cities.add(city); g.vendors.add(po.vendor); g.lines++;
@@ -2829,7 +2831,7 @@ function renderPoNoPo(noPo, npQty, npVal) {
 function poPartDetail(sub, subNo, pk, name) {
   const excl = poState.settings.basis === 'excl', grnBy = new Map((GRN ? GRN.records : []).map(r => [r.record, r]));
   const atBasis = (l, q) => Math.round(q * l.ratePaise * (excl ? 1 : (100 + l.gst) / 100));
-  const lineKey = l => poKey(l.part + (l.model ? ' · ' + l.model : ''));
+  const lineKey = l => poKey(poPartLabel(l));
   const link = (inv, text) => inv && inv.sourceUrl ? '<a href="' + esc(inv.sourceUrl) + '" target="_blank" rel="noopener noreferrer">' + esc(text) + '</a>' : esc(text);
   const poLines = [], sup = [];
   for (const { po, c } of sub) for (const l of c.lines) {
