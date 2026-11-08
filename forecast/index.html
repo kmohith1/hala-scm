@@ -2716,14 +2716,15 @@ function poCalc(po) {
 }
 const poCache = new WeakMap();
 const poC = po => { const ver = poAuto().ver; let c = poCache.get(po); if (!c || c.ver !== ver || c.basis !== poState.settings.basis || c.day !== shipToday()) poCache.set(po, c = { ver, basis: poState.settings.basis, day: shipToday(), v: poCalc(po) }); return c.v; };
-const poIsTyre = name => isTyrePart(name) && !/FLAP|GUARD/i.test(String(name));
+// parts with their own budget, kept out of the spares budget: tyres and keyfobs
+const poOwnBudget = name => /KEY\s*-?\s*FOB/i.test(String(name)) ? 'keyfobs' : isTyrePart(name) && !/FLAP|GUARD/i.test(String(name)) ? 'tyres' : '';
 function poBudget() {
   const s = poState.settings, month = s.scope === 'month' ? (poState.month || poCurMonth()) : '';
   const rows = poState.rows.filter(po => !month || po.date.startsWith(month));
-  // tyres have their own budget: tyre lines and tyre GRN are left out of the spares budget and shown separately
-  let used = 0, committed = 0, pendingVal = 0; const ty = { used: 0, pendingVal: 0 };
-  for (const po of rows) for (const l of poC(po).lines) { if (poIsTyre(l.part)) { ty.used += l.used; ty.pendingVal += l.pendingVal; continue; } used += l.used; committed += l.committed; pendingVal += l.pendingVal; }
-  let noPo = 0; for (const x of (poAuto().noPo || []).filter(x => !month || x.ym === month)) { if (poIsTyre(x.gl.part)) ty.used += poNoPoVal(x); else noPo += poNoPoVal(x); }
+  // tyres and keyfobs have their own budgets: their PO lines and GRN are left out of the spares budget and shown separately
+  let used = 0, committed = 0, pendingVal = 0; const ty = { used: 0, pendingVal: 0, kinds: new Set() };
+  for (const po of rows) for (const l of poC(po).lines) { const own = poOwnBudget(l.part); if (own) { ty.kinds.add(own); ty.used += l.used; ty.pendingVal += l.pendingVal; continue; } used += l.used; committed += l.committed; pendingVal += l.pendingVal; }
+  let noPo = 0; for (const x of (poAuto().noPo || []).filter(x => !month || x.ym === month)) { const own = poOwnBudget(x.gl.part) || (grnLineCat(x.gl, x.inv.vendor) === 'Keyfob' ? 'keyfobs' : ''); if (own) { ty.kinds.add(own); ty.used += poNoPoVal(x); } else noPo += poNoPoVal(x); }
   return { budget: s.budgetPaise, used: used + noPo, noPo, committed: committed + noPo, pendingVal, month, n: rows.length, tyres: ty };
 }
 function poMatchQ(po, l, q) { return !q || [po.po, po.vendor, po.note, l.part, l.model, l.city].join(' ').toUpperCase().includes(q); }
@@ -3016,10 +3017,10 @@ function renderPo() {
   // budget
   const B = poBudget(), bal = B.budget - B.used, free = B.budget - B.committed;
   const scope = B.month ? grnMonthLabel(B.month) + ' POs' : 'all POs';
-  $('#po-budget-label').textContent = 'Spares budget ' + poRs(B.budget) + (s.scope === 'month' ? ' a month' : '') + ' · ' + poBasisLabel() + ' · excl. tyres';
+  $('#po-budget-label').textContent = 'Spares budget ' + poRs(B.budget) + (s.scope === 'month' ? ' a month' : '') + ' · ' + poBasisLabel() + ' · excl. tyres and keyfobs';
   const neg = v => v < 0 ? ' class="num neg"' : ' class="num"';
   $('#po-run').innerHTML = '<div><b class="num">' + poRs(B.budget) + '</b><span>Budget</span><small>' + esc(scope) + ' · ' + poBasisLabel() + '</small></div>' +
-    '<div><b class="num">' + poRs(B.used) + '</b><span>Utilised</span><small>parts supplied · ' + pct(poPct(B.used, B.budget)) + ' of budget' + (B.noPo ? ' · incl. ' + poRs(B.noPo) + ' GRN without PO' : '') + (B.tyres.used || B.tyres.pendingVal ? ' · tyres excluded (own budget): ' + poRs(B.tyres.used) + ' supplied, ' + poRs(B.tyres.pendingVal) + ' pending' : '') + '</small></div>' +
+    '<div><b class="num">' + poRs(B.used) + '</b><span>Utilised</span><small>parts supplied · ' + pct(poPct(B.used, B.budget)) + ' of budget' + (B.noPo ? ' · incl. ' + poRs(B.noPo) + ' GRN without PO' : '') + (B.tyres.used || B.tyres.pendingVal ? ' · ' + [...B.tyres.kinds].sort().reverse().join(' and ') + ' excluded (own budget): ' + poRs(B.tyres.used) + ' supplied, ' + poRs(B.tyres.pendingVal) + ' pending' : '') + '</small></div>' +
     '<div><b' + neg(bal) + '>' + poRs(bal) + '</b><span>Balance budget</span><small>budget − utilised</small></div>' +
     '<div><b class="num">' + poRs(B.pendingVal) + '</b><span>Pending supply</span><small>on open POs, not yet supplied</small></div>' +
     '<div><b' + neg(free) + '>' + poRs(free) + '</b><span>' + (free < 0 ? 'Over-committed' : 'Free to put on new POs') + '</span><small>budget − utilised − pending</small></div>';
