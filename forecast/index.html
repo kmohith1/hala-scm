@@ -944,23 +944,26 @@ function grnApplyFixes(G) {
 const GRN_SAME_AS = [
   { re: /SINGLE\s*INDICATOR\s*ASS(E)?MBL?Y\s*PANEL|INDICATOR\s*ASS(E)?MBL?Y\s*PANEL.*ENLITE/i, part: 'INDICATOR ASSEMBLY', model: 'SINGLE LIGHT', note: 'Single Indicator Assembly Panel (ENLITE) is the Single Light indicator assembly (8 Nov 2026)' },
 ];
-// A "Side Rail" (Side Rail / Trim, Side Rail Set) is the side foot panel pair: one set = one left + one right
-// foot side panel. Each such GRN line becomes a LEFT FOOT SIDE PANEL line (kept in place) and a RIGHT FOOT SIDE PANEL
-// line (added at the end of the invoice, so existing GRN line links keep their positions), each with the set
-// quantity and half the set price. City tags such as (BOM) are kept. Lines already marked LH/RH stay as they are.
+// Cercle OS GRN lines that are a left + right pair: one set = one left + one right part. Each such line becomes the
+// LEFT part (kept in place) and the RIGHT part (added at the end of the invoice, so existing GRN line links keep their
+// positions), each with the set quantity and half the set price. City tags such as (BOM) are kept. Lines already
+// marked LH/RH/left/right stay as they are. To add one: copy a line, change the pattern and the two part names.
+const GRN_PAIRS = [
+  { re: / SIDE ?RAILS? /, left: 'LEFT FOOT SIDE PANEL', right: 'RIGHT FOOT SIDE PANEL', note: 'Side rail set = left + right foot side panel; counted as one of each' },
+  { re: / FRONT DISC SHOCK(ER|ERS|S)? /, left: 'FRONT SHOCKER LEFT', right: 'FRONT SHOCKER RIGHT', note: 'Front disc shock (18 in, 30 mm) set = front shocker left + right; counted as one of each (8 Nov 2026)' },
+];
 const GRN_CITY_SHORT = { BENGALURU: 'BLR', DELHI: 'DEL', MUMBAI: 'BOM', HYDERABAD: 'HYD' };
 function grnSplitSideRails(G) {
   for (const r of G.records) {
     const add = [];
     for (const line of r.lines || []) {
       const k = ' ' + poKeyRaw(line.part).replace(/[^A-Z0-9]+/g, ' ') + ' ';
-      if (line.pairOf || !/ SIDE ?RAILS? /.test(k) || / (LH|RH|LS|RS|LEFT|RIGHT) /.test(k)) continue;
+      const pair = !line.pairOf && !/ (LH|RH|LS|RS|LEFT|RIGHT) /.test(k) && GRN_PAIRS.find(x => x.re.test(k)); if (!pair) continue;
       const tag = GRN_CITY_SHORT[poCityTag(line.part)], sfx = tag ? ' (' + tag + ')' : '';
-      const from = line.fixedFrom || line.part, note = 'Side rail set = left + right foot side panel; counted as one of each';
-      const right = { ...line };
+      const from = line.fixedFrom || line.part, right = { ...line };
       if (Number.isFinite(line.paid)) { const p = Math.round(line.paid * 100), lp = Math.round(p / 2); line.paid = lp / 100; right.paid = (p - lp) / 100; }
-      Object.assign(line, { part: 'LEFT FOOT SIDE PANEL' + sfx, fixedFrom: from, fixNote: note, pairOf: from });
-      Object.assign(right, { part: 'RIGHT FOOT SIDE PANEL' + sfx, fixedFrom: from, fixNote: note, pairOf: from });
+      Object.assign(line, { part: pair.left + sfx, fixedFrom: from, fixNote: pair.note, pairOf: from });
+      Object.assign(right, { part: pair.right + sfx, fixedFrom: from, fixNote: pair.note, pairOf: from });
       add.push(right);
     }
     if (add.length) r.lines.push(...add);
