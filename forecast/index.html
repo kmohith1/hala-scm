@@ -932,6 +932,29 @@ function grnApplyFixes(G) {
       line.fixedFrom = line.part; line.fixNote = fix.note || ''; line.part = fix.part; if (fix.model) line.model = fix.model;
     }
   }
+  grnSplitSideRails(G);
+}
+// A "Side Rail" (Side Rail / Trim, Side Rail Set) is the side foot panel pair: one set = one left + one right
+// foot side panel. Each such GRN line becomes a LEFT FOOT SIDE PANEL line (kept in place) and a RIGHT FOOT SIDE PANEL
+// line (added at the end of the invoice, so existing GRN line links keep their positions), each with the set
+// quantity and half the set price. City tags such as (BOM) are kept. Lines already marked LH/RH stay as they are.
+const GRN_CITY_SHORT = { BENGALURU: 'BLR', DELHI: 'DEL', MUMBAI: 'BOM', HYDERABAD: 'HYD' };
+function grnSplitSideRails(G) {
+  for (const r of G.records) {
+    const add = [];
+    for (const line of r.lines || []) {
+      const k = ' ' + poKeyRaw(line.part).replace(/[^A-Z0-9]+/g, ' ') + ' ';
+      if (line.pairOf || !/ SIDE ?RAILS? /.test(k) || / (LH|RH|LS|RS|LEFT|RIGHT) /.test(k)) continue;
+      const tag = GRN_CITY_SHORT[poCityTag(line.part)], sfx = tag ? ' (' + tag + ')' : '';
+      const from = line.fixedFrom || line.part, note = 'Side rail set = left + right foot side panel; counted as one of each';
+      const right = { ...line };
+      if (Number.isFinite(line.paid)) { const p = Math.round(line.paid * 100), lp = Math.round(p / 2); line.paid = lp / 100; right.paid = (p - lp) / 100; }
+      Object.assign(line, { part: 'LEFT FOOT SIDE PANEL' + sfx, fixedFrom: from, fixNote: note, pairOf: from });
+      Object.assign(right, { part: 'RIGHT FOOT SIDE PANEL' + sfx, fixedFrom: from, fixNote: note, pairOf: from });
+      add.push(right);
+    }
+    if (add.length) r.lines.push(...add);
+  }
 }
 const poKeyRaw = s => String(s == null ? '' : s).normalize('NFKC').trim().replace(/\s+/g, ' ').toUpperCase();
 async function load() {
