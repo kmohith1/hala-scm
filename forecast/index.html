@@ -2904,7 +2904,7 @@ function poNoPoFiltered() {
     (!poState.vendor || poVendorMatch(poVendorKey(poState.vendor), poVendorKey(x.vendor))) && (!q || [x.part, x.vendor, x.inv.invoice, x.city].join(' ').toUpperCase().includes(q)));
 }
 const grnCityOf = (inv, gl) => poCityTag(gl.part) || poCityTag(inv.invoice) || 'HYDERABAD';
-const grnBasePart = name => poNorm(name).replace(/\((?:BLR|DEL|BOM|MUM|HYD|BANGALORE|BENGALURU|DELHI|MUMBAI|HYDERABAD)\)/gi, ' ').replace(/_(?:BLR|DEL|BOM|MUM|HYD)\b/gi, ' ').replace(/[-\s]*\bCOMMON\b/gi, ' ');
+const grnBasePart = name => poNorm(name).replace(/\((?:BLR|DEL|BOM|MUM|HYD|BANGALORE|BENGALURU|DELHI|MUMBAI|HYDERABAD)\)/gi, ' ').replace(/_(?:BLR|DEL|BOM|MUM|HYD)\b/gi, ' ').replace(/[\s-]+(?:BLR|DEL|BOM|MUM|HYD)\s*$/i, ' ').replace(/[-\s]*\bCOMMON\b/gi, ' ');
 function poAutoPartMatch(l, inv, gl) {
   const al = poState.aliases && poState.aliases[poAliasKey(inv.vendor, gl.part)];
   const gPart = al ? al.part : grnBasePart(gl.part), gModel = al ? poModelNorm(al.model) : poModelNorm(gl.model) || poModelHint(gl.part);
