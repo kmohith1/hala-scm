@@ -942,6 +942,7 @@ function grnApplyFixes(G) {
 // Cercle OS GRN part names that are the same part as a HALA part name, on every invoice. City tags such as (BLR) are
 // kept. To add one: copy a line, change the pattern (matched against the Cercle OS name), the part and the model.
 const GRN_SAME_AS = [
+  { re: /FLASHER\s*-?\s*2\s*-?\s*PIN/i, part: 'FLASHER', note: 'Flasher 2 pin is the flasher (8 Nov 2026)' },
   { re: /TAIL\s*-?\s*LIGHT\s*UPPER\s*CONNECTION/i, part: 'BODY CONNECTION', note: 'Tail light upper connection (ENLITE) is the body connection (8 Nov 2026)' },
   { re: /SWING\s*-?\s*ARM\s*COVER\s*-?\s*(LH|LEFT)\b/i, part: 'LEFT WHEEL PROTECTOR', note: 'Swing arm cover LH is the left wheel protector (8 Nov 2026)' },
   { re: /SWING\s*-?\s*ARM\s*COVER\s*-?\s*(RH|RIGHT)\b/i, part: 'RIGHT WHEEL PROTECTOR', note: 'Swing arm cover RH is the right wheel protector (8 Nov 2026)' },
