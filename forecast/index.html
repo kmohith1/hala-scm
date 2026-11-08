@@ -935,15 +935,18 @@ function grnApplyFixes(G) {
   for (const same of GRN_SAME_AS) for (const r of G.records) for (const line of r.lines || []) {
     if (line.fixedFrom || !same.re.test(line.part)) continue;
     const tag = GRN_CITY_SHORT[poCityTag(line.part)];
-    line.fixedFrom = line.part; line.fixNote = same.note || ''; line.part = same.part + (tag ? ' (' + tag + ')' : ''); if (same.model) line.model = same.model;
+    line.fixedFrom = line.part; line.fixNote = same.note || ''; const hint = poModelHint(line.part);
+    line.part = same.part + (tag ? ' (' + tag + ')' : ''); if (same.model) line.model = same.model; else if (hint === 'SL' && !poModelNorm(line.model)) line.model = 'SINGLE LIGHT';
   }
   grnSplitSideRails(G);
 }
 // Cercle OS GRN part names that are the same part as a HALA part name, on every invoice. City tags such as (BLR) are
 // kept. To add one: copy a line, change the pattern (matched against the Cercle OS name), the part and the model.
 const GRN_SAME_AS = [
+  { re: /\bVISOR\b/i, part: 'HEAD COVER', note: 'Visor is the head cover (8 Nov 2026)' },
+  { re: /\b(LEFT|RIGHT|LH|RH)\s*-?\s*INDICATOR\s*ASS(E)?MBL?Y|INDICATOR\s*ASS(E)?MBL?Y\s*-?\s*(LEFT|RIGHT|LH|RH)\b/i, part: 'INDICATOR ASSEMBLY', note: 'Left / right indicator assembly counts as the indicator assembly (8 Nov 2026)' },
   { re: /SIDE\s*-?\s*STAND\s*-?\s*SPRING/i, part: 'SIDE STAND ASSY', note: 'Side stand spring is the side stand assembly (side stand with spring) (8 Nov 2026)' },
-  { re: /FLASHER\s*-?\s*2\s*-?\s*PIN/i, part: 'FLASHER', note: 'Flasher 2 pin is the flasher (8 Nov 2026)' },
+  { re: /FLASHER\s*-?\s*[23]\s*-?\s*PIN/i, part: 'FLASHER', note: 'Flasher 2 pin / 3 pin is the flasher (8 Nov 2026)' },
   { re: /TAIL\s*-?\s*LIGHT\s*UPPER\s*CONNECTION/i, part: 'BODY CONNECTION', note: 'Tail light upper connection (ENLITE) is the body connection (8 Nov 2026)' },
   { re: /SWING\s*-?\s*ARM\s*COVER\s*-?\s*(LH|LEFT)\b/i, part: 'LEFT WHEEL PROTECTOR', note: 'Swing arm cover LH is the left wheel protector (8 Nov 2026)' },
   { re: /SWING\s*-?\s*ARM\s*COVER\s*-?\s*(RH|RIGHT)\b/i, part: 'RIGHT WHEEL PROTECTOR', note: 'Swing arm cover RH is the right wheel protector (8 Nov 2026)' },
