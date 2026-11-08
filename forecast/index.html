@@ -932,8 +932,18 @@ function grnApplyFixes(G) {
       line.fixedFrom = line.part; line.fixNote = fix.note || ''; line.part = fix.part; if (fix.model) line.model = fix.model;
     }
   }
+  for (const same of GRN_SAME_AS) for (const r of G.records) for (const line of r.lines || []) {
+    if (line.fixedFrom || !same.re.test(line.part)) continue;
+    const tag = GRN_CITY_SHORT[poCityTag(line.part)];
+    line.fixedFrom = line.part; line.fixNote = same.note || ''; line.part = same.part + (tag ? ' (' + tag + ')' : ''); if (same.model) line.model = same.model;
+  }
   grnSplitSideRails(G);
 }
+// Cercle OS GRN part names that are the same part as a HALA part name, on every invoice. City tags such as (BLR) are
+// kept. To add one: copy a line, change the pattern (matched against the Cercle OS name), the part and the model.
+const GRN_SAME_AS = [
+  { re: /SINGLE\s*INDICATOR\s*ASS(E)?MBL?Y\s*PANEL|INDICATOR\s*ASS(E)?MBL?Y\s*PANEL.*ENLITE/i, part: 'INDICATOR ASSEMBLY', model: 'SINGLE LIGHT', note: 'Single Indicator Assembly Panel (ENLITE) is the Single Light indicator assembly (8 Nov 2026)' },
+];
 // A "Side Rail" (Side Rail / Trim, Side Rail Set) is the side foot panel pair: one set = one left + one right
 // foot side panel. Each such GRN line becomes a LEFT FOOT SIDE PANEL line (kept in place) and a RIGHT FOOT SIDE PANEL
 // line (added at the end of the invoice, so existing GRN line links keep their positions), each with the set
