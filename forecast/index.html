@@ -3071,7 +3071,7 @@ function poDetail(po, c) {
     }
     for (const { l, it } of autoRows.sort((a, b) => b.it.inv.date.localeCompare(a.it.inv.date))) {
       const v = Math.round(it.qty * l.ratePaise * (poState.settings.basis === 'excl' ? 1 : (100 + l.gst) / 100));
-      h += '<tr><td class="l">' + esc(poDay(it.inv.date)) + '</td><td class="l">' + (it.inv.sourceUrl ? '<a href="' + esc(it.inv.sourceUrl) + '" target="_blank" rel="noopener noreferrer">' + esc(it.inv.invoice) + '</a>' : esc(it.inv.invoice)) + '</td><td class="l">' + esc(l.city || '–') + '</td><td class="l">' + esc(l.part) + '<small> GRN: ' + esc(it.gl.part) + '</small></td><td>' + poQty(it.qty) + '</td><td>' + poRs(v) + '</td><td class="l">Cercle OS GRN · automatic' + (it.extra ? ' <span class="flag">extra over PO</span>' : '') + '</td><td></td></tr>';
+      h += '<tr><td class="l">' + esc(poDay(it.inv.date)) + '</td><td class="l">' + (it.inv.sourceUrl ? '<a href="' + esc(it.inv.sourceUrl) + '" target="_blank" rel="noopener noreferrer">' + esc(it.inv.invoice) + '</a>' : esc(it.inv.invoice)) + '</td><td class="l">' + esc(l.city || '–') + '</td><td class="l">' + esc(l.part) + '<small> GRN: ' + esc(it.gl.part) + (it.gl.fixedFrom ? ' (Cercle OS: ' + esc(it.gl.fixedFrom) + ')' : '') + '</small></td><td>' + poQty(it.qty) + '</td><td>' + poRs(v) + '</td><td class="l">Cercle OS GRN · automatic' + (it.extra ? ' <span class="flag">extra over PO</span>' : '') + '</td><td></td></tr>';
     }
     h += '</tbody></table></div>';
     if (autoRows.length && po.receipts.some(r => !r.grn)) h += '<p class="po-meta">Where a line has both a supply typed by hand and GRN, the larger quantity is counted, not both.</p>';
