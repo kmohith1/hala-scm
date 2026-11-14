@@ -2704,7 +2704,10 @@ function poCalc(po) {
     // a supply typed by hand and the same goods arriving in GRN are one delivery: count the larger of the two
     const a = auto.get(l.id), autoQty = a ? a.qty : 0, supplied = (linked.get(l.id) || 0) + Math.max(hand.get(l.id) || 0, autoQty), val = q => { const ex = Math.round(q * l.ratePaise); return basis === 'excl' ? ex : Math.round(ex * (100 + l.gst) / 100); };
     const pending = live ? Math.max(0, l.qty - supplied) : 0, ordered = val(l.qty), used = val(supplied), committed = val(live ? Math.max(l.qty, supplied) : supplied);
-    return { ...l, supplied, autoQty, autoItems: a ? a.items : [], pending, excess: Math.max(0, supplied - l.qty), ordered, used, committed, pendingVal: committed - used };
+    const out = { ...l, supplied, autoQty, autoItems: a ? a.items : [], pending, excess: Math.max(0, supplied - l.qty), ordered, used, committed, pendingVal: committed - used };
+    // tyres have their own budget: a tyre line stays on the PO (quantities, supplies) but carries no PO value, utilised or pending value; the real figures are kept in `own` for the tyre note
+    if (poOwnBudget(l.part) === 'tyres') { out.own = { ordered, used, pendingVal: committed - used }; out.ordered = out.used = out.committed = out.pendingVal = 0; out.tyre = true; }
+    return out;
   });
   const t = { lines, ordered: 0, used: 0, committed: 0, pendingVal: 0, qty: 0, supplied: 0, pending: 0 };
   for (const l of lines) { t.ordered += l.ordered; t.used += l.used; t.committed += l.committed; t.pendingVal += l.pendingVal; t.qty += l.qty; t.supplied += l.supplied; t.pending += l.pending; }
@@ -2723,7 +2726,7 @@ function poBudget() {
   const rows = poState.rows.filter(po => !month || po.date.startsWith(month));
   // tyres and keyfobs have their own budgets: their PO lines and GRN are left out of the spares budget and shown separately
   let used = 0, committed = 0, pendingVal = 0; const ty = { used: 0, pendingVal: 0, kinds: new Set() };
-  for (const po of rows) for (const l of poC(po).lines) { const own = poOwnBudget(l.part); if (own) { ty.kinds.add(own); ty.used += l.used; ty.pendingVal += l.pendingVal; continue; } used += l.used; committed += l.committed; pendingVal += l.pendingVal; }
+  for (const po of rows) for (const l of poC(po).lines) { const own = poOwnBudget(l.part); if (own) { ty.kinds.add(own); ty.used += l.own ? l.own.used : l.used; ty.pendingVal += l.own ? l.own.pendingVal : l.pendingVal; continue; } used += l.used; committed += l.committed; pendingVal += l.pendingVal; }
   let noPo = 0; for (const x of (poAuto().noPo || []).filter(x => !month || x.ym === month)) { const own = poOwnBudget(x.gl.part) || (grnLineCat(x.gl, x.inv.vendor) === 'Keyfob' ? 'keyfobs' : ''); if (own) { ty.kinds.add(own); ty.used += poNoPoVal(x); } else noPo += poNoPoVal(x); }
   return { budget: s.budgetPaise, used: used + noPo, noPo, committed: committed + noPo, pendingVal, month, n: rows.length, tyres: ty };
 }
@@ -2756,6 +2759,7 @@ function poGroup(list, by, noPo = []) {
     g.qty += l.qty; g.supplied += l.supplied; g.excess = (g.excess || 0) + l.excess; g.pending += l.pending; g.ordered += l.ordered; g.used += l.used; g.pendingVal += l.pendingVal;
   }
   for (const x of noPo) {
+    if (x.tyre) continue;   // tyres are listed in the GRN-without-PO section but not counted anywhere else
     const vendorRow = [...m.values()].find(g => poVendorMatch(poVendorKey(g.vendor), poVendorKey(x.vendor)));
     const vendor = vendorRow ? vendorRow.vendor : x.vendor;
     const key = by === 'city' ? x.city : by === 'vendor' ? vendor : by === 'part' ? poKey(x.part) : x.city + '\u0001' + poKey(x.part);
@@ -2783,8 +2787,8 @@ function poNoPoGroups(noPo, by) {
   const m = new Map();
   for (const x of noPo) {
     const key = by === 'city' ? x.city + '\u0001' + poKey(x.part) : by === 'part' ? poKey(x.part) : by === 'vendor' ? poVendorKey(x.vendor) : x.key;
-    let g = m.get(key); if (!g) m.set(key, g = { key, city: x.city, part: x.part, vendor: x.vendor, cities: new Set(), vendors: new Set(), invs: new Set(), parts: new Set(), qty: 0, val: 0, date: '', items: [] });
-    g.cities.add(x.city); g.vendors.add(x.vendor); g.invs.add(x.inv.record); g.parts.add(poKey(x.part)); g.qty += x.qty; g.val += poNoPoVal(x); if (x.inv.date > g.date) g.date = x.inv.date; g.items.push(x);
+    let g = m.get(key); if (!g) m.set(key, g = { key, city: x.city, part: x.part, vendor: x.vendor, cities: new Set(), vendors: new Set(), invs: new Set(), parts: new Set(), qty: 0, val: 0, tq: 0, tv: 0, date: '', items: [] });
+    g.cities.add(x.city); g.vendors.add(x.vendor); g.invs.add(x.inv.record); g.parts.add(poKey(x.part)); if (x.tyre) { g.tq += x.qty; g.tv += poNoPoVal(x); } else { g.qty += x.qty; g.val += poNoPoVal(x); } if (x.inv.date > g.date) g.date = x.inv.date; g.items.push(x);
   }
   const k = poState.npSort, name = g => by === 'vendor' ? g.vendor : g.part;
   const v = g => k === 'val' ? g.val : k === 'qty' ? g.qty : k === 'inv' ? g.invs.size : 0;
@@ -2792,33 +2796,33 @@ function poNoPoGroups(noPo, by) {
 }
 function poNoPoCsv() {
   const by = poState.npBy, rows = poNoPoGroups(poNoPoFiltered(), by), rs = p => (p / 100).toFixed(2), basis = poBasisLabel();
-  if (by === 'lines') return csv('GRN without PO lines.csv', ['GRN date', 'Invoice', 'Vendor', 'City', 'GRN part', 'Quantity', 'Paid per item incl GST (Rs)', 'Value ' + basis + ' (Rs)'],
-    rows.map(g => { const x = g.items[0]; return [x.inv.date, x.inv.invoice, x.vendor, x.city, x.gl.part, x.qty, x.gl.paid ?? '', rs(g.val)]; }));
-  csv('GRN without PO by ' + by + '.csv', (by === 'city' ? ['City', 'Part'] : by === 'part' ? ['Part', 'Cities'] : ['Vendor', 'Cities']).concat(['Vendors', 'Quantity', 'Value ' + basis + ' (Rs)', 'Invoices', 'Latest GRN']),
-    rows.map(g => (by === 'city' ? [g.city, g.part] : by === 'part' ? [g.part, [...g.cities].join(' / ')] : [g.vendor, [...g.cities].join(' / ')]).concat([[...g.vendors].join(' / '), g.qty, rs(g.val), g.invs.size, g.date])));
+  if (by === 'lines') return csv('GRN without PO lines.csv', ['GRN date', 'Invoice', 'Vendor', 'City', 'GRN part', 'Quantity', 'Paid per item incl GST (Rs)', 'Value ' + basis + ' (Rs)', 'Counted in totals'],
+    rows.map(g => { const x = g.items[0]; return [x.inv.date, x.inv.invoice, x.vendor, x.city, x.gl.part, x.qty, x.gl.paid ?? '', rs(poNoPoVal(x)), x.tyre ? 'No (tyres, own budget)' : 'Yes']; }));
+  csv('GRN without PO by ' + by + '.csv', (by === 'city' ? ['City', 'Part'] : by === 'part' ? ['Part', 'Cities'] : ['Vendor', 'Cities']).concat(['Vendors', 'Quantity', 'Value ' + basis + ' (Rs)', 'Invoices', 'Latest GRN', 'Tyre quantity (not counted)', 'Tyre value ' + basis + ' (Rs, not counted)']),
+    rows.map(g => (by === 'city' ? [g.city, g.part] : by === 'part' ? [g.part, [...g.cities].join(' / ')] : [g.vendor, [...g.cities].join(' / ')]).concat([[...g.vendors].join(' / '), g.qty, rs(g.val), g.invs.size, g.date, g.tq, rs(g.tv)])));
 }
-function renderPoNoPo(noPo, npQty, npVal) {
+function renderPoNoPo(noPo, npQty, npVal, tyQty = 0, tyVal = 0) {
   $('#po-nopo-sec').hidden = !noPo.length;
   if (!noPo.length) return;
   const by = poState.npBy, rows = poNoPoGroups(noPo, by);
   $$('#po-np-by button').forEach(b => b.setAttribute('aria-pressed', b.dataset.poNpBy === by)); $('#po-np-sort').value = poState.npSort;
-  $('#po-nopo-sub').textContent = n0(new Set(noPo.map(x => x.inv.record)).size) + ' invoices · ' + n0(new Set(noPo.map(x => poKey(x.part))).size) + ' parts · ' + poQty(npQty) + ' units · ' + poRs(npVal) + ' ' + poBasisLabel() + ' · counted in budget utilised. Cercle OS GRN from the PO months that matched no PO line; helmets and printing left out.';
+  $('#po-nopo-sub').textContent = n0(new Set(noPo.map(x => x.inv.record)).size) + ' invoices · ' + n0(new Set(noPo.map(x => poKey(x.part))).size) + ' parts · ' + poQty(npQty) + ' units · ' + poRs(npVal) + ' ' + poBasisLabel() + ' · counted in budget utilised' + (tyQty ? ' · plus ' + poQty(tyQty) + ' tyres (' + poRs(tyVal) + ') listed but not counted: tyres have their own budget' : '') + '. Cercle OS GRN from the PO months that matched no PO line; helmets and printing left out.';
   const link = x => x.inv.sourceUrl ? '<a href="' + esc(x.inv.sourceUrl) + '" target="_blank" rel="noopener noreferrer">' + esc(x.inv.invoice) + '</a>' : esc(x.inv.invoice);
   let t;
   if (by === 'lines') {
     t = '<thead><tr><th class="l">GRN date</th><th class="l">Invoice</th><th class="l">Vendor</th><th class="l">City</th><th class="l">GRN part</th><th>Quantity</th><th>Paid<small>per item, incl. GST</small></th><th>Value<small>' + poBasisLabel() + '</small></th></tr></thead><tbody>';
-    for (const g of rows) { const x = g.items[0]; t += '<tr><td class="l">' + esc(poDay(x.inv.date)) + '</td><td class="l">' + link(x) + '</td><td class="l">' + esc(x.vendor) + '</td><td class="l">' + esc(x.city) + '</td><td class="l">' + esc(x.gl.part) + '</td><td>' + poQty(x.qty) + '</td><td>' + grnUnitMoney(x.gl.paid) + '</td><td>' + poRs(g.val) + '</td></tr>'; }
-    t += '<tr class="total"><td class="l" colspan="5">Total</td><td>' + poQty(npQty) + '</td><td></td><td>' + poRs(npVal) + '</td></tr>';
+    for (const g of rows) { const x = g.items[0]; t += '<tr><td class="l">' + esc(poDay(x.inv.date)) + '</td><td class="l">' + link(x) + '</td><td class="l">' + esc(x.vendor) + '</td><td class="l">' + esc(x.city) + '</td><td class="l">' + esc(x.gl.part) + '</td><td>' + poQty(x.qty) + '</td><td>' + grnUnitMoney(x.gl.paid) + '</td><td' + (x.tyre ? ' style="opacity:.6"' : '') + '>' + poRs(poNoPoVal(x)) + (x.tyre ? '<small>tyres · not counted</small>' : '') + '</td></tr>'; }
+    t += '<tr class="total"><td class="l" colspan="5">Total' + (tyQty ? ' · excl. tyres' : '') + '</td><td>' + poQty(npQty) + '</td><td></td><td>' + poRs(npVal) + '</td></tr>';
   } else {
     const head = by === 'city' ? '<th class="l">Part</th>' : by === 'part' ? '<th class="l">Part</th><th class="l">Cities</th>' : '<th class="l">Vendor</th><th class="l">Cities</th>', cols = by === 'city' ? 1 : 2;
     t = '<thead><tr>' + head + '<th class="l">' + (by === 'vendor' ? 'Parts' : 'Vendor') + '</th><th>Quantity</th><th>Value<small>' + poBasisLabel() + '</small></th><th>Invoices</th><th class="l">Latest GRN</th></tr></thead><tbody>';
     let city = null, cq = 0, cv = 0;
-    const cityTotal = () => '<tr class="total"><td class="l" colspan="2">' + esc(city) + ' total</td><td>' + poQty(cq) + '</td><td>' + poRs(cv) + '</td><td colspan="2"></td></tr>';
+    const cityTotal = () => '<tr class="total"><td class="l" colspan="2">' + esc(city) + ' total' + (tyQty ? ' · excl. tyres' : '') + '</td><td>' + poQty(cq) + '</td><td>' + poRs(cv) + '</td><td colspan="2"></td></tr>';
     for (const g of rows) {
       if (by === 'city' && g.city !== city) { if (city !== null) t += cityTotal(); city = g.city; cq = 0; cv = 0; t += '<tr><td class="l" colspan="6"><b>' + esc(city) + '</b></td></tr>'; }
       cq += g.qty; cv += g.val;
       const open = poState.npOpen === by + '|' + g.key, nameCell = '<button type="button" class="link" data-po-np-open="' + esc(by + '|' + g.key) + '" aria-expanded="' + open + '">' + (open ? '▾ ' : '▸ ') + esc(by === 'vendor' ? g.vendor : g.part) + '</button>';
-      t += '<tr><td class="l">' + nameCell + '</td>' + (by !== 'city' ? '<td class="l">' + esc([...g.cities].join(', ')) + '</td>' : '') + '<td class="l">' + (by === 'vendor' ? n0(g.parts.size) + ' parts' : esc([...g.vendors].join(', '))) + '</td><td>' + poQty(g.qty) + '</td><td><b>' + poRs(g.val) + '</b></td><td>' + n0(g.invs.size) + '</td><td class="l">' + esc(poDay(g.date)) + '</td></tr>';
+      t += '<tr><td class="l">' + nameCell + '</td>' + (by !== 'city' ? '<td class="l">' + esc([...g.cities].join(', ')) + '</td>' : '') + '<td class="l">' + (by === 'vendor' ? n0(g.parts.size) + ' parts' : esc([...g.vendors].join(', '))) + '</td>' + (!g.tq ? '<td>' + poQty(g.qty) + '</td><td><b>' + poRs(g.val) + '</b></td>' : !g.qty ? '<td style="opacity:.6">' + poQty(g.tq) + '<small>tyres · not counted</small></td><td style="opacity:.6">' + poRs(g.tv) + '</td>' : '<td>' + poQty(g.qty) + '<small>+ ' + poQty(g.tq) + ' tyres, not counted</small></td><td><b>' + poRs(g.val) + '</b><small>+ ' + poRs(g.tv) + ' tyres, not counted</small></td>') + '<td>' + n0(g.invs.size) + '</td><td class="l">' + esc(poDay(g.date)) + '</td></tr>';
       if (open) {
         t += '<tr class="detail"><td colspan="' + (cols + 5) + '"><div class="pad"><table class="dtbl"><thead><tr><th class="l">GRN date</th><th class="l">Invoice</th><th class="l">City</th><th class="l">GRN part</th><th>Quantity</th><th>Paid<small>incl. GST</small></th><th>Value</th></tr></thead><tbody>';
         for (const x of [...g.items].sort((a, b) => b.inv.date.localeCompare(a.inv.date))) t += '<tr><td class="l">' + esc(poDay(x.inv.date)) + '</td><td class="l">' + link(x) + '</td><td class="l">' + esc(x.city) + '</td><td class="l">' + esc(x.gl.part) + '</td><td>' + poQty(x.qty) + '</td><td>' + grnUnitMoney(x.gl.paid) + '</td><td>' + poRs(poNoPoVal(x)) + '</td></tr>';
@@ -2826,7 +2830,7 @@ function renderPoNoPo(noPo, npQty, npVal) {
       }
     }
     if (by === 'city' && city !== null) t += cityTotal();
-    t += '<tr class="total"><td class="l" colspan="' + (cols + 1) + '">Total · ' + n0(rows.length) + (by === 'vendor' ? ' vendors' : ' parts') + '</td><td>' + poQty(npQty) + '</td><td>' + poRs(npVal) + '</td><td colspan="2"></td></tr>';
+    t += '<tr class="total"><td class="l" colspan="' + (cols + 1) + '">Total · ' + n0(rows.length) + (by === 'vendor' ? ' vendors' : ' parts') + (tyQty ? ' · excl. tyres' : '') + '</td><td>' + poQty(npQty) + '</td><td>' + poRs(npVal) + '</td><td colspan="2"></td></tr>';
   }
   $('#po-nopo').innerHTML = t + '</tbody>';
 }
@@ -2966,7 +2970,7 @@ function poAuto() {
       if (left > 1e-9 && last) add(last, left, true);   // supplied beyond the PO: counted in full, shown as extra
       else if (left > 1e-9 && inv.date.slice(0, 7) >= firstMonth && !['Helmets', 'Printing'].includes(grnLineCat(gl, inv.vendor))) {
         const paid = Number.isFinite(gl.paid) ? gl.paid : 0;
-        map.noPo.push({ inv, gl, i, key, qty: left, city: poCityName(city), part: poNorm(grnBasePart(gl.part)), vendor: inv.vendor, ym: inv.date.slice(0, 7), grossPaise: Math.round(left * paid * 100) });
+        map.noPo.push({ inv, gl, i, key, qty: left, city: poCityName(city), part: poNorm(grnBasePart(gl.part)), vendor: inv.vendor, ym: inv.date.slice(0, 7), grossPaise: Math.round(left * paid * 100), tyre: poOwnBudget(gl.part) === 'tyres' });
       }
     });
   }
@@ -3045,7 +3049,7 @@ function renderPo() {
     '<div><b class="num">' + poRs(used) + '</b><span>Utilised</span><small>' + pct(poPct(used, ord)) + ' of PO value · ' + poRs(pend) + ' pending</small></div>';
   // summary
   const by = poState.by, noPo = poNoPoFiltered(), groups = poSortGroups(poGroup(list, by, noPo), by);
-  const npQty = noPo.reduce((n, x) => n + x.qty, 0), npVal = noPo.reduce((n, x) => n + poNoPoVal(x), 0);
+  const counted = noPo.filter(x => !x.tyre), tyres = noPo.filter(x => x.tyre), npQty = counted.reduce((n, x) => n + x.qty, 0), npVal = counted.reduce((n, x) => n + poNoPoVal(x), 0), tyQty = tyres.reduce((n, x) => n + x.qty, 0), tyVal = tyres.reduce((n, x) => n + poNoPoVal(x), 0);
   const npCell = (q, v) => '<td>' + (v || q ? poRs(v) + '<small>' + poQty(q) + ' parts</small>' : '–') + '</td>';
   const firstCols = by === 'city' ? ['City'] : by === 'part' ? ['Part', 'Cities'] : by === 'vendor' ? ['Vendor'] : ['City', 'Part'];
   let h = '<thead><tr>' + firstCols.map((t, i) => i ? '<th class="l" style="text-align:left">' + t + '</th>' : poTh('name', t, '', 'lab')).join('') + '<th>POs</th>' + poTh('qty', 'Ordered', 'RFQ qty') + poTh('supplied', 'Supplied', 'provided qty') + poTh('pending', 'Pending') + poTh('val', 'PO value', poBasisLabel()) + poTh('used', 'Utilised', 'value supplied') + poTh('pendingVal', 'Pending value') + poTh('util', 'Utilisation', 'of PO value') + poTh('np', 'GRN without PO', 'received, no PO line') + '</tr></thead><tbody>';
@@ -3090,7 +3094,7 @@ function renderPo() {
   if (!list.length) h += '<tr><td class="lab" colspan="10">' + (poState.loading ? 'Loading shared POs…' : !ready ? 'Load or create the shared PO register to see team POs.' : poState.rows.length ? 'No POs match these filters.' : 'No POs yet. Add one with New PO, or import a CSV.') + '</td></tr>';
   $('#po-table').innerHTML = h + '</tbody>';
   // GRN lines in the PO months that no PO line covers
-  renderPoNoPo(noPo, npQty, npVal);
+  renderPoNoPo(noPo, npQty, npVal, tyQty, tyVal);
   $('#po-list-sub').textContent = 'Newest first. Open a PO to see its lines, record supplies or link GRN lines.';
 }
 function poDetail(po, c) {
@@ -3102,7 +3106,7 @@ function poDetail(po, c) {
     (po.status === 'Open' ? '<button class="btn" type="button" data-po-status="' + po.id + '" data-to="Closed">Short-close PO</button><button class="btn" type="button" data-po-status="' + po.id + '" data-to="Cancelled">Cancel PO</button>' : '<button class="btn" type="button" data-po-status="' + po.id + '" data-to="Open">Reopen PO</button>') +
     '<button class="btn" type="button" data-po-delete="' + po.id + '">Delete</button></div>';
   h += '<div class="scroll"><table class="dtbl"><thead><tr><th class="l">City</th><th class="l">Part</th><th class="l">Vehicle model</th><th>Ordered</th><th>Rate<small>excl. GST</small></th><th>GST</th><th>Supplied</th><th>Pending</th><th>PO value<small>' + poBasisLabel() + '</small></th><th>Utilised</th><th>Utilisation</th></tr></thead><tbody>';
-  for (const l of c.lines) h += '<tr><td class="l">' + esc(l.city || '–') + '</td><td class="l">' + esc(l.part) + '</td><td class="l">' + esc(l.model || '–') + '</td><td>' + poQty(l.qty) + '</td><td>' + poRsFull(l.ratePaise) + '</td><td>' + poQty(l.gst) + '%</td><td>' + poQty(l.supplied) + (l.excess ? ' <span class="flag">' + poQty(l.excess) + ' extra provided</span>' : '') + '</td><td>' + (l.pending ? '<b>' + poQty(l.pending) + '</b>' : po.status === 'Open' ? '<span class="ok">Complete</span>' : '0') + '</td><td>' + poRs(l.ordered) + '</td><td>' + poRs(l.used) + '</td>' + poPctCell(l.used, l.ordered) + '</tr>';
+  for (const l of c.lines) h += '<tr><td class="l">' + esc(l.city || '–') + '</td><td class="l">' + esc(l.part) + (l.tyre ? ' <span class="flag">Tyres · own budget, not in PO value</span>' : '') + '</td><td class="l">' + esc(l.model || '–') + '</td><td>' + poQty(l.qty) + '</td><td>' + poRsFull(l.ratePaise) + '</td><td>' + poQty(l.gst) + '%</td><td>' + poQty(l.supplied) + (l.excess ? ' <span class="flag">' + poQty(l.excess) + ' extra provided</span>' : '') + '</td><td>' + (l.pending ? '<b>' + poQty(l.pending) + '</b>' : po.status === 'Open' ? '<span class="ok">Complete</span>' : '0') + '</td><td>' + (l.tyre ? '–' : poRs(l.ordered)) + '</td><td>' + (l.tyre ? '–' : poRs(l.used)) + '</td>' + poPctCell(l.used, l.ordered) + '</tr>';
   h += '<tr class="total"><td class="l" colspan="3">PO total</td><td>' + poQty(c.qty) + '</td><td></td><td></td><td>' + poQty(c.supplied) + (c.excess ? '<small>' + poQty(c.excess) + ' extra provided</small>' : '') + '</td><td>' + poQty(c.pending) + '</td><td>' + poRs(c.ordered) + '</td><td>' + poRs(c.used) + '</td>' + poPctCell(c.used, c.ordered) + '</tr></tbody></table></div>';
   const autoRows = c.lines.flatMap(l => l.autoItems.map(it => ({ l, it })));
   h += '<h3>Supplies received · ' + n0(po.receipts.length + autoRows.length) + '</h3>';
@@ -3403,9 +3407,9 @@ async function poSaveSettings(e) {
 }
 function poConfirm(text, go) { poState.confirm = go; $('#po-confirm-text').textContent = text; $('#po-confirm').showModal(); }
 function poLinesCsv() {
-  const head = ['PO number', 'PO date', 'Expected by', 'Vendor', 'Status', 'City', 'Part', 'Vehicle model', 'Ordered qty', 'Rate excl GST (Rs)', 'GST %', 'Supplied qty', 'Pending qty', 'PO value ' + poBasisLabel() + ' (Rs)', 'Utilised ' + poBasisLabel() + ' (Rs)', 'Pending value (Rs)', 'Utilisation %', 'Supplies recorded'];
+  const head = ['PO number', 'PO date', 'Expected by', 'Vendor', 'Status', 'City', 'Part', 'Vehicle model', 'Ordered qty', 'Rate excl GST (Rs)', 'GST %', 'Supplied qty', 'Pending qty', 'PO value ' + poBasisLabel() + ' (Rs)', 'Utilised ' + poBasisLabel() + ' (Rs)', 'Pending value (Rs)', 'Utilisation %', 'Supplies recorded', 'Own budget (not in PO value)'];
   const rows = [];
-  for (const { po, lines } of poFiltered()) for (const l of lines) rows.push([po.po, po.date, po.due || '', po.vendor, po.status, l.city, l.part, l.model, l.qty, (l.ratePaise / 100).toFixed(2), l.gst, l.supplied, l.pending, (l.ordered / 100).toFixed(2), (l.used / 100).toFixed(2), (l.pendingVal / 100).toFixed(2), l.ordered ? (100 * l.used / l.ordered).toFixed(1) : '', po.receipts.filter(r => r.line === l.id).length]);
+  for (const { po, lines } of poFiltered()) for (const l of lines) rows.push([po.po, po.date, po.due || '', po.vendor, po.status, l.city, l.part, l.model, l.qty, (l.ratePaise / 100).toFixed(2), l.gst, l.supplied, l.pending, (l.ordered / 100).toFixed(2), (l.used / 100).toFixed(2), (l.pendingVal / 100).toFixed(2), l.ordered ? (100 * l.used / l.ordered).toFixed(1) : '', po.receipts.filter(r => r.line === l.id).length, l.tyre ? 'tyres' : '']);
   csv('PO lines ' + (poState.month || 'all months') + '.csv', head, rows);
 }
 function poSumCsv() {
