@@ -431,7 +431,7 @@ table.po-inv-rows select { margin-bottom: 4px; }
     <section class="sec">
       <header>
         <div><h2 id="fc-title">Forecast</h2><p id="fc-sub"></p></div>
-        <div class="tools"><div class="seg" id="fc-month" role="group" aria-label="Forecast month"></div><button class="btn" id="req-csv" type="button">Download RFQ CSV</button></div>
+        <div class="tools"><div class="seg" id="fc-month" role="group" aria-label="Forecast month"></div><button class="btn" id="req-csv" type="button">Download RFQ Excel</button></div>
       </header>
       <div class="panel">
         <div class="fcin">
@@ -1707,6 +1707,229 @@ function renderModelRequirements() {
 function selectedRequirements() { return requirementRows.filter(r=>!$('#req-model').value || r.model === $('#req-model').value); }
 const RFQ_HEADERS = ['Part ID', 'Part Name', 'Model', 'Purchase price', 'Required Qty'];
 function rfqRows() { return [...commonRequirementRows, ...selectedRequirements()].filter(r=>r.buy > 0); }
+// ---------- RFQ workbook (.xlsx written in the browser, no library)
+// Same tabs and formulas as the HALA_Spares_..._RFQ_Org Google Sheet: City Split, one tab per city for vendor quotes,
+// Final Pivot, Summary and last month's purchases. Cells carry formulas, so Excel and Google Sheets recalculate them.
+const XL = (() => {
+  const enc = new TextEncoder();
+  const crcT = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+  const crc = b => { let c = 0xFFFFFFFF; for (let i = 0; i < b.length; i++) c = crcT[(c ^ b[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+  const u16 = v => [v & 255, (v >> 8) & 255], u32 = v => [v & 255, (v >>> 8) & 255, (v >>> 16) & 255, (v >>> 24) & 255];
+  function zip(files) {
+    const parts = [], cen = []; let off = 0;
+    for (const f of files) {
+      const name = enc.encode(f.name), data = enc.encode(f.text), c = crc(data);
+      const lh = new Uint8Array([0x50, 0x4b, 3, 4, ...u16(20), ...u16(0x0800), ...u16(0), ...u16(0), ...u16(0x21), ...u32(c), ...u32(data.length), ...u32(data.length), ...u16(name.length), ...u16(0)]);
+      parts.push(lh, name, data); cen.push({ name, c, len: data.length, off }); off += lh.length + name.length + data.length;
+    }
+    let cdLen = 0;
+    for (const e of cen) {
+      const h = new Uint8Array([0x50, 0x4b, 1, 2, ...u16(20), ...u16(20), ...u16(0x0800), ...u16(0), ...u16(0), ...u16(0x21), ...u32(e.c), ...u32(e.len), ...u32(e.len), ...u16(e.name.length), ...u16(0), ...u16(0), ...u16(0), ...u16(0), ...u32(0), ...u32(e.off)]);
+      parts.push(h, e.name); cdLen += h.length + e.name.length;
+    }
+    parts.push(new Uint8Array([0x50, 0x4b, 5, 6, ...u16(0), ...u16(0), ...u16(cen.length), ...u16(cen.length), ...u32(cdLen), ...u32(off), ...u16(0)]));
+    return new Blob(parts, { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  }
+  const esc = s => String(s).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const colName = n => { let s = ''; n++; while (n) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = ((n - 1) / 26) | 0; } return s; };
+  // style ids (see styles())
+  const S = { base: 0, hdr: 1, hdrY: 2, hdrB: 3, title: 4, note: 5, int: 6, inp: 7, oct: 8, totInt: 9, tot: 10, dec: 11, neg: 12, totCol: 13, bold: 14, wrap: 15, inpDec: 16, inpTxt: 17, vend: 18 };
+  function styles() {
+    const font = (b, sz, col, i) => '<font>' + (b ? '<b/>' : '') + (i ? '<i/>' : '') + '<sz val="' + sz + '"/>' + (col ? '<color rgb="FF' + col + '"/>' : '') + '<name val="Arial"/></font>';
+    const fill = c => '<fill><patternFill patternType="solid"><fgColor rgb="FF' + c + '"/><bgColor indexed="64"/></patternFill></fill>';
+    const xf = (font, fill, fmt, al) => '<xf numFmtId="' + fmt + '" fontId="' + font + '" fillId="' + fill + '" borderId="0" xfId="0"' + (fmt ? ' applyNumberFormat="1"' : '') + (font ? ' applyFont="1"' : '') + (fill ? ' applyFill="1"' : '') + (al ? ' applyAlignment="1"><alignment ' + al + '/></xf>' : '/>');
+    const fonts = [font(0, 10), font(1, 10, 'FFFFFF'), font(1, 10), font(1, 14), font(0, 9, '595959', 1)];
+    const fills = ['<fill><patternFill patternType="none"/></fill>', '<fill><patternFill patternType="gray125"/></fill>', fill('10243E'), fill('FFFF00'), fill('9BC2E6'), fill('FFF2CC'), fill('DDEBF7'), fill('F2F2F2'), fill('E7E6E6')];
+    const xfs = [
+      xf(0, 0, 0), xf(1, 2, 0, 'horizontal="center" vertical="center" wrapText="1"'), xf(2, 3, 0, 'horizontal="center" vertical="center" wrapText="1"'), xf(2, 4, 0, 'horizontal="center" vertical="center" wrapText="1"'),
+      xf(3, 0, 0), xf(4, 0, 0), xf(0, 0, 3), xf(0, 5, 3), xf(0, 6, 165), xf(2, 7, 3), xf(2, 7, 0), xf(0, 0, 166), xf(0, 0, 164), xf(0, 8, 3), xf(2, 0, 0),
+      xf(0, 0, 0, 'vertical="top" wrapText="1"'), xf(0, 5, 166), xf(0, 5, 0), xf(2, 4, 0, 'horizontal="center"')
+    ];
+    return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="3"><numFmt numFmtId="164" formatCode="#,##0;[Red]\\-#,##0;0"/><numFmt numFmtId="165" formatCode="#,##0;\\-#,##0;&quot;-&quot;"/><numFmt numFmtId="166" formatCode="#,##0.00"/></numFmts><fonts count="' + fonts.length + '">' + fonts.join('') + '</fonts><fills count="' + fills.length + '">' + fills.join('') + '</fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="' + xfs.length + '">' + xfs.join('') + '</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
+  }
+  // cell: primitive | { v, f, s } ; null = empty
+  function sheetXml(sh) {
+    let rowsX = '', maxC = 0;
+    sh.rows.forEach((row, ri) => {
+      if (!row) return; let cx = '';
+      row.forEach((cell, ci) => {
+        if (cell == null || cell === '') return; maxC = Math.max(maxC, ci + 1);
+        const o = typeof cell === 'object' ? cell : { v: cell }, ref = colName(ci) + (ri + 1), s = o.s ? ' s="' + o.s + '"' : '';
+        if (o.f != null) cx += '<c r="' + ref + '"' + s + '><f>' + esc(String(o.f).replace(/^=/, '')) + '</f></c>';
+        else if (typeof o.v === 'number' && Number.isFinite(o.v)) cx += '<c r="' + ref + '"' + s + '><v>' + o.v + '</v></c>';
+        else if (o.v == null || o.v === '') cx += '<c r="' + ref + '"' + s + '/>';
+        else cx += '<c r="' + ref + '"' + s + ' t="inlineStr"><is><t xml:space="preserve">' + esc(o.v) + '</t></is></c>';
+      });
+      rowsX += '<row r="' + (ri + 1) + '"' + (sh.heights && sh.heights[ri] ? ' ht="' + sh.heights[ri] + '" customHeight="1"' : '') + '>' + cx + '</row>';
+    });
+    const fr = sh.freeze, pane = fr ? '<pane' + (fr[0] ? ' xSplit="' + fr[0] + '"' : '') + (fr[1] ? ' ySplit="' + fr[1] + '"' : '') + ' topLeftCell="' + colName(fr[0]) + (fr[1] + 1) + '" activePane="' + (fr[0] && fr[1] ? 'bottomRight' : fr[1] ? 'bottomLeft' : 'topRight') + '" state="frozen"/>' : '';
+    const cols = (sh.widths || []).map((w, i) => '<col min="' + (i + 1) + '" max="' + (i + 1) + '" width="' + w + '" customWidth="1"/>').join('');
+    const merges = (sh.merges || []).length ? '<mergeCells count="' + sh.merges.length + '">' + sh.merges.map(m => '<mergeCell ref="' + m + '"/>').join('') + '</mergeCells>' : '';
+    return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView showGridLines="0" workbookViewId="0">' + pane + '</sheetView></sheetViews><sheetFormatPr defaultRowHeight="13"/>' + (cols ? '<cols>' + cols + '</cols>' : '') + '<sheetData>' + rowsX + '</sheetData>' + merges + '</worksheet>';
+  }
+  function build(sheets) {
+    const files = [
+      { name: '[Content_Types].xml', text: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' + sheets.map((_, i) => '<Override PartName="/xl/worksheets/sheet' + (i + 1) + '.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>').join('') + '</Types>' },
+      { name: '_rels/.rels', text: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>' },
+      { name: 'xl/workbook.xml', text: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><bookViews><workbookView/></bookViews><sheets>' + sheets.map((s, i) => '<sheet name="' + esc(s.name) + '" sheetId="' + (i + 1) + '" r:id="rId' + (i + 1) + '"/>').join('') + '</sheets><calcPr calcId="191029" fullCalcOnLoad="1"/></workbook>' },
+      { name: 'xl/_rels/workbook.xml.rels', text: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' + sheets.map((_, i) => '<Relationship Id="rId' + (i + 1) + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet' + (i + 1) + '.xml"/>').join('') + '<Relationship Id="rId' + (sheets.length + 1) + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>' },
+      { name: 'xl/styles.xml', text: styles() },
+      ...sheets.map((s, i) => ({ name: 'xl/worksheets/sheet' + (i + 1) + '.xml', text: sheetXml(s) }))
+    ];
+    return zip(files);
+  }
+  return { build, S, colName };
+})();
+
+// model = { label:'Dec 2026', prev:'Nov 2026', prevShort:'Nov', rows:[{id,name,model,cat,tyre,fc,q:{Hyderabad,Bengaluru,Delhi,Mumbai},price}], purchases:[{date,inv,vendor,part,model,qty,unit,city,how,id,matched,note}] }
+function rfqWorkbook(m) {
+  const { S, colName } = XL, CITIES = ['Hyderabad', 'Bengaluru', 'Delhi', 'Mumbai'], SHORT = { Hyderabad: 'HYD', Bengaluru: 'BLR', Delhi: 'DEL', Mumbai: 'MUM' };
+  const n = m.rows.length, first = 5, last = first + Math.max(n, 1) - 1, PM = m.prevShort + ' Purchases', pq = "'" + PM + "'";
+  const VEND = { Hyderabad: ['Leeth', 'Deep Traders', 'Baluka', 'SMH E Venture', 'EVJAZZ'], Bengaluru: ['Leeth', 'SAI Priya', 'Deep Traders', 'Baluka', 'SMH E Venture', 'EVJAZZ'], Delhi: ['Leeth', 'Deep Traders', 'Baluka', 'SMH E Venture', 'EVJAZZ'], Mumbai: ['Leeth', 'Deep Traders', 'Baluka', 'SMH E Ventures', 'EVJAZZ'] };
+  // ---- city tabs
+  const lay = {}, sheets = [];
+  for (const city of CITIES) {
+    const vs = VEND[city], cut = vs.indexOf('Baluka') + 1, L = { vendors: [], qty: 6 }; let c = 7;
+    vs.forEach((v, i) => { if (i === cut) { L.fc = c++; L.extra = c++; } L.vendors.push({ name: v, unit: c, tot: c + 1, lead: c + 2 }); c += 3; });
+    L.ref = c++; L.est = c++; L.low = c++; L.lowV = c++; lay[city] = L;
+    const rows = [[{ v: city + ' - ' + m.label + ' spares requirement', s: S.title }], [{ v: 'Edit the shaded quantity for ' + city + ' and enter vendor quotes (unit price, lead time). City Split picks both up. Dashboard price is the reference until quotes come in.', s: S.note }], [], []];
+    const vr = rows[2], hr = rows[3];
+    ['S.No', 'HALA Part ID', 'Part description', 'Vehicle model', 'Category', 'UOM', 'Qty for ' + city + '\n(' + m.label + ')'].forEach((h, i) => hr[i] = { v: h, s: S.hdr });
+    for (const v of L.vendors) { vr[v.tot] = { v: v.name, s: S.vend }; hr[v.unit] = { v: 'Unit Basic Price', s: S.hdrB }; hr[v.tot] = { v: 'Total Basic Price', s: S.hdrB }; hr[v.lead] = { v: 'Supply Delivery Lead Time', s: S.hdrB }; }
+    hr[L.fc] = { v: city + ' forecast\n' + m.label, s: S.hdrY }; hr[L.extra] = { v: 'Extra above\nforecast', s: S.hdrY }; hr[L.ref] = { v: 'Dashboard price\nexcl. GST (₹)', s: S.hdr }; hr[L.est] = { v: 'Est. value\nexcl. GST (₹)', s: S.hdr }; hr[L.low] = { v: 'Lowest Basic Price', s: S.hdr }; hr[L.lowV] = { v: 'Lowest Vendor', s: S.hdr };
+    m.rows.forEach((r, i) => {
+      const rn = first - 1 + i + 1, row = [];   // sheet row number = 5 + i
+      const R = first + i;
+      row[0] = i + 1; row[1] = r.key; row[2] = r.name; row[3] = r.model; row[4] = r.cat; row[5] = 'Nos';
+      row[L.qty] = { v: r.q[city], s: S.inp }; row[L.fc] = { v: r.q[city], s: S.int }; row[L.extra] = { f: colName(L.qty) + R + '-' + colName(L.fc) + R, s: S.neg };
+      for (const v of L.vendors) { row[v.unit] = { v: null, s: S.inpDec }; row[v.tot] = { f: colName(v.unit) + R + '*' + colName(L.qty) + R, s: S.int }; row[v.lead] = { v: null, s: S.inpTxt }; }
+      row[L.ref] = Number.isFinite(r.price) ? { v: Math.round(r.price * 100) / 100, s: S.dec } : null;
+      row[L.est] = { f: 'IF(ISNUMBER(' + colName(L.ref) + R + '),' + colName(L.ref) + R + '*' + colName(L.qty) + R + ',0)', s: S.int };
+      const u = L.vendors.map(v => colName(v.unit) + R), lw = colName(L.low) + R;
+      row[L.low] = { f: 'IF(MAX(' + u.join(',') + ')<=0,"No quote",MIN(' + u.map(x => 'IF(' + x + '>0,' + x + ',1E+99)').join(',') + '))', s: S.dec };
+      row[L.lowV] = { f: 'IF(ISNUMBER(' + lw + '),MID(' + L.vendors.map(v => 'IF(' + colName(v.unit) + R + '=' + lw + ',", "&TRIM($' + colName(v.tot) + '$3),"")').join('&') + ',3,200),"No quote")' };
+      rows.push(row);
+    });
+    const widths = [6, 14, 32, 24, 20, 6, 13]; for (let k = 7; k <= L.lowV; k++) widths[k] = k === L.lowV ? 22 : 12;
+    sheets.push({ name: city, rows, widths, freeze: [3, 4], heights: { 3: 34 }, merges: [] });
+  }
+  // ---- City Split
+  const cs = [[], [], [], []], R = (col) => "'City Split'!$" + col + '$' + first + ':$' + col + '$' + last;
+  cs[0][0] = { v: 'City split of the ' + m.label + ' RFQ quantities', s: S.title };
+  cs[0][20] = { f: 'SUM(U' + first + ':U' + last + ')', s: S.int }; cs[0][22] = { f: 'SUM(W' + first + ':W' + last + ')', s: S.int };
+  cs[1][9] = { v: 'Forecasted Order Qty  |  ' + m.prevShort + ' procured = qty bought in ' + m.prev + ' (Cercle OS > Inventory > Purchases)', s: S.note };
+  const H = ['S.No', 'HALA Part ID', 'Part description', 'Vehicle model', 'Category', 'UOM', 'Total qty\n(' + m.label + ')', 'Dashboard\nrequired qty ' + m.label, 'RFQ above\nforecast'];
+  H.forEach((h, i) => cs[2][i] = { v: h, s: S.hdr });
+  const cityCols = { Hyderabad: 9, Bengaluru: 12, Delhi: 14, Mumbai: 16 };
+  cs[2][9] = { v: 'Hyderabad', s: S.hdrY }; cs[2][10] = { v: 'REVISED HYD QTY', s: S.hdrB }; cs[2][11] = { v: 'HYD\n' + m.prevShort + ' procured', s: S.hdrB };
+  cs[2][12] = { v: 'Bengaluru', s: S.hdrY }; cs[2][13] = { v: 'BLR\n' + m.prevShort + ' procured', s: S.hdrB }; cs[2][14] = { v: 'Delhi', s: S.hdrY }; cs[2][15] = { v: 'DEL\n' + m.prevShort + ' procured', s: S.hdrB };
+  cs[2][16] = { v: 'Mumbai', s: S.hdrY }; cs[2][17] = { v: 'MUM\n' + m.prevShort + ' procured', s: S.hdrB };
+  ['Lowest Rate Vendor', 'Lowest Basic Rate', 'Total Cost', 'Revised total qty', 'Revised total cost', 'Type'].forEach((h, i) => cs[2][18 + i] = { v: h, s: S.hdr });
+  cs[3][2] = { v: 'Total', s: S.tot }; for (const c of [0, 1, 3, 4, 5, 18, 19]) cs[3][c] = { v: null, s: S.tot };
+  for (const c of [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 20, 21, 22]) cs[3][c] = { f: 'SUM(' + colName(c) + first + ':' + colName(c) + last + ')', s: S.totInt }; cs[3][23] = { v: null, s: S.tot };
+  const idx = city => 'MATCH($B{r},' + city + '!$B:$B,0)';
+  m.rows.forEach((r, i) => {
+    const q = first + i, row = [], mt = c => 'MATCH($B' + q + ',' + c + '!$B:$B,0)', H1 = lay.Hyderabad;
+    row[0] = i + 1; row[1] = r.key; row[2] = r.name; row[3] = r.model; row[4] = r.cat; row[5] = 'Nos';
+    row[6] = { f: 'J' + q + '+M' + q + '+O' + q + '+Q' + q, s: S.totCol }; row[7] = { v: r.fc, s: S.int }; row[8] = { f: 'G' + q + '-H' + q, s: S.neg };
+    for (const city of CITIES) {
+      const c = cityCols[city], Lc = lay[city];
+      row[c] = { f: 'IFERROR(INDEX(' + city + '!$' + colName(Lc.qty) + ':$' + colName(Lc.qty) + ',' + mt(city) + '),0)', s: S.inp };
+      row[c + (city === 'Hyderabad' ? 2 : 1)] = { f: 'SUMIFS(' + pq + '!$F$2:$F$' + (m.purchases.length + 1) + ',' + pq + '!$K$2:$K$' + (m.purchases.length + 1) + ',$B' + q + ',' + pq + '!$I$2:$I$' + (m.purchases.length + 1) + ',"' + city + '")', s: S.oct };
+    }
+    row[10] = { f: 'J' + q, s: S.inp };
+    const hq = colName(H1.low), mm = mt('Hyderabad');
+    row[18] = { f: 'IFERROR(IF(ISNUMBER(INDEX(Hyderabad!$' + hq + ':$' + hq + ',' + mm + ')),INDEX(Hyderabad!$' + colName(H1.lowV) + ':$' + colName(H1.lowV) + ',' + mm + '),""),"")' };
+    row[19] = { f: 'IFERROR(IF(ISNUMBER(INDEX(Hyderabad!$' + hq + ':$' + hq + ',' + mm + ')),INDEX(Hyderabad!$' + hq + ':$' + hq + ',' + mm + '),IF(INDEX(Hyderabad!$' + colName(H1.ref) + ':$' + colName(H1.ref) + ',' + mm + ')>0,INDEX(Hyderabad!$' + colName(H1.ref) + ':$' + colName(H1.ref) + ',' + mm + '),"")),"")', s: S.dec };
+    row[20] = { f: 'IF(ISNUMBER(T' + q + '),T' + q + '*G' + q + ',0)', s: S.int }; row[21] = { f: 'K' + q + '+M' + q + '+O' + q + '+Q' + q, s: S.int }; row[22] = { f: 'IF(ISNUMBER(T' + q + '),T' + q + '*V' + q + ',0)', s: S.int };
+    row[23] = r.tyre ? 'Tyre' : 'Spare';
+    cs.push(row);
+  });
+  sheets.unshift({ name: 'City Split', rows: cs, widths: [6, 14, 32, 24, 20, 6, 11, 12, 10, 11, 11, 11, 11, 11, 11, 11, 11, 11, 20, 12, 12, 11, 12, 8], freeze: [3, 4], heights: { 2: 34 }, merges: ["J2:R2"] });
+  // ---- Final Pivot
+  const vendors = [...new Set([...CITIES.flatMap(c => VEND[c].map(v => v.replace(/Ventures$/, 'Venture'))), 'HET Trading company', 'Indofast'])].sort(), NOQ = '(no quote yet)', labels = [...vendors, NOQ];
+  const crit = (rowRef, i) => labels[i] === NOQ ? '""' : '$A' + rowRef;
+  const fp = [[{ v: 'Row Labels', s: S.hdr }, { v: 'Total Taxable Value', s: S.hdr }, { v: 'Count of Line item', s: S.hdr }, { v: 'Total Quantity to be purchased', s: S.hdr }]];
+  labels.forEach((v, i) => { const r = i + 2, c = crit(r, i); fp.push([v, { f: 'SUMIFS(' + R('U') + ',' + R('S') + ',' + c + ')', s: S.int }, { f: 'COUNTIFS(' + R('S') + ',' + c + ',' + R('G') + ',">0")', s: S.int }, { f: 'SUMIFS(' + R('G') + ',' + R('S') + ',' + c + ')', s: S.int }]); });
+  const gt = labels.length + 2; fp.push([{ v: 'Grand Total', s: S.tot }, { f: 'SUM(B2:B' + (gt - 1) + ')', s: S.totInt }, { f: 'SUM(C2:C' + (gt - 1) + ')', s: S.totInt }, { f: 'SUM(D2:D' + (gt - 1) + ')', s: S.totInt }]);
+  fp.push([]); fp.push([{ v: 'City-wise Summary (from City Split)', s: S.bold }]);
+  const ch = fp.length + 1; fp.push(['City', 'No of Parts', 'Total Quantity', 'Total Cost (₹)'].map(h => ({ v: h, s: S.hdr })));
+  CITIES.forEach((city, i) => { const c = colName(cityCols[city]), r = ch + 1 + i; fp.push([city, { f: 'COUNTIF(' + R(c) + ',">0")', s: S.int }, { f: 'SUM(' + R(c) + ')', s: S.int }, { f: 'SUMPRODUCT(' + R(c) + ',' + R('T') + ')', s: S.int }]); });
+  const cg = ch + 5; fp.push([{ v: 'Grand Total', s: S.tot }, { f: 'SUM(B' + (ch + 1) + ':B' + (cg - 1) + ')', s: S.totInt }, { f: 'SUM(C' + (ch + 1) + ':C' + (cg - 1) + ')', s: S.totInt }, { f: 'SUM(D' + (ch + 1) + ':D' + (cg - 1) + ')', s: S.totInt }]);
+  fp.push([]); fp.push([{ v: 'Vendor x City Summary (from City Split)', s: S.bold }]);
+  const g1 = fp.length + 1; const grp = []; grp[1] = { v: 'No of Parts', s: S.bold }; grp[6] = { v: 'Quantity', s: S.bold }; grp[11] = { v: 'Cost (₹)', s: S.bold }; fp.push(grp);
+  const vh = ['Vendor']; for (let b = 0; b < 3; b++) { CITIES.forEach(c => vh.push(c)); vh.push('Total'); } fp.push(vh.map(h => ({ v: h, s: S.hdr })));
+  const v0 = fp.length + 1;
+  labels.forEach((v, i) => {
+    const r = v0 + i, row = [v], c = labels[i] === NOQ ? '""' : '$A' + r;
+    CITIES.forEach(city => { const col = colName(cityCols[city]); row.push({ f: 'COUNTIFS(' + R('S') + ',' + c + ',' + R(col) + ',">0")', s: S.int }); }); row.push({ f: 'SUM(B' + r + ':E' + r + ')', s: S.int });
+    CITIES.forEach(city => { const col = colName(cityCols[city]); row.push({ f: 'SUMIFS(' + R(col) + ',' + R('S') + ',' + c + ')', s: S.int }); }); row.push({ f: 'SUM(G' + r + ':J' + r + ')', s: S.int });
+    CITIES.forEach(city => { const col = colName(cityCols[city]); row.push({ f: 'SUMPRODUCT((' + R('S') + '=' + c + ')*' + R(col) + ',' + R('T') + ')', s: S.int }); }); row.push({ f: 'SUM(L' + r + ':O' + r + ')', s: S.int });
+    fp.push(row);
+  });
+  const vt = fp.length + 1; const trow = [{ v: 'Grand Total', s: S.tot }]; for (let c = 1; c <= 15; c++) trow.push({ f: 'SUM(' + colName(c) + v0 + ':' + colName(c) + (vt - 1) + ')', s: S.totInt }); fp.push(trow);
+  sheets.push({ name: 'Final Pivot', rows: fp, widths: [30, 16, 16, 18, 14, 14, 14, 14, 14, 14, 16, 16, 16, 16, 16, 16], freeze: [0, 1], heights: { 0: 30 } });
+  // ---- Summary
+  const sm = [[null, null, null, null, { v: 'Target Price', s: S.bold }], ['Location', 'Category', 'No of Part', 'No of Qty\'s', 'Total Basic Price', 'Target Price', 'Remarks'].map(h => ({ v: h, s: S.hdr }))];
+  const tr = [];
+  CITIES.forEach(city => {
+    const col = colName(cityCols[city]);
+    for (const type of ['Spare', 'Tyre']) {
+      const r = sm.length + 1;
+      sm.push([type === 'Spare' ? SHORT[city] : null, type === 'Spare' ? 'Spares' : 'Tyre', { f: 'COUNTIFS(' + R(col) + ',">0",' + R('X') + ',"' + type + '")', s: S.int }, { f: 'SUMIFS(' + R(col) + ',' + R('X') + ',"' + type + '")', s: S.int }, { f: 'SUMPRODUCT((' + R('X') + '="' + type + '")*' + R(col) + ',' + R('T') + ')', s: S.int }, null, null]); tr.push([type, r]);
+    }
+  });
+  sm.push([]); const sp = tr.filter(x => x[0] === 'Spare').map(x => 'E' + x[1]).join('+'), ty = tr.filter(x => x[0] === 'Tyre').map(x => 'E' + x[1]).join('+');
+  sm.push([null, null, null, { v: 'Spares', s: S.bold }, { f: sp, s: S.int }]); sm.push([null, null, null, { v: 'Tyres', s: S.bold }, { f: ty, s: S.int }]);
+  sheets.push({ name: 'Summary', rows: sm, widths: [10, 12, 12, 12, 16, 14, 20], freeze: [0, 2] });
+  // ---- purchases last month
+  const pr = [['Date', 'Invoice no.', 'Vendor', 'Part name (Cercle OS)', 'Vehicle model', 'Qty', 'Unit price (₹)', 'Amount (₹)', 'City', 'How city was set', 'RFQ key (HALA Part ID)', 'RFQ part matched', 'Match note'].map(h => ({ v: h, s: S.hdr }))];
+  m.purchases.forEach((p, i) => pr.push([p.date, p.inv, p.vendor, p.part, p.model, { v: p.qty, s: S.int }, { v: p.unit, s: S.dec }, { f: 'F' + (i + 2) + '*G' + (i + 2), s: S.int }, p.city, p.how, p.id || null, p.matched || null, p.note || null]));
+  sheets.push({ name: PM, rows: pr, widths: [11, 28, 24, 34, 16, 8, 11, 11, 12, 30, 16, 34, 36], freeze: [0, 1] });
+  // order like the Google Sheet: City Split, Hyderabad, Final Pivot ... keep city tabs after City Split
+  const byName = Object.fromEntries(sheets.map(s => [s.name, s]));
+  return XL.build(['City Split', 'Hyderabad', 'Bengaluru', 'Delhi', 'Mumbai', 'Final Pivot', 'Summary', PM].map(k => byName[k]));
+}
+
+// ---------- RFQ workbook data: every part and model, split by city the way the dashboard splits the forecast
+function rfqWorkbookModel() {
+  const CITIES = ['Hyderabad', 'Bengaluru', 'Delhi', 'Mumbai'], MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const label = F.tm.label, mi = MON.findIndex(x => label.startsWith(x)), yr = +label.slice(-4), pd = new Date(Date.UTC(yr, mi - 1, 1));
+  const prevShort = MON[pd.getUTCMonth()], prev = prevShort + ' ' + pd.getUTCFullYear(), prevYm = pd.toISOString().slice(0, 7);
+  const toCity = c => CITIES.includes(c) ? c : 'Hyderabad';   // Vijayawada and hubs with no city go to Hyderabad
+  const cache = new Map(), bd = (k, mode) => { const key = mode + k; if (!cache.has(key)) cache.set(key, partBreakdown(k, mode)); return cache.get(key); };
+  const spread = (total, kids) => {
+    const q = { Hyderabad: 0, Bengaluru: 0, Delhi: 0, Mumbai: 0 }; total = Math.round(total);
+    for (const [c, b] of kids) q[toCity(c)] += Math.round(b);
+    const diff = total - CITIES.reduce((s, c) => s + q[c], 0); if (diff) q[CITIES.reduce((a, c) => q[c] > q[a] ? c : a, 'Hyderabad')] += diff;
+    return q;
+  };
+  const rows = [];
+  for (const r of fcPartRows()) {
+    if (!r.fc) continue;
+    const common = commonPartId(r.k);
+    if (common) { if (r.buy > 0) rows.push({ id: common, name: r.n, model: 'All models (common part)', cat: r.c, tyre: isTyrePart(r.n), fc: Math.round(r.buy), q: spread(r.buy, bd(r.k, 'city').groups.map(g => [g.n, g.buy])), price: r.net }); continue; }
+    for (const g of bd(r.k, 'model').groups) if (g.buy > 0) rows.push({ id: forecastPartId(r.k, g.n), name: r.n, model: g.n, cat: r.c, tyre: isTyrePart(r.n), fc: Math.round(g.buy), q: spread(g.buy, g.kids.map(x => [x.n, x.buy])), price: r.net });
+  }
+  rows.sort((a, b) => (Number.isFinite(b.price) ? b.price * b.fc : -1) - (Number.isFinite(a.price) ? a.price * a.fc : -1) || a.name.localeCompare(b.name));
+  const used = new Set(); let nid = 0;
+  for (const r of rows) { let k = r.id && r.id !== 'Model-specific IDs' ? r.id : 'NOID-' + String(++nid).padStart(3, '0'); while (used.has(k)) k += '*'; used.add(k); r.key = k; }
+  const byName = new Map(); for (const r of rows) { const k = gstPartKey(r.name); if (!byName.has(k)) byName.set(k, []); byName.get(k).push(r); }
+  const purchases = [], ddmmmyy = d => d.slice(8, 10) + '-' + MON[+d.slice(5, 7) - 1] + '-' + d.slice(2, 4);
+  for (const inv of [...GRN.records].sort((a, b) => a.date.localeCompare(b.date) || a.record - b.record)) {
+    if (inv.date.slice(0, 7) !== prevYm || GRN_IGNORE_INVOICES.has(poKey(inv.invoice))) continue;
+    for (const gl of inv.lines || []) {
+      const qty = gl.quantity > 0 ? gl.quantity : 0; if (!qty) continue;
+      const al = poGrnAlias(inv, gl), base = al ? al.part : grnBasePart(gl.part), mdl = al ? poModelNorm(al.model) : (poModelNorm(gl.model) || poModelHint(gl.part));
+      const c = byName.get(gstPartKey(base)) || []; let hit = null, note = '';
+      if (!c.length) note = 'Not in RFQ'; else if (c.length === 1) hit = c[0];
+      else { hit = c.find(x => poModelNorm(x.model) === mdl) || c.find(x => !poModelNorm(x.model)) || null; if (!hit) note = 'Several models in the RFQ and the GRN does not say which'; }
+      purchases.push({ date: ddmmmyy(inv.date), inv: inv.invoice, vendor: inv.vendor, part: gl.part, model: gl.model || '', qty, unit: Number.isFinite(gl.paid) ? gl.paid : 0, city: poCityName(grnCityOf(inv, gl)),
+        how: poCityTag(gl.part) ? 'City tag in part name' : poCityTag(inv.invoice) ? 'City tag in invoice number' : 'No city tag - assumed Hyderabad', id: hit ? hit.key : '', matched: hit ? hit.name + (poModelNorm(hit.model) ? ' (' + hit.model + ')' : '') : '', note });
+    }
+  }
+  return { label, prev, prevShort, rows, purchases };
+}
 function rfqExportRows() { return rfqRows().map(r=>[r.id || 'Not mapped', r.part, r.model, Number.isFinite(r.price) ? r.price.toFixed(2) : '', r.buy]); }
 function renderModelRequirementTable() {
   const rows = rfqRows();
@@ -4076,7 +4299,12 @@ function bind() {
   $('#fc-copy').addEventListener('click', e => copyTable('#fc-tbl', e.target));
   $('#age-copy').addEventListener('click', e => copyTable('#age-tbl', e.target));
   $('#req-model').addEventListener('change', renderModelRequirementTable);
-  $('#req-csv').addEventListener('click', () => csv('RFQ Common plus ' + ($('#req-model').value || 'All models') + ' ' + F.tm.label + ' INR excl GST.csv', RFQ_HEADERS, rfqExportRows()));
+  $('#req-csv').addEventListener('click', () => {
+    try {
+      const a = document.createElement('a'); a.href = URL.createObjectURL(rfqWorkbook(rfqWorkbookModel())); a.download = 'HALA_Spares_' + F.tm.label.replace(' ', '').toUpperCase() + '_RFQ.xlsx';
+      document.body.appendChild(a); a.click(); a.remove();
+    } catch (e) { console.error(e); $('#req-note').textContent = 'The RFQ workbook could not be built: ' + e.message; }
+  });
   $('#fcp-missing').addEventListener('click', () => { state.fcpMissing=!state.fcpMissing; renderFcParts(); });
   $('#fcp-q').addEventListener('input', e => { state.fcpQ = e.target.value; renderFcParts(); });
   $('#hubp-q').addEventListener('input', e => { state.hubpQ = e.target.value; renderHubs(); });
