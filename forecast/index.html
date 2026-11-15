@@ -2933,8 +2933,8 @@ const GRN_NAME_ALIAS = {
   'FOOT PLATE': { vendor: 'BALUKA', part: 'FOOT BOARD', model: '' },
   'MAIN STAND': { vendor: 'BALUKA', part: 'CENTRE / MAIN STAND', model: 'SINGLE LIGHT' },
   'DRUM PLATE ASSEMBLY WITH SHOE': { vendor: 'LEETH', anyVendor: true, part: 'DRUM PLATE ASSEMBLY WITH SHOE', model: 'SINGLE LIGHT' },
-  'LEFT WHEEL PROTECTOR': { vendor: 'LEETH', part: 'SWING ARM COVER', model: '' },
-  'RIGHT WHEEL PROTECTOR': { vendor: 'LEETH', part: 'SWING ARM COVER', model: '' }
+  'LEFT WHEEL PROTECTOR': { vendor: 'LEETH', part: 'SWING ARM COVER', model: '', pair: 2 },
+  'RIGHT WHEEL PROTECTOR': { vendor: 'LEETH', part: 'SWING ARM COVER', model: '', pair: 2 }
 };
 // saved alias first, then the fixed ones above (only for the vendor named there; anyVendor lets it land on another vendor's PO)
 function poGrnAlias(inv, gl) {
@@ -2973,7 +2973,7 @@ function poAuto() {
     const ivk = poVendorKey(inv.vendor);
     (inv.lines || []).forEach((gl, i) => {
       const key = inv.record + ':' + i;
-      let left = (gl.quantity > 0 ? gl.quantity : 0) - (linked.get(key) || 0); if (left <= 1e-9) return;
+      let left = ((gl.quantity > 0 ? gl.quantity : 0) - (linked.get(key) || 0)) / ((poGrnAlias(inv, gl) || {}).pair || 1); if (left <= 1e-9) return;   // pair: one left + one right = one part
       const city = grnCityOf(inv, gl), add = (s, q, extra) => {
         let m = map.get(s.po.id); if (!m) map.set(s.po.id, m = new Map());
         let x = m.get(s.l.id); if (!x) m.set(s.l.id, x = { qty: 0, items: [] });
