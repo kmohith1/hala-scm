@@ -431,7 +431,7 @@ table.po-inv-rows select { margin-bottom: 4px; }
     <section class="sec">
       <header>
         <div><h2 id="fc-title">Forecast</h2><p id="fc-sub"></p></div>
-        <div class="tools"><div class="seg" id="fc-month" role="group" aria-label="Forecast month"></div></div>
+        <div class="tools"><div class="seg" id="fc-month" role="group" aria-label="Forecast month"></div><button class="btn" id="req-csv" type="button">Download RFQ CSV</button></div>
       </header>
       <div class="panel">
         <div class="fcin">
@@ -463,7 +463,7 @@ table.po-inv-rows select { margin-bottom: 4px; }
     </section>
     <section class="sec">
       <header><div><h2>Requirements by vehicle model</h2><p>Estimated from recent fitment history. These are spare-parts forecasts, not fixed quantities per vehicle. Shared parts are split across models; totals reconcile to the forecast and demand after reuse.</p></div>
-      <div class="tools"><label class="fld">Vehicle model<select id="req-model"></select></label><button class="btn" id="req-csv" type="button">Download RFQ CSV</button></div></header>
+      <div class="tools"><label class="fld">Vehicle model<select id="req-model"></select></label></div></header>
       <p class="note">Common parts use the Common entries in the part master, except plastic and body parts. Foot panels, body panels and plastic parts stay model-specific even if the workbook lists a Common ID. Missing model-specific IDs show Not mapped; other unclassified parts remain separate until their compatibility is confirmed.</p>
       <h3>Common parts — all models combined</h3><p class="note">One requirement per shared part. These quantities remain for the whole fleet when a model is selected.</p><div class="panel"><div class="scroll"><table id="common-req-table"></table></div></div><h3>Model-specific parts</h3><div class="panel"><div class="scroll"><table id="req-table"></table></div><p class="note" id="req-note"></p></div>
     </section>
