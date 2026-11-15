@@ -2925,7 +2925,11 @@ function poNoPoFiltered() {
 const grnCityOf = (inv, gl) => poCityTag(gl.part) || poCityTag(inv.invoice) || 'HYDERABAD';
 const grnBasePart = name => poNorm(name).replace(/\((?:BLR|DEL|BOM|MUM|HYD|BANGALORE|BENGALURU|DELHI|MUMBAI|HYDERABAD)\)/gi, ' ').replace(/_(?:BLR|DEL|BOM|MUM|HYD)\b/gi, ' ').replace(/[\s-]+(?:BLR|DEL|BOM|MUM|HYD)\s*$/i, ' ').replace(/[-\s]*\bCOMMON\b/gi, ' ');
 // Store naming that always means a PO part, confirmed by Mohith (the GRN name has no size, the PO line does)
-const GRN_NAME_ALIAS = { 'T FORK STEM': { part: 'T FORK - 17 INCH', model: 'ODYSSE HYFY SUN' } };
+const GRN_NAME_ALIAS = {
+  'T FORK STEM': { part: 'T FORK - 17 INCH', model: 'ODYSSE HYFY SUN' },
+  'FRONT BRAKE CABLE 52 INCHES': { part: 'FRONT BRAKE CABLE', model: 'ODYSSE HYFY SUN' },
+  'TAIL LIGHT HOLDER ASSY': { part: 'TAIL LIGHT BULB HOLDER', model: 'SINGLE LIGHT' }
+};
 function poAutoPartMatch(l, inv, gl) {
   const al = (poState.aliases && poState.aliases[poAliasKey(inv.vendor, gl.part)]) || GRN_NAME_ALIAS[poKey(grnBasePart(gl.part))];
   const gPart = al ? al.part : grnBasePart(gl.part), gModel = al ? poModelNorm(al.model) : poModelNorm(gl.model) || poModelHint(gl.part);
@@ -2970,7 +2974,7 @@ function poAuto() {
         const q = Math.min(left, s.left); s.left -= q; left -= q; add(s, q, false);
       }
       if (left > 1e-9 && last) add(last, left, true);   // supplied beyond the PO: counted in full, shown as extra
-      else if (left > 1e-9 && inv.date.slice(0, 7) >= firstMonth && !['Helmets', 'Printing'].includes(grnLineCat(gl, inv.vendor))) {
+      else if (left > 1e-9 && inv.date.slice(0, 7) >= firstMonth && !['Helmets', 'Printing'].includes(grnLineCat(gl, inv.vendor)) && !/^TRANSPORT(ATION)?\b/i.test(poNorm(gl.part))) {   // freight is not a spare
         const paid = Number.isFinite(gl.paid) ? gl.paid : 0;
         map.noPo.push({ inv, gl, i, key, qty: left, city: poCityName(city), part: poNorm(grnBasePart(gl.part)), vendor: inv.vendor, ym: inv.date.slice(0, 7), grossPaise: Math.round(left * paid * 100), tyre: poOwnBudget(gl.part) === 'tyres' });
       }
