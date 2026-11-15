@@ -2928,7 +2928,8 @@ const grnBasePart = name => poNorm(name).replace(/\((?:BLR|DEL|BOM|MUM|HYD|BANGA
 const GRN_NAME_ALIAS = {
   'T FORK STEM': { part: 'T FORK - 17 INCH', model: 'ODYSSE HYFY SUN' },
   'FRONT BRAKE CABLE 52 INCHES': { part: 'FRONT BRAKE CABLE', model: 'ODYSSE HYFY SUN' },
-  'TAIL LIGHT HOLDER ASSY': { part: 'TAIL LIGHT BULB HOLDER', model: 'SINGLE LIGHT' }
+  'TAIL LIGHT HOLDER ASSY': { part: 'TAIL LIGHT BULB HOLDER', model: 'SINGLE LIGHT' },
+  'DISC BRAKE RIGHT LEVER': { part: 'RIGHT BRAKE LEVER', model: 'SINGLE LIGHT' }
 };
 function poAutoPartMatch(l, inv, gl) {
   const al = (poState.aliases && poState.aliases[poAliasKey(inv.vendor, gl.part)]) || GRN_NAME_ALIAS[poKey(grnBasePart(gl.part))];
