@@ -2925,6 +2925,8 @@ function poNoPoFiltered() {
 const grnCityOf = (inv, gl) => poCityTag(gl.part) || poCityTag(inv.invoice) || 'HYDERABAD';
 const grnBasePart = name => poNorm(name).replace(/\((?:BLR|DEL|BOM|MUM|HYD|BANGALORE|BENGALURU|DELHI|MUMBAI|HYDERABAD)\)/gi, ' ').replace(/_(?:BLR|DEL|BOM|MUM|HYD)\b/gi, ' ').replace(/[\s-]+(?:BLR|DEL|BOM|MUM|HYD)\s*$/i, ' ').replace(/[-\s]*\bCOMMON\b/gi, ' ');
 // Store naming that always means a PO part, confirmed by Mohith (the GRN name has no size, the PO line does)
+// Invoices the PO tab never counts (not a PO supply and not "GRN without PO"), as Mohith asked
+const GRN_IGNORE_INVOICES = new Set(['SAI PRIYA ENTERPRISES_SPESSIA314_02_11_26_BLR']);
 const GRN_NAME_ALIAS = {
   'T FORK STEM': { vendor: 'BALUKA', part: 'T FORK - 17 INCH', model: 'ODYSSE HYFY SUN' },
   'FRONT BRAKE CABLE 52 INCHES': { vendor: 'BALUKA', part: 'FRONT BRAKE CABLE', model: 'ODYSSE HYFY SUN' },
@@ -2974,7 +2976,7 @@ function poAuto() {
     for (const l of po.lines) slots.push({ po, l, vk, city: poCityKey(l.city), left: Math.max(0, l.qty - (have.get(l.id) || 0)) });
   }
   const live = poState.rows.filter(p => p.status !== 'Cancelled'), firstMonth = live.length ? live.map(p => p.date.slice(0, 7)).sort()[0] : '9999';
-  const invs = [...GRN.records].sort((a, b) => a.date.localeCompare(b.date) || a.record - b.record);
+  const invs = [...GRN.records].filter(r => !GRN_IGNORE_INVOICES.has(poKey(r.invoice))).sort((a, b) => a.date.localeCompare(b.date) || a.record - b.record);
   for (const inv of invs) {
     const ivk = poVendorKey(inv.vendor);
     (inv.lines || []).forEach((gl, i) => {
