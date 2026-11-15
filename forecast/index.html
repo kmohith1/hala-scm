@@ -2924,8 +2924,10 @@ function poNoPoFiltered() {
 }
 const grnCityOf = (inv, gl) => poCityTag(gl.part) || poCityTag(inv.invoice) || 'HYDERABAD';
 const grnBasePart = name => poNorm(name).replace(/\((?:BLR|DEL|BOM|MUM|HYD|BANGALORE|BENGALURU|DELHI|MUMBAI|HYDERABAD)\)/gi, ' ').replace(/_(?:BLR|DEL|BOM|MUM|HYD)\b/gi, ' ').replace(/[\s-]+(?:BLR|DEL|BOM|MUM|HYD)\s*$/i, ' ').replace(/[-\s]*\bCOMMON\b/gi, ' ');
+// Store naming that always means a PO part, confirmed by Mohith (the GRN name has no size, the PO line does)
+const GRN_NAME_ALIAS = { 'T FORK STEM': { part: 'T FORK - 17 INCH', model: 'ODYSSE HYFY SUN' } };
 function poAutoPartMatch(l, inv, gl) {
-  const al = poState.aliases && poState.aliases[poAliasKey(inv.vendor, gl.part)];
+  const al = (poState.aliases && poState.aliases[poAliasKey(inv.vendor, gl.part)]) || GRN_NAME_ALIAS[poKey(grnBasePart(gl.part))];
   const gPart = al ? al.part : grnBasePart(gl.part), gModel = al ? poModelNorm(al.model) : poModelNorm(gl.model) || poModelHint(gl.part);
   // same words both ways (synonyms, plurals, model and filler words ignored; one-letter typos allowed), so
   // "SPEEDOMETER" does not take "Speedometer Decorative Cover"
