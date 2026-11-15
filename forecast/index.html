@@ -2926,13 +2926,25 @@ const grnCityOf = (inv, gl) => poCityTag(gl.part) || poCityTag(inv.invoice) || '
 const grnBasePart = name => poNorm(name).replace(/\((?:BLR|DEL|BOM|MUM|HYD|BANGALORE|BENGALURU|DELHI|MUMBAI|HYDERABAD)\)/gi, ' ').replace(/_(?:BLR|DEL|BOM|MUM|HYD)\b/gi, ' ').replace(/[\s-]+(?:BLR|DEL|BOM|MUM|HYD)\s*$/i, ' ').replace(/[-\s]*\bCOMMON\b/gi, ' ');
 // Store naming that always means a PO part, confirmed by Mohith (the GRN name has no size, the PO line does)
 const GRN_NAME_ALIAS = {
-  'T FORK STEM': { part: 'T FORK - 17 INCH', model: 'ODYSSE HYFY SUN' },
-  'FRONT BRAKE CABLE 52 INCHES': { part: 'FRONT BRAKE CABLE', model: 'ODYSSE HYFY SUN' },
-  'TAIL LIGHT HOLDER ASSY': { part: 'TAIL LIGHT BULB HOLDER', model: 'SINGLE LIGHT' },
-  'DISC BRAKE RIGHT LEVER': { part: 'RIGHT BRAKE LEVER', model: 'SINGLE LIGHT' }
+  'T FORK STEM': { vendor: 'BALUKA', part: 'T FORK - 17 INCH', model: 'ODYSSE HYFY SUN' },
+  'FRONT BRAKE CABLE 52 INCHES': { vendor: 'BALUKA', part: 'FRONT BRAKE CABLE', model: 'ODYSSE HYFY SUN' },
+  'TAIL LIGHT HOLDER ASSY': { vendor: 'BALUKA', part: 'TAIL LIGHT BULB HOLDER', model: 'SINGLE LIGHT' },
+  'DISC BRAKE RIGHT LEVER': { vendor: 'BALUKA', part: 'RIGHT BRAKE LEVER', model: 'SINGLE LIGHT' },
+  'FOOT PLATE': { vendor: 'BALUKA', part: 'FOOT BOARD', model: '' },
+  'MAIN STAND': { vendor: 'BALUKA', part: 'CENTRE / MAIN STAND', model: 'SINGLE LIGHT' },
+  'DRUM PLATE ASSEMBLY WITH SHOE': { vendor: 'LEETH', anyVendor: true, part: 'DRUM PLATE ASSEMBLY WITH SHOE', model: 'SINGLE LIGHT' },
+  'LEFT WHEEL PROTECTOR': { vendor: 'LEETH', part: 'SWING ARM COVER', model: '' },
+  'RIGHT WHEEL PROTECTOR': { vendor: 'LEETH', part: 'SWING ARM COVER', model: '' }
 };
+// saved alias first, then the fixed ones above (only for the vendor named there; anyVendor lets it land on another vendor's PO)
+function poGrnAlias(inv, gl) {
+  const sv = poState.aliases && poState.aliases[poAliasKey(inv.vendor, gl.part)];
+  if (sv) return sv;
+  const a = GRN_NAME_ALIAS[poKey(grnBasePart(gl.part))];
+  return a && (!a.vendor || poVendorMatch(poVendorKey(inv.vendor), a.vendor)) ? a : null;
+}
 function poAutoPartMatch(l, inv, gl) {
-  const al = (poState.aliases && poState.aliases[poAliasKey(inv.vendor, gl.part)]) || GRN_NAME_ALIAS[poKey(grnBasePart(gl.part))];
+  const al = poGrnAlias(inv, gl);
   const gPart = al ? al.part : grnBasePart(gl.part), gModel = al ? poModelNorm(al.model) : poModelNorm(gl.model) || poModelHint(gl.part);
   // same words both ways (synonyms, plurals, model and filler words ignored; one-letter typos allowed), so
   // "SPEEDOMETER" does not take "Speedometer Decorative Cover"
@@ -2970,7 +2982,7 @@ function poAuto() {
       let last = null;
       for (const s of slots) {
         if (left <= 1e-9) break;
-        if (inv.date.slice(0, 7) < s.po.date.slice(0, 7) || s.city !== city || !poVendorMatch(s.vk, ivk) || !poAutoPartMatch(s.l, inv, gl)) continue;
+        if (inv.date.slice(0, 7) < s.po.date.slice(0, 7) || s.city !== city || (!poVendorMatch(s.vk, ivk) && !(poGrnAlias(inv, gl) || {}).anyVendor) || !poAutoPartMatch(s.l, inv, gl)) continue;
         last = s; if (s.left <= 1e-9) continue;
         const q = Math.min(left, s.left); s.left -= q; left -= q; add(s, q, false);
       }
