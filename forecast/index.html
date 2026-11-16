@@ -3761,11 +3761,58 @@ function bindPo() {
       '<tr><td style="padding:16px 28px 8px;"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td bgcolor="#1f5fbf" style="background:#1f5fbf;padding:10px 18px;"><a href="https://kmohith1.github.io/hala-scm/forecast/#po" style="color:#ffffff;text-decoration:none;font-weight:600;font-size:13px;"><font color="#ffffff"><b>Open live PO &amp; budget dashboard</b></font></a></td></tr></table></td></tr>' +
       '<tr><td style="padding:14px 28px 24px;font-size:14px;line-height:1.5;">Regards,<br><b>Mohith</b><br><span style="color:#6b7f9e;font-size:12px;">HALA Mobility · Supply Chain</span></td></tr></table></td></tr></table>';
   }
-  $('#po-mail').addEventListener('click', async () => {
-    const html = poMailHtml(), subj = 'Spares inventory budget update – ' + new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' });
+  // Reads the Procurement Tracker (Nadeem's OneDrive) with the same Microsoft sign-in, finds this month's yellow rows (invoiced, no GRN yet) and returns their taxable value.
+  const TRACKER = { host: 'https://halamobility-my.sharepoint.com', path: '/personal/nadeem_halamobility_in', id: '68ae00ed-ac29-4fc3-9597-74f5f783dea5' };
+  async function poTrackerToken() {
+    const auth = shipAuth(); if (!auth || !auth.refresh) throw new Error('Not signed in to the Hala workspace');
+    const r = await fetch('https://login.microsoftonline.com/' + SHIP.tenantId + '/oauth2/v2.0/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ client_id: SHIP.clientId, scope: 'openid profile offline_access ' + TRACKER.host + '/.default', grant_type: 'refresh_token', refresh_token: auth.refresh }) });
+    const v = await r.json(); if (!r.ok) throw new Error('Tracker sign-in failed');
+    if (v.refresh_token) try { localStorage.setItem(SHIP.authKey, JSON.stringify({ ...auth, refresh: v.refresh_token })); } catch (e) {}
+    return v.access_token;
+  }
+  async function poReadTracker() {
+    const token = await poTrackerToken();
+    const r = await fetch(TRACKER.host + TRACKER.path + "/_api/web/GetFileById('" + TRACKER.id + "')/$value", { headers: { Authorization: 'Bearer ' + token } });
+    if (!r.ok) throw new Error('Tracker file not readable (' + r.status + ')');
+    const buf = new Uint8Array(await r.arrayBuffer()), dv = new DataView(buf.buffer);
+    let e = buf.length - 22; while (e > 0 && dv.getUint32(e, true) !== 0x06054b50) e--;
+    const n = dv.getUint16(e + 10, true); let q = dv.getUint32(e + 16, true); const ents = {};
+    for (let k = 0; k < n; k++) { const nl = dv.getUint16(q + 28, true), xl = dv.getUint16(q + 30, true), cl = dv.getUint16(q + 32, true); ents[new TextDecoder().decode(buf.slice(q + 46, q + 46 + nl))] = { m: dv.getUint16(q + 10, true), cs: dv.getUint32(q + 20, true), off: dv.getUint32(q + 42, true) }; q += 46 + nl + xl + cl; }
+    const get = async name => { const z = ents[name]; if (!z) return null; const st = z.off + 30 + dv.getUint16(z.off + 26, true) + dv.getUint16(z.off + 28, true), d = buf.slice(st, st + z.cs); if (z.m === 0) return new TextDecoder().decode(d); const ds = new DecompressionStream('deflate-raw'), w = ds.writable.getWriter(); w.write(d); w.close(); return new TextDecoder().decode(await new Response(ds.readable).arrayBuffer()); };
+    const tab = new Date().toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' });
+    const wb = await get('xl/workbook.xml'), rels = await get('xl/_rels/workbook.xml.rels'), tgt = {};
+    for (const m of rels.matchAll(/<Relationship [^>]*>/g)) tgt[(m[0].match(/Id="([^"]+)"/) || [])[1]] = (m[0].match(/Target="([^"]+)"/) || [])[1];
+    const sh = [...wb.matchAll(/<sheet [^>]*name="([^"]+)"[^>]*r:id="([^"]+)"/g)].find(m => m[1].trim().toLowerCase() === tab.toLowerCase());
+    if (!sh) throw new Error('No "' + tab + '" tab in the tracker');
+    const ss = [...(await get('xl/sharedStrings.xml')).matchAll(/<si>([\s\S]*?)<\/si>/g)].map(m => [...m[1].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map(x => x[1]).join('').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>'));
+    const st = await get('xl/styles.xml'), fills = [...st.match(/<fills[\s\S]*?<\/fills>/)[0].matchAll(/<fill>([\s\S]*?)<\/fill>/g)].map(m => (m[1].match(/fgColor[^>]*rgb="([0-9A-F]{8})"/i) || [, ''])[1].toUpperCase());
+    const xfs = [...st.match(/<cellXfs[\s\S]*?<\/cellXfs>/)[0].matchAll(/<xf [^>]*?fillId="(\d+)"/g)].map(m => +m[1]);
+    const sx = await get('xl/' + tgt[sh[2]].replace(/^\/?(xl\/)?/, '')), items = [];
+    const vend = v => /BALUKA/i.test(v) ? 'Baluka' : /HET/i.test(v) ? 'HET Trading' : /LEETH/i.test(v) ? 'Leeth' : /DEEP/i.test(v) ? 'Deep Traders' : /INDOFAST/i.test(v) ? 'Indofast' : /SAI/i.test(v) ? 'Sai Priya' : String(v).trim().split(/\s+/)[0].replace(/^./, c => c.toUpperCase()).toLowerCase().replace(/^./, c => c.toUpperCase());
+    const cityOf = v => /BLR|BENG|BANG/i.test(v) ? 'Bengaluru' : /MUM|BOM/i.test(v) ? 'Mumbai' : /DEL/i.test(v) ? 'Delhi' : 'Hyderabad';
+    for (const rm of sx.matchAll(/<row [^>]*r="(\d+)"[^>]*>([\s\S]*?)<\/row>/g)) {
+      if (+rm[1] < 3) continue; const c = {}; let yellow = false;
+      for (const cm of rm[2].matchAll(/<c ([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
+        const at = cm[1], col = (at.match(/r="([A-Z]+)\d+"/) || [])[1], t = (at.match(/t="(\w+)"/) || [])[1], sid = +((at.match(/s="(\d+)"/) || [])[1] || 0), v = ((cm[2] || '').match(/<v>([\s\S]*?)<\/v>/) || [])[1];
+        if (v == null) continue; c[col] = t === 's' ? ss[+v] : v; if (fills[xfs[sid]] === 'FFFFFF00') yellow = true;
+      }
+      if (!yellow || !c.A || !(+c.J > 0)) continue;
+      items.push({ inv: String(c.A).split('/')[0].trim(), vendor: vend(c.G || ''), city: cityOf((c.I || '') + ' ' + (c.H || '')), date: new Date(Date.UTC(1899, 11, 30) + (+c.B || 0) * 864e5).toISOString().slice(0, 10), taxablePaise: Math.round(+c.J * 100) });
+    }
+    return items;
+  }
+  $('#po-mail').addEventListener('click', () => {
+    const subj = 'Spares inventory budget update – ' + new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' });
     const w = window.open('https://outlook.cloud.microsoft/mail/deeplink/compose?subject=' + encodeURIComponent(subj), '_blank');
-    try { await navigator.clipboard.write([new ClipboardItem({ 'text/html': new Blob([html], { type: 'text/html' }), 'text/plain': new Blob([subj], { type: 'text/plain' }) })]); poFlash('Budget mail copied. In the Outlook window, click into the message body and press Ctrl+V.'); }
-    catch (e) { poFlash('Could not copy the mail (' + e.message + '). Allow clipboard access for this page and try again.'); }
+    let note = '';
+    const htmlP = (async () => {
+      try { PO_IN_TRANSIT = await poReadTracker(); PO_IN_TRANSIT_AT = new Date().toISOString(); renderPo(); note = 'In transit read from the tracker just now. '; }
+      catch (e) { note = 'Could not read the tracker (' + e.message + '), so the last saved in-transit list was used. '; }
+      return new Blob([poMailHtml()], { type: 'text/html' });
+    })();
+    navigator.clipboard.write([new ClipboardItem({ 'text/html': htmlP, 'text/plain': htmlP.then(() => new Blob([subj], { type: 'text/plain' })) })])
+      .then(() => poFlash(note + 'Budget mail copied. In the Outlook window, click into the message body and press Ctrl+V.'))
+      .catch(e => poFlash('Could not copy the mail (' + e.message + '). Allow clipboard access for this page and try again.'));
     if (!w) poFlash('Outlook was blocked as a pop-up. Allow pop-ups for this page, then press the button again.');
   });
   $('#po-form').addEventListener('submit', poSaveForm);
