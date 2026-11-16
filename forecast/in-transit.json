@@ -1,0 +1,9 @@
+{
+  "updatedAt": "2026-11-16T10:15:00+05:30",
+  "source": "Procurement Tracker-2026.xlsx, November 2026 tab, yellow rows",
+  "items": [
+    { "inv": "1766", "vendor": "Baluka", "city": "Mumbai", "date": "2026-11-05", "taxablePaise": 19809000 },
+    { "inv": "1158", "vendor": "HET Trading", "city": "Bengaluru", "date": "2026-11-05", "taxablePaise": 1260000 },
+    { "inv": "1785", "vendor": "Baluka", "city": "Bengaluru", "date": "2026-11-14", "taxablePaise": 5861000 }
+  ]
+}
