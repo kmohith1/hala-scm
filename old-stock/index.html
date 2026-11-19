@@ -28,59 +28,61 @@ a{color:var(--s1)}
 .top h1{font-size:17px;font-weight:650}
 .top .sub{color:var(--ink-mute);font-size:12px}
 .sp{flex:1}
-.wrap{max-width:1180px;margin:0 auto;padding:20px 24px 60px;display:grid;grid-template-columns:340px 1fr;gap:18px}
-@media(max-width:900px){.wrap{grid-template-columns:1fr}}
+.wrap{max-width:1240px;margin:0 auto;padding:20px 24px 60px;display:grid;grid-template-columns:330px 1fr;gap:18px}
+@media(max-width:950px){.wrap{grid-template-columns:1fr}}
 .card{background:var(--surface-1);border:1px solid var(--border);border-radius:var(--r);padding:16px}
 .card h2{font-size:13px;font-weight:650;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-2);margin-bottom:10px;display:flex;align-items:center;gap:8px}
 .stack{display:flex;flex-direction:column;gap:18px}
 label{display:block;font-size:11px;font-weight:600;color:var(--ink-mute);margin:10px 0 4px;text-transform:uppercase;letter-spacing:.04em}
 input,select,textarea{width:100%;background:var(--surface-2);color:var(--ink);border:1px solid var(--border);border-radius:var(--rs);padding:8px 10px;font-size:14px}
 input:focus,select:focus,textarea:focus{outline:2px solid var(--s1);outline-offset:-1px}
-textarea{height:170px;font-family:var(--mono);font-size:13px;resize:vertical}
+textarea{height:110px;font-family:var(--mono);font-size:13px;resize:vertical}
 .row{display:flex;gap:10px}.row>*{flex:1}
 .btn{border:1px solid var(--border);background:var(--surface-3);color:var(--ink);border-radius:var(--rs);padding:8px 14px;font-weight:600;font-size:13px;cursor:pointer;white-space:nowrap}
 .btn:hover{filter:brightness(1.15)}
 .btn.p{background:var(--s3);border-color:transparent;color:#fff}
 .btn.arm{background:var(--warn);color:#111}
+.btn.sm{padding:4px 9px;font-size:12px}
 .btn:disabled{opacity:.45;cursor:default;filter:none}
 .btns{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
-.pill{font-size:11px;padding:2px 8px;border-radius:999px;font-weight:600;text-transform:none;letter-spacing:0}
-.pill.ok{background:rgba(12,163,12,.18);color:#5ad35a}.pill.no{background:rgba(208,59,59,.18);color:#f07a7a}
-html[data-theme="light"] .pill.ok{color:#087a08} html[data-theme="light"] .pill.no{color:#b02a2a}
+.pill{font-size:11px;padding:2px 8px;border-radius:999px;font-weight:600;text-transform:none;letter-spacing:0;white-space:nowrap}
+.pill.ok{background:rgba(12,163,12,.18);color:#5ad35a}.pill.no{background:rgba(208,59,59,.18);color:#f07a7a}.pill.wait{background:rgba(250,178,25,.18);color:#f6c55a}.pill.info{background:rgba(57,135,229,.18);color:#7fb2f0}
+html[data-theme="light"] .pill.ok{color:#087a08} html[data-theme="light"] .pill.no{color:#b02a2a} html[data-theme="light"] .pill.wait{color:#8a5d00} html[data-theme="light"] .pill.info{color:#1d5fae}
 .muted{color:var(--ink-mute);font-size:12px}
 .hide{display:none!important}
 table{width:100%;border-collapse:collapse;margin-top:10px;font-size:13px}
-th,td{padding:6px 8px;border-bottom:1px solid var(--border);text-align:left}
+th,td{padding:6px 8px;border-bottom:1px solid var(--border);text-align:left;vertical-align:middle}
 th{color:var(--ink-mute);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.04em}
 td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
 .err{color:#f07a7a;font-size:13px;margin-top:4px} html[data-theme="light"] .err{color:#b02a2a}
-.log{margin-top:14px;background:var(--surface-2);border-radius:var(--rs);padding:10px 12px;font-family:var(--mono);font-size:12px;max-height:300px;overflow:auto;white-space:pre-wrap}
-.log .ok{color:#5ad35a}.log .bad{color:#f07a7a}
-html[data-theme="light"] .log .ok{color:#087a08} html[data-theme="light"] .log .bad{color:#b02a2a}
-.steps{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.log{margin-top:14px;background:var(--surface-2);border-radius:var(--rs);padding:10px 12px;font-family:var(--mono);font-size:12px;max-height:320px;overflow:auto;white-space:pre-wrap}
+.log .ok{color:#5ad35a}.log .bad{color:#f07a7a}.log .warn{color:#f6c55a}
+html[data-theme="light"] .log .ok{color:#087a08} html[data-theme="light"] .log .bad{color:#b02a2a} html[data-theme="light"] .log .warn{color:#8a5d00}
+.steps{display:flex;gap:5px;flex-wrap:wrap;margin-top:12px}
 .steps span{font-size:11px;padding:3px 8px;border-radius:999px;background:var(--surface-3);color:var(--ink-mute)}
-.steps span.on{background:var(--s1);color:#fff}.steps span.done{background:var(--s3);color:#fff}.steps span.fail{background:var(--crit);color:#fff}
+.steps span.on{background:var(--s1);color:#fff}.steps span.done{background:var(--s3);color:#fff}.steps span.fail{background:var(--crit);color:#fff}.steps span.skip{opacity:.4}
 .who{font-size:13px;margin-top:4px}
 table.rows td{padding:4px 4px}
-table.rows input{padding:6px 8px}
+table.rows input,table.rows select{padding:6px 8px}
 table.rows input.n{text-align:right}
-table.rows .x{background:none;border:0;color:var(--ink-mute);font-size:18px;cursor:pointer;padding:0 6px}
-table.rows .x:hover{color:var(--crit)}
-table.rows .nm{font-size:11px;color:var(--ink-mute);padding-left:2px}
-table.rows input.bad{outline:2px solid var(--crit);outline-offset:-1px}
-select:disabled{opacity:.85}
+.x{background:none;border:0;color:var(--ink-mute);font-size:18px;cursor:pointer;padding:0 6px}
+.x:hover{color:var(--crit)}
+table.rows .bad{outline:2px solid var(--crit);outline-offset:-1px}
+.flow{font-size:12px;color:var(--ink-mute);margin:2px 0 8px}
+.flow b{color:var(--ink-2);font-weight:600}
+.mono{font-family:var(--mono);font-size:12px}
 </style>
 </head>
 <body>
 <div class="top">
-  <div><h1>⚡ Old Stock Inward</h1><div class="sub">Put shelf stock into Cercle SCM with barcode labels — ad-hoc PO → approve → vendor invoice → GRN → labels</div></div>
+  <div><h1>⚡ Old Stock Inward</h1><div class="sub">Old shelf stock into Cercle SCM through the full MR flow — with barcode labels and onward transfers</div></div>
   <div class="sp"></div>
   <a class="muted" href="../">← SCM Command Centre</a>
   <button class="btn" id="themeBtn" title="Theme">◐</button>
 </div>
 
 <div class="wrap">
-  <!-- LEFT: connection -->
+  <!-- LEFT -->
   <div class="stack">
     <div class="card">
       <h2>Server</h2>
@@ -91,7 +93,7 @@ select:disabled{opacity:.85}
       <input id="envCustom" class="hide" placeholder="https://…/api/v1" style="margin-top:8px">
     </div>
 
-    <div class="card" id="cardAdmin">
+    <div class="card">
       <h2>Console login <span class="pill no" id="adminPill">signed out</span></h2>
       <div id="adminIn" class="hide"><div class="who" id="adminWho"></div><div class="btns"><button class="btn" id="adminOut">Sign out</button></div></div>
       <form id="aForm">
@@ -103,11 +105,11 @@ select:disabled{opacity:.85}
       </form>
     </div>
 
-    <div class="card" id="cardVendor">
+    <div class="card">
       <h2>Vendor portal login <span class="pill no" id="vendorPill">signed out</span></h2>
       <div id="vendorIn" class="hide"><div class="who" id="vendorWho"></div><div class="btns"><button class="btn" id="vendorOut">Sign out</button></div></div>
       <form id="vForm">
-        <div class="muted">Sign in as the vendor that "supplies" old stock (OLD STOCK).</div>
+        <div class="muted">Sign in as the vendor that "supplies" old stock (OLD STOCK). Needed to acknowledge the PO and submit the invoice.</div>
         <label>Email</label><input id="vEmail" type="email" autocomplete="username" required>
         <label>Password</label><input id="vPass" type="password" autocomplete="current-password" required>
         <div id="vOtpBox" class="hide"><label>OTP <span id="vHint" class="muted"></span></label><input id="vOtp" inputmode="numeric" autocomplete="one-time-code"></div>
@@ -117,66 +119,70 @@ select:disabled{opacity:.85}
     </div>
 
     <div class="card">
-      <h2>Recent runs</h2>
+      <h2>Runs</h2>
       <div id="hist" class="muted">None yet.</div>
     </div>
   </div>
 
-  <!-- RIGHT: inward -->
+  <!-- RIGHT -->
   <div class="stack">
     <div class="card">
-      <h2>Inward old stock</h2>
+      <h2>New run</h2>
+      <div class="flow"><b>MR per hub</b> → approve → route (procure) → <b>RFQ</b> → quote → <b>award + PO</b> → vendor ack → invoice → <b>GRN at Jeedimetla</b> → labels → <b>transfer to each hub</b></div>
       <div class="row">
-        <div><label>Deliver to (mother hub)</label><select id="hub"><option>Sign in to load…</option></select></div>
-        <div><label>Vendor</label><select id="vendor"></select></div>
-      </div>
-      <div class="row">
+        <div><label>Vendor</label><select id="vendor"><option>Sign in to load…</option></select></div>
         <div><label>GST %</label><input id="gst" type="number" value="18" min="0" max="28"></div>
         <div><label>Labels</label><select id="lbl"><option value="unit">One per piece</option><option value="one">One per line (box)</option></select></div>
       </div>
-      <div class="muted" style="margin-top:6px">All old stock lands at the mother hub. Move it on to other hubs with Stock Transfer in Cercle.</div>
-      <label>Items</label>
-      <table class="rows"><thead><tr><th style="width:58%">Item (type code or name)</th><th class="n" style="width:16%">Qty</th><th class="n" style="width:16%">Vendor rate</th><th></th></tr></thead><tbody id="rows"></tbody></table>
+      <label>Items — who needs what</label>
+      <table class="rows"><thead><tr><th style="width:42%">Item (type code or name)</th><th style="width:32%">For hub</th><th class="n" style="width:11%">Qty</th><th class="n" style="width:10%">Rate</th><th></th></tr></thead><tbody id="rows"></tbody></table>
       <datalist id="itemList"></datalist>
       <div class="btns" style="margin-top:8px"><button class="btn" id="addRow" type="button">+ Add item</button><button class="btn" id="pasteToggle" type="button">Paste from Excel</button><button class="btn" id="clearRows" type="button">Clear all</button></div>
       <div id="pasteBox" class="hide">
-        <label>Paste: item code · qty (one per line)</label>
-        <textarea id="items" style="height:110px" placeholder="HM-CM-E-0011	20&#10;HM-CM-M-0001	150"></textarea>
+        <label>Paste: item code · qty · hub (hub optional — part of the name is enough)</label>
+        <textarea id="items" placeholder="HM-CM-E-0011	20	GANDHI NAGAR&#10;HM-CM-M-0001	150	JEEDIMETLA"></textarea>
         <div class="btns"><button class="btn p" id="pasteAdd" type="button">Add pasted lines</button></div>
       </div>
       <div id="preview"></div>
-      <div class="btns"><button class="btn p" id="run" disabled>Run inward</button></div>
-      <div class="steps" id="steps">
-        <span data-s="po">PO</span><span data-s="ap">Approve</span><span data-s="ack">Vendor ack</span><span data-s="inv">Invoice</span><span data-s="grn">GRN</span><span data-s="lbl">Labels</span>
-      </div>
+      <div class="muted" style="margin-top:8px">Rate = random vendor rate under ₹100 per item. Goods are received at <b>HALA JEEDIMETLA</b> (mother hub); for other hubs an approved transfer is raised — dispatch &amp; receive are scanned on the handheld as usual.</div>
+      <div class="btns"><button class="btn p" id="run" disabled>Run</button></div>
+      <div class="steps" id="steps"></div>
       <div class="log" id="log">Sign in to both on the left to start.</div>
+      <div id="result"></div>
     </div>
 
     <div class="card">
-      <h2>Resume a PO · Reprint labels</h2>
+      <h2>Transfers waiting for scan <button class="btn sm" id="refreshTr" type="button" style="margin-left:auto">Refresh</button></h2>
+      <div id="trList" class="muted">Transfers raised by this page appear here with their live status.</div>
+    </div>
+
+    <div class="card">
+      <h2>Reprint labels</h2>
       <div class="row">
-        <input id="ref" placeholder="PO-26-11-00009 or GRN-26-11-00010">
-        <div style="flex:0 0 auto;display:flex;gap:8px"><button class="btn" id="resume">Resume PO</button><button class="btn" id="reprint">Reprint labels</button></div>
+        <input id="ref" placeholder="GRN-26-11-00012">
+        <div style="flex:0 0 auto"><button class="btn" id="reprint" type="button">Reprint labels</button></div>
       </div>
-      <div class="muted" style="margin-top:8px">Resume finishes a run that stopped halfway (e.g. vendor login expired) — keep the same items pasted above. Reprint fetches all labels of a GRN as one PDF.</div>
     </div>
   </div>
 </div>
 
 <script>
-/* ===== storage (tokens only; passwords are never stored) ===== */
+/* ================= storage (tokens only; passwords never stored) ================= */
 const K = 'hala_osi_';
 const S = { get:k=>localStorage.getItem(K+k), set:(k,v)=>v==null?localStorage.removeItem(K+k):localStorage.setItem(K+k,v) };
 const $ = id => document.getElementById(id);
 const esc = s => String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const Q = String.fromCharCode(63);
+const enc = encodeURIComponent;
+const jparse = s => { try{ return JSON.parse(s||'null'); }catch(e){ return null; } };
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
 
-/* ===== theme ===== */
+/* ================= theme ================= */
 const applyTheme = t => document.documentElement.setAttribute('data-theme', t);
 applyTheme(S.get('theme') || 'dark');
 $('themeBtn').onclick = () => { const t = document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark'; applyTheme(t); S.set('theme',t); };
 
-/* ===== server ===== */
+/* ================= server ================= */
 function base(){ return $('env').value==='custom' ? $('envCustom').value.trim().replace(/\/+$/,'') : $('env').value; }
 (function initEnv(){
   const saved = S.get('base');
@@ -187,13 +193,11 @@ function base(){ return $('env').value==='custom' ? $('envCustom').value.trim().
 })();
 function onEnvChange(){ S.set('base', base()); ['a_tok','a_ref','a_user','v_tok','v_user'].forEach(k=>S.set(k,null)); M=null; refreshUI(); }
 
-/* ===== API ===== */
+/* ================= API ================= */
 async function rawFetch(method, path, body, tok){
   const h = {'Content-Type':'application/json'}; if(tok) h.Authorization = 'Bearer '+tok;
-  let r;
-  try{ r = await fetch(base()+path, {method, headers:h, body: body?JSON.stringify(body):undefined}); }
-  catch(e){ throw new Error('Cannot reach '+base()+' — check the server URL / your connection.'); }
-  return r;
+  try{ return await fetch(base()+path, {method, headers:h, body: body?JSON.stringify(body):undefined}); }
+  catch(e){ throw new Error('Cannot reach '+base()+' — check the server / your connection.'); }
 }
 async function asJson(r, method, path){
   const t = await r.text(); let j; try{ j = JSON.parse(t); }catch(e){ j = {message:t}; }
@@ -216,13 +220,13 @@ async function api(method, path, body, who='admin', blob=false){
   let r = await rawFetch(method, path, body, tok);
   if(r.status===401){
     if(who==='admin' && await refreshAdmin()) r = await rawFetch(method, path, body, S.get('a_tok'));
-    else { S.set(who==='vendor'?'v_tok':'a_tok', null); refreshUI(); throw new Error((who==='vendor'?'Vendor':'Console')+' session expired — sign in again on the left, then use Resume PO.'); }
+    else { S.set(who==='vendor'?'v_tok':'a_tok', null); refreshUI(); throw new Error((who==='vendor'?'Vendor':'Console')+' session expired — sign in again on the left, then press Resume on the run.'); }
   }
   if(blob){ if(!r.ok) throw new Error(method+' '+path.split(Q)[0]+' → '+r.status+' '+(await r.text()).slice(0,200)); return r.blob(); }
   return asJson(r, method, path);
 }
 
-/* ===== logins (email + password → OTP) ===== */
+/* ================= logins (email + password → OTP) ================= */
 function wireLogin(p, who){
   const st = {stage:'pw', challenge:null};
   $(p+'Form').onsubmit = async ev => {
@@ -232,7 +236,7 @@ function wireLogin(p, who){
       if(st.stage==='pw'){
         const path = who==='admin' ? '/auth/login' : '/vendor-auth/login';
         const d = await asJson(await rawFetch('POST', path, {email, password:pass}), 'POST', path);
-        if(d && d.accessToken){ await finish(d, email); }
+        if(d && d.accessToken){ await finish(d); }
         else {
           st.stage='otp'; st.challenge = d && d.challengeToken;
           $(p+'OtpBox').classList.remove('hide'); $(p+'Hint').textContent = d && d.otpHint ? '— sent to '+d.otpHint : '';
@@ -244,20 +248,20 @@ function wireLogin(p, who){
         const body = who==='admin' ? {email, otp:Number(otp)} : {email, otp, challengeToken: st.challenge};
         const d = await asJson(await rawFetch('POST', path, body), 'POST', path);
         if(!d || !d.accessToken) throw new Error('OTP verification failed.');
-        await finish(d, email);
+        await finish(d);
       }
     }catch(e){ $(p+'Err').textContent = e.message.replace(/\s+\[.*\]$/,''); }
     $(p+'Btn').disabled = false;
   };
-  async function finish(d, email){
+  async function finish(d){
     if(who==='admin'){
       S.set('a_tok', d.accessToken); if(d.refreshToken) S.set('a_ref', d.refreshToken);
       let me = d.user; try{ me = await api('GET','/me'); }catch(e){}
-      S.set('a_user', JSON.stringify(me||{email}));
+      S.set('a_user', JSON.stringify(me||{}));
     } else {
       S.set('v_tok', d.accessToken);
       let v = d.vendor; try{ const m = await api('GET','/vendor-auth/me',null,'vendor'); v = (m && m.vendor) || m || v; }catch(e){}
-      S.set('v_user', JSON.stringify(v||{email}));
+      S.set('v_user', JSON.stringify(v||{}));
     }
     st.stage='pw'; $(p+'Pass').value=''; $(p+'Otp').value=''; $(p+'OtpBox').classList.add('hide'); $(p+'Btn').textContent='Sign in';
     refreshUI();
@@ -266,37 +270,36 @@ function wireLogin(p, who){
 wireLogin('a','admin'); wireLogin('v','vendor');
 $('adminOut').onclick = () => { ['a_tok','a_ref','a_user'].forEach(k=>S.set(k,null)); refreshUI(); };
 $('vendorOut').onclick = () => { ['v_tok','v_user'].forEach(k=>S.set(k,null)); refreshUI(); };
-
-const jparse = s => { try{ return JSON.parse(s||'null'); }catch(e){ return null; } };
 const adminUser = () => jparse(S.get('a_user')) || {};
 const vendorUser = () => jparse(S.get('v_user')) || {};
+const role = () => adminUser().role || 'Ops+inventory';
 
-/* ===== masters ===== */
-let M = null, ITEMS = new Map();
+/* ================= masters ================= */
+let M = null, ITEMS = new Map(), HUBS = [], MOTHER = null;
 async function loadMasters(){
   if(M || !S.get('a_tok')) return;
   try{
     M = await api('GET','/masters');
     ITEMS = new Map(M.items.map(i=>[String(i.itemCode).toUpperCase(), i]));
     const active = M.hubs.filter(h=>h.status!=='INACTIVE');
-    let hubs = active.filter(h=>/JEEDIMETLA/i.test(h.name) && h.hubType==='MOTHER_HUB');
-    if(!hubs.length) hubs = active.filter(h=>/JEEDIMETLA/i.test(h.name));
-    if(!hubs.length) hubs = active.filter(h=>h.hubType==='MOTHER_HUB');
-    if(!hubs.length) hubs = active;
-    hubs.sort((a,b)=>a.name.localeCompare(b.name));
-    $('hub').innerHTML = hubs.map(h=>`<option value="${esc(h.id||h.hubId)}">${esc(h.name)}</option>`).join('');
-    const jee = hubs.find(h=>/JEEDIMETLA/i.test(h.name)); if(jee) $('hub').value = jee.id||jee.hubId;
-    $('hub').disabled = hubs.length===1;
+    MOTHER = active.find(h=>/JEEDIMETLA/i.test(h.name) && h.hubType==='MOTHER_HUB') || active.find(h=>/JEEDIMETLA/i.test(h.name));
+    if(!MOTHER){ log('HALA JEEDIMETLA not found in hubs on this server.','bad'); return; }
+    const city = (MOTHER.location && MOTHER.location.city || '').toLowerCase();
+    HUBS = active.filter(h => (h.id||h.hubId)===(MOTHER.id||MOTHER.hubId) ||
+      (h.hubType!=='MOTHER_HUB' && (!city || String(h.location && h.location.city || '').toLowerCase()===city)))
+      .sort((a,b)=> (a===MOTHER?-1:b===MOTHER?1:a.name.localeCompare(b.name)));
     $('itemList').innerHTML = M.items.map(i=>`<option value="${esc(i.itemCode)} — ${esc(i.itemName)}">`).join('');
-    if(!ROWS.length) addRow();
     $('vendor').innerHTML = M.vendors.map(v=>`<option value="${esc(v.vendorCode)}">${esc(v.vendorName)}</option>`).join('');
-    const old = M.vendors.find(v=>/OLD\s*STOCK/i.test(v.vendorName)); $('vendor').value = S.get('vendor') || (old && old.vendorCode) || $('vendor').value;
-    log(`Loaded ${ITEMS.size} items, ${hubs.length} hubs, ${M.vendors.length} vendors.`, 'ok');
-    preview();
-  }catch(e){ log('Could not load masters: '+e.message, 'bad'); }
+    const old = M.vendors.find(v=>/OLD\s*STOCK/i.test(v.vendorName)); $('vendor').value = (old && old.vendorCode) || $('vendor').value;
+    if(!ROWS.length) ROWS.push(blankRow());
+    renderRows();
+    log(`Loaded ${ITEMS.size} items · ${HUBS.length} hubs (${MOTHER.name} + ${HUBS.length-1} child hubs) · ${M.vendors.length} vendors.`,'ok');
+    refreshUI();
+  }catch(e){ log('Could not load masters: '+e.message, 'bad'); M=null; }
 }
-$('hub').onchange = () => S.set('hub', $('hub').value);
-$('vendor').onchange = () => { S.set('vendor', $('vendor').value); refreshUI(); };
+$('vendor').onchange = () => refreshUI();
+const hubId = h => h.id || h.hubId;
+const hubById = id => HUBS.find(h=>hubId(h)===id) || (M && M.hubs.find(h=>hubId(h)===id));
 
 function refreshUI(){
   const a = !!S.get('a_tok'), v = !!S.get('v_tok');
@@ -307,90 +310,109 @@ function refreshUI(){
   const au = adminUser(), vu = vendorUser();
   $('adminWho').innerHTML = a ? `<b>${esc(au.fullName||au.email||'')}</b> <span class="muted">${esc(au.roleName||au.role||'')}</span>` : '';
   let warn = '';
-  if(v && vu.vendorCode && $('vendor').value && vu.vendorCode !== $('vendor').value) warn = `<div class="err">Signed in as a different vendor than the one selected.</div>`;
+  if(v && vu.vendorCode && M && vu.vendorCode !== $('vendor').value) warn = `<div class="err">Signed in as a different vendor than the one selected.</div>`;
   $('vendorWho').innerHTML = v ? `<b>${esc(vu.vendorName||vu.email||'')}</b> <span class="muted">${esc(vu.vendorCode||'')}</span>${warn}` : '';
-  $('run').disabled = !(a && v);
+  if(!BUSY) $('run').disabled = !(a && v && M);
   if(a) loadMasters();
 }
 
-/* ===== items ===== */
-/* rows: {code, qty, rate}. Vendor rate is a random whole number 1–99, fixed once per item. */
+/* ================= item rows ================= */
 let ROWS = [];
 const RATES = {};
 const rndRate = () => 1 + Math.floor(Math.random()*99);
 const rateFor = code => RATES[code] || (RATES[code] = rndRate());
+const blankRow = () => ({code:'', hub: ROWS.length ? ROWS[ROWS.length-1].hub : (MOTHER?hubId(MOTHER):''), qty:''});
 function codeOf(txt){
   const raw = String(txt||'').trim(); if(!raw) return '';
   const c = raw.split(/\s+—\s+|\s+-\s+/)[0].trim().toUpperCase();
   if(ITEMS.has(c)) return c;
-  const low = raw.toLowerCase(); // allow picking by exact name
+  const low = raw.toLowerCase();
   const byName = [...ITEMS.values()].filter(i=>String(i.itemName).toLowerCase()===low);
   return byName.length===1 ? String(byName[0].itemCode).toUpperCase() : c;
 }
-function addRow(code='', qty=''){ ROWS.push({code, qty:String(qty)}); renderRows(); const ins=$('rows').querySelectorAll('input.it'); if(!code && ins.length) ins[ins.length-1].focus(); }
+function hubOf(txt){
+  const t = String(txt||'').trim().toLowerCase(); if(!t) return '';
+  const exact = HUBS.find(h=>h.name.toLowerCase()===t); if(exact) return hubId(exact);
+  const part = HUBS.filter(h=>h.name.toLowerCase().includes(t)); return part.length===1 ? hubId(part[0]) : '?'+txt;
+}
+const hubOptions = sel => HUBS.map(h=>`<option value="${esc(hubId(h))}"${hubId(h)===sel?' selected':''}>${esc(h.name)}${h===MOTHER?' (mother — stays here)':''}</option>`).join('');
+function addRow(){ ROWS.push(blankRow()); renderRows(); const ins=$('rows').querySelectorAll('input.it'); if(ins.length) ins[ins.length-1].focus(); }
 function renderRows(){
   $('rows').innerHTML = ROWS.map((r,i)=>{
-    const it = ITEMS.get(r.code);
-    const shown = it ? `${it.itemCode} — ${it.itemName}` : r.code;
+    const it = ITEMS.get(r.code), shown = it ? `${it.itemCode} — ${it.itemName}` : r.code;
+    const badHub = r.hub && !hubById(r.hub);
+    const qbad = r.qty!=='' && !(Number(r.qty)>0 && Number.isInteger(Number(r.qty)));
     return `<tr data-i="${i}">
       <td><input class="it${r.code&&!it?' bad':''}" list="itemList" value="${esc(shown)}" placeholder="e.g. HORN or HM-CM-E-0011"></td>
-      <td><input class="q n${r.qty!==''&&!(Number(r.qty)>0&&Number.isInteger(Number(r.qty)))?' bad':''}" type="number" min="1" step="1" value="${esc(r.qty)}" placeholder="0"></td>
+      <td><select class="hb${badHub||!r.hub?' bad':''}"><option value="">Pick hub…</option>${hubOptions(r.hub)}</select></td>
+      <td><input class="q n${qbad?' bad':''}" type="number" min="1" step="1" value="${esc(r.qty)}" placeholder="0"></td>
       <td class="n">${it?'₹'+rateFor(it.itemCode):'—'}</td>
       <td><button class="x" type="button" title="Remove">×</button></td></tr>`;
   }).join('');
   $('rows').querySelectorAll('tr').forEach(tr=>{
-    const i = +tr.dataset.i;
-    const itIn = tr.querySelector('input.it'), qIn = tr.querySelector('input.q');
-    itIn.onchange = () => { ROWS[i].code = codeOf(itIn.value); renderRows(); const q=$('rows').querySelectorAll('input.q')[i]; if(q && ITEMS.has(ROWS[i].code)) q.focus(); };
+    const i = +tr.dataset.i, itIn = tr.querySelector('input.it'), qIn = tr.querySelector('input.q'), hb = tr.querySelector('select.hb');
+    itIn.onchange = () => { ROWS[i].code = codeOf(itIn.value); renderRows(); };
+    hb.onchange = () => { ROWS[i].hub = hb.value; renderRows(); };
     qIn.oninput = () => { ROWS[i].qty = qIn.value; preview(); disarm(); };
     qIn.onchange = () => renderRows();
-    qIn.onkeydown = e => { if(e.key==='Enter'){ e.preventDefault(); addRow(); } };
-    tr.querySelector('.x').onclick = () => { ROWS.splice(i,1); if(!ROWS.length) ROWS.push({code:'',qty:''}); renderRows(); };
+    qIn.onkeydown = e => { if(e.key==='Enter'){ e.preventDefault(); ROWS[i].qty = qIn.value; addRow(); } };
+    tr.querySelector('.x').onclick = () => { ROWS.splice(i,1); if(!ROWS.length) ROWS.push(blankRow()); renderRows(); };
   });
   preview(); disarm();
 }
-$('addRow').onclick = () => addRow();
-$('clearRows').onclick = () => { ROWS=[{code:'',qty:''}]; renderRows(); };
+$('addRow').onclick = addRow;
+$('clearRows').onclick = () => { ROWS=[]; ROWS.push(blankRow()); renderRows(); };
 $('pasteToggle').onclick = () => { $('pasteBox').classList.toggle('hide'); if(!$('pasteBox').classList.contains('hide')) $('items').focus(); };
 $('pasteAdd').onclick = () => {
-  const lines = $('items').value.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
   ROWS = ROWS.filter(r=>r.code||r.qty);
-  lines.forEach((l,n)=>{ const c=l.split(/\t|,|;|\s+/).filter(Boolean); if(n===0 && /item|code/i.test(c[0])) return; ROWS.push({code:codeOf(c[0]), qty:String(c[1]||'')}); });
-  if(!ROWS.length) ROWS.push({code:'',qty:''});
+  $('items').value.split(/\r?\n/).map(l=>l.trim()).filter(Boolean).forEach((l,n)=>{
+    const c = l.split('\t').length>1 ? l.split('\t') : l.split(/,|;/);
+    const cells = c.map(s=>s.trim());
+    if(n===0 && /item|code/i.test(cells[0])) return;
+    const hubTxt = cells.slice(2).join(' ').trim();
+    ROWS.push({code:codeOf(cells[0]), qty:String(cells[1]||''), hub: hubTxt ? hubOf(hubTxt) : (MOTHER?hubId(MOTHER):'')});
+  });
+  if(!ROWS.length) ROWS.push(blankRow());
   $('items').value=''; $('pasteBox').classList.add('hide'); renderRows();
 };
 
+/* groups = one MR per hub; lines merged by item */
 function parse(){
-  const out=[], errs=[];
+  const groups = new Map(), errs = [];
   ROWS.forEach((r,n)=>{
     if(!r.code && r.qty==='') return;
-    const it = ITEMS.get(r.code), qty = Number(r.qty);
-    if(!it) errs.push(`Row ${n+1}: pick an item from the list`);
-    else if(!(qty>0) || !Number.isInteger(qty)) errs.push(`Row ${n+1}: enter a whole quantity for ${it.itemName}`);
-    else {
-      const ex = out.find(o=>o.itemCode===it.itemCode);
-      if(ex) ex.quantity += qty; else out.push({itemCode:it.itemCode, name:it.itemName, quantity:qty, rate:rateFor(it.itemCode)});
-    }
+    const it = ITEMS.get(r.code), qty = Number(r.qty), hub = hubById(r.hub);
+    if(!it) return errs.push(`Row ${n+1}: pick an item from the list`);
+    if(!hub) return errs.push(`Row ${n+1}: pick the hub for ${it.itemName}`);
+    if(!(qty>0) || !Number.isInteger(qty)) return errs.push(`Row ${n+1}: enter a whole quantity for ${it.itemName}`);
+    const id = hubId(hub);
+    if(!groups.has(id)) groups.set(id, {hubId:id, hubName:hub.name, lines:[]});
+    const g = groups.get(id), ex = g.lines.find(l=>l.itemCode===it.itemCode);
+    if(ex) ex.quantity += qty; else g.lines.push({itemCode:it.itemCode, name:it.itemName, quantity:qty});
   });
-  return {lines:out, errs};
+  return {groups:[...groups.values()], errs};
 }
 function preview(){
-  if(!M){ $('preview').innerHTML=''; return {lines:[],errs:['Sign in first']}; }
-  const {lines, errs} = parse();
-  const tot = lines.reduce((s,l)=>s+l.quantity,0), val = lines.reduce((s,l)=>s+l.quantity*l.rate,0);
-  $('preview').innerHTML = (lines.length ? `<div class="muted" style="margin-top:8px"><b style="color:var(--ink)">${lines.length} item(s) · ${tot} pcs</b> · vendor value ₹${val.toLocaleString('en-IN')} + GST</div>` : '') + errs.map(e=>`<div class="err">${esc(e)}</div>`).join('');
-  return {lines, errs};
+  if(!M){ $('preview').innerHTML=''; return {groups:[],errs:['Sign in first']}; }
+  const {groups, errs} = parse();
+  const pcs = groups.reduce((s,g)=>s+g.lines.reduce((a,l)=>a+l.quantity,0),0);
+  const val = groups.reduce((s,g)=>s+g.lines.reduce((a,l)=>a+l.quantity*rateFor(l.itemCode),0),0);
+  $('preview').innerHTML = (groups.length ? `<div class="muted" style="margin-top:8px"><b style="color:var(--ink)">${groups.length} MR(s) · ${pcs} pcs</b> · ${groups.map(g=>esc(g.hubName)+' '+g.lines.reduce((a,l)=>a+l.quantity,0)).join(' · ')} · vendor value ₹${val.toLocaleString('en-IN')} + GST</div>` : '')
+    + errs.map(e=>`<div class="err">${esc(e)}</div>`).join('');
+  return {groups, errs};
 }
 
-/* ===== log + steps ===== */
+/* ================= log + steps ================= */
+const STEPS = [['mr','MRs'],['ap','Approve'],['rt','Route'],['rfq','RFQ'],['qt','Quote'],['aw','Award + PO'],['ack','Vendor ack'],['inv','Invoice'],['grn','GRN'],['lbl','Labels'],['trf','Transfers']];
+$('steps').innerHTML = STEPS.map(([k,t])=>`<span data-s="${k}">${t}</span>`).join('');
+function step(s, state){ const e=document.querySelector(`#steps [data-s="${s}"]`); if(e) e.className=state||''; }
+function resetSteps(){ document.querySelectorAll('#steps span').forEach(e=>e.className=''); }
 function log(m, cls){
   const box=$('log'); if(box.dataset.fresh!=='0'){ box.textContent=''; box.dataset.fresh='0'; }
   const d=document.createElement('div'); if(cls) d.className=cls; d.textContent = new Date().toLocaleTimeString('en-IN',{hour12:false})+'  '+m; box.appendChild(d); box.scrollTop=1e9;
 }
-function step(s, state){ const e=document.querySelector(`#steps [data-s="${s}"]`); if(e){ e.className=state||''; } }
-function resetSteps(){ document.querySelectorAll('#steps span').forEach(e=>e.className=''); }
 
-/* ===== placeholder invoice PDF ===== */
+/* ================= placeholder invoice PDF ================= */
 function notePdfBase64(lines){
   const clean = s => String(s).replace(/[()\\]/g,'').replace(/[^\x20-\x7E]/g,'');
   let y=800, txt='';
@@ -405,120 +427,279 @@ function notePdfBase64(lines){
   return btoa(pdf);
 }
 
-/* ===== workflow ===== */
-const enc = encodeURIComponent;
-async function vendorSteps(po, lines){
-  const vu = vendorUser();
-  if(vu.vendorCode && vu.vendorCode !== $('vendor').value) throw new Error(`Vendor portal is signed in as ${vu.vendorName||vu.vendorCode}, not the selected vendor.`);
-  step('ack','on');
-  try{ await api('POST',`/vendor-portal/purchase-orders/${enc(po)}/acknowledge`,{},'vendor'); log('✓ Vendor acknowledged '+po,'ok'); }
-  catch(e){ if(/already|acknowledg/i.test(e.message)) log('· Already acknowledged'); else { step('ack','fail'); throw e; } }
-  step('ack','done'); step('inv','on');
-  const pdf = notePdfBase64(['Old stock opening - no purchase', 'PO '+po, 'Hub: '+$('hub').selectedOptions[0].text,
-    'Created by Old Stock Inward on '+new Date().toLocaleString('en-IN'), ...lines.map(l=>`${l.itemCode}  x ${l.quantity}`)]);
-  try{
-    const inv = await api('POST',`/vendor-portal/purchase-orders/${enc(po)}/invoices`,
-      {vendorInvoiceRef:'OLDSTOCK-'+po, invoicePdf:pdf, invoicePdfName:'old-stock-'+po+'.pdf', lines:lines.map(l=>({itemCode:l.itemCode, quantity:l.quantity}))}, 'vendor');
-    log(`✓ Invoice ${inv.invoiceNumber} submitted`,'ok');
-  }catch(e){ if(/exceed|already|nothing|open quantity/i.test(e.message)) log('· Invoice already submitted ('+e.message.slice(0,90)+')'); else { step('inv','fail'); throw e; } }
-  step('inv','done');
+/* ================= runs (saved after every step, so any run can resume) ================= */
+const getRuns = () => jparse(S.get('runs')) || [];
+function saveRun(R){ const rs = getRuns().filter(x=>x.id!==R.id); rs.unshift(R); S.set('runs', JSON.stringify(rs.slice(0,25))); renderHist(); renderTransfers(); }
+const sumProcure = R => {
+  const tot = {};
+  R.groups.forEach(g=>{ if(g.skip || !g.route) return; Object.entries(g.route.procure||{}).forEach(([c,q])=>{ if(q>0) tot[c]=(tot[c]||0)+q; }); });
+  return tot;
+};
+
+async function findMrId(no){
+  try{ const d = await api('GET',`/material-requests/${enc(no)}`); if(d && d.id) return d.id; }catch(e){}
+  const list = await api('GET','/material-requests');
+  const arr = Array.isArray(list) ? list : (list.items||list.rows||[]);
+  const m = arr.find(x=>x.requestNumber===no); if(!m) throw new Error('Created '+no+' but could not find it in the MR list.');
+  return m.id;
 }
-async function grnStep(po, lines){
-  step('grn','on');
-  const perUnit = $('lbl').value==='unit';
-  const g = await api('POST','/grns',{poNumber:po, lines:lines.map(l=>({itemCode:l.itemCode, receivedQuantity:l.quantity, acceptedQuantity:l.quantity,
-    damagedQuantity:0, qualityRejectedQuantity:0, shortageQuantity:0, packageCount: perUnit?l.quantity:1}))}).catch(e=>{ step('grn','fail'); throw e; });
-  log(`✓ ${g.grnNumber} posted · ${g.labelsCreated} label(s) minted · ${g.receiptStatus}`,'ok'); step('grn','done');
-  return g.grnNumber;
+
+async function runFlow(R){
+  const JEE = R.motherId;
+  const v = vendorUser();
+  if(!S.get('v_tok')) throw new Error('Vendor portal is not signed in (left panel).');
+  if(v.vendorCode && v.vendorCode!==R.vendorCode) throw new Error(`Vendor portal is signed in as ${v.vendorName||v.vendorCode}, but this run uses ${R.vendorName}.`);
+
+  /* 1 · MRs */
+  step('mr','on');
+  for(const g of R.groups){
+    if(g.mr) continue;
+    const d = await api('POST','/material-requests',{hubId:g.hubId, requestType:'REGULAR_REPLENISHMENT', priority:'LOW', lines:g.lines.map(l=>({itemCode:l.itemCode, quantity:l.quantity}))});
+    g.mr = {no:d.requestNumber}; g.mr.id = await findMrId(d.requestNumber); saveRun(R);
+    log(`✓ ${g.mr.no} raised for ${g.hubName}`,'ok');
+  }
+  step('mr','done');
+
+  /* 2 · approve */
+  step('ap','on');
+  for(const g of R.groups){
+    if(g.approved) continue;
+    try{ await api('POST',`/material-requests/${g.mr.id}/approve`,{actorRole:role()}); log(`✓ ${g.mr.no} approved`,'ok'); }
+    catch(e){ if(!/only PENDING_APPROVAL/i.test(e.message)) throw e; log(`· ${g.mr.no} already approved`); }
+    g.approved = true; saveRun(R);
+  }
+  step('ap','done');
+
+  /* 3 · route */
+  step('rt','on');
+  for(const g of R.groups){
+    if(g.route || g.skip) continue;
+    const pv = await api('GET',`/material-requests/${g.mr.id}/route-preview`);
+    if(pv.motherHubId && pv.motherHubId!==JEE){
+      g.skip = `mother hub is ${pv.motherHubName}, not ${R.motherName}`; saveRun(R);
+      log(`⚠ ${g.mr.no} (${g.hubName}) skipped — ${g.skip}. It stays APPROVED; reject it in Cercle if not needed.`,'warn'); continue;
+    }
+    const d = await api('POST',`/material-requests/${g.mr.id}/route`,{actorRole:role()});
+    g.route = {route:d.route, status:d.mrStatus||d.resultingStatus, procure:d.procureLines||{}, transfer:d.transferNumber||null};
+    saveRun(R);
+    const pq = Object.values(g.route.procure).reduce((a,b)=>a+b,0);
+    log(`✓ ${g.mr.no} routed: ${g.route.route}${pq?` · procure ${pq} pcs`:''}${g.route.transfer?` · transfer ${g.route.transfer} (Jeedimetla already had stock)`:''}`,'ok');
+  }
+  step('rt','done');
+
+  const tot = sumProcure(R);
+  const procMrs = R.groups.filter(g=>!g.skip && g.route && Object.values(g.route.procure||{}).some(q=>q>0));
+  if(!procMrs.length){
+    ['rfq','qt','aw','ack','inv','grn','lbl'].forEach(s=>step(s,'skip'));
+    log('Nothing needs buying — Jeedimetla already holds this stock in the system.','warn');
+  } else {
+    /* 4 · RFQ */
+    step('rfq','on');
+    if(!R.rfq){
+      const due = new Date(Date.now()+86400000).toISOString().slice(0,10);
+      const d = await api('POST','/rfqs',{requestNumbers:procMrs.map(g=>g.mr.no), vendorCodes:[R.vendorCode], responseDueDate:due, includePlanningQty:false});
+      R.rfq = d.rfqNumber; saveRun(R); log(`✓ ${R.rfq} sent to ${R.vendorName}`,'ok');
+    }
+    step('rfq','done');
+
+    /* 5 · quote */
+    step('qt','on');
+    if(!R.quote){
+      const d = await api('POST','/quotations',{rfqNumber:R.rfq, vendorCode:R.vendorCode, deliveryTatDays:1,
+        lines:Object.keys(tot).map(c=>({itemCode:c, unitPrice:R.rates[c]||rndRate(), gstRate:R.gst}))});
+      R.quote = d.quotationNumber; saveRun(R); log(`✓ Quote ${R.quote} recorded · ₹${d.totalValue}`,'ok');
+    }
+    step('qt','done');
+
+    /* 6 · compare + award (creates PO and auto-approves it) */
+    step('aw','on');
+    if(!R.po){
+      if(!R.awr){ const c = await api('POST',`/rfqs/${enc(R.rfq)}/compare`,{}); R.awr = c.recommendationNumber; saveRun(R); log(`✓ Compared · ${R.awr}`,'ok'); }
+      const a = await api('POST',`/recommendations/${enc(R.awr)}/approve`,{actorRole:role()});
+      R.po = a.poNumber; saveRun(R);
+      if(a.poStatus && a.poStatus!=='APPROVED'){ await api('POST',`/purchase-orders/${enc(R.po)}/approve`,{actorRole:role()}); }
+      log(`✓ Award approved → ${R.po} (approved)`,'ok');
+    }
+    step('aw','done');
+
+    /* 7 · vendor ack */
+    step('ack','on');
+    if(!R.ack){
+      try{ await api('POST',`/vendor-portal/purchase-orders/${enc(R.po)}/acknowledge`,{},'vendor'); log(`✓ Vendor acknowledged ${R.po}`,'ok'); }
+      catch(e){ if(!/already|acknowledg/i.test(e.message)) throw e; log('· Already acknowledged'); }
+      R.ack = true; saveRun(R);
+    }
+    step('ack','done');
+
+    /* 8 · invoice */
+    step('inv','on');
+    if(!R.inv){
+      const pdf = notePdfBase64(['Old stock opening - no purchase', 'PO '+R.po+'  RFQ '+R.rfq, 'Delivered to '+R.motherName,
+        'MRs: '+procMrs.map(g=>g.mr.no+' ('+g.hubName+')').join(', '), 'Created by Old Stock Inward on '+new Date().toLocaleString('en-IN'),
+        ...Object.entries(tot).map(([c,q])=>`${c}  x ${q}`)]);
+      try{
+        const d = await api('POST',`/vendor-portal/purchase-orders/${enc(R.po)}/invoices`,
+          {vendorInvoiceRef:'OLDSTOCK-'+R.po, invoicePdf:pdf, invoicePdfName:'old-stock-'+R.po+'.pdf', lines:Object.entries(tot).map(([c,q])=>({itemCode:c, quantity:q}))}, 'vendor');
+        R.inv = d.invoiceNumber; log(`✓ Invoice ${R.inv} submitted`,'ok');
+      }catch(e){ if(!/exceed|already|nothing|open quantity/i.test(e.message)) throw e; R.inv = 'existing'; log('· Invoice already submitted'); }
+      saveRun(R);
+    }
+    step('inv','done');
+
+    /* 9 · GRN at Jeedimetla */
+    step('grn','on');
+    if(!R.grn){
+      const perUnit = R.lbl==='unit';
+      const g = await api('POST','/grns',{poNumber:R.po, lines:Object.entries(tot).map(([c,q])=>({itemCode:c, receivedQuantity:q, acceptedQuantity:q,
+        damagedQuantity:0, qualityRejectedQuantity:0, shortageQuantity:0, packageCount: perUnit?q:1}))});
+      R.grn = g.grnNumber; saveRun(R);
+      log(`✓ ${R.grn} posted at ${R.motherName} · ${g.labelsCreated} label(s) · ${g.receiptStatus}`,'ok');
+    }
+    step('grn','done');
+
+    /* 10 · labels */
+    step('lbl','on');
+    if(!R.labels){ await labels(R.grn); R.labels = true; saveRun(R); }
+    step('lbl','done');
+  }
+
+  /* 11 · transfers to child hubs */
+  step('trf','on');
+  for(const g of R.groups){
+    if(g.skip || !g.route || g.hubId===JEE || g.transfer) continue;
+    const lines = Object.entries(g.route.procure||{}).filter(([,q])=>q>0).map(([c,q])=>({itemCode:c, quantity:q}));
+    if(!lines.length) continue;
+    const d = await api('POST','/transfers',{fromHubId:JEE, toHubId:g.hubId, purpose:'REPLENISH', lines});
+    g.transfer = {no:d.transferNumber, status:d.status}; saveRun(R);
+    if(d.status && !/APPROVED|DISPATCHED|RECEIVED/.test(d.status)){
+      await api('POST',`/transfers/${enc(d.transferNumber)}/approve`,{actorRole:role()}); g.transfer.status='APPROVED'; saveRun(R);
+    }
+    log(`✓ ${g.transfer.no} ${R.motherName} → ${g.hubName} · ${lines.reduce((a,l)=>a+l.quantity,0)} pcs · ${g.transfer.status}`,'ok');
+  }
+  step('trf','done');
+  R.done = true; R.err = null; saveRun(R);
+  log('DONE — dispatch & receive the transfers by scanning on the handheld.','ok');
 }
+
+/* ================= labels ================= */
 let pdfLib;
 async function labels(grn){
-  step('lbl','on');
-  try{
-    const meta = await api('GET',`/grns/${enc(grn)}/labels/print-meta`);
-    const n = meta.mode==='SYNC' ? 1 : (meta.chunkCount||1);
-    log(`Fetching ${meta.labelsCreated} label(s)${n>1?` in ${n} parts`:''}…`);
-    const blobs=[];
-    for(let c=1;c<=n;c++){ blobs.push(await api('GET',`/grns/${enc(grn)}/labels/pdf`+(n>1?`${Q}chunk=${c}`:''),null,'admin',true)); if(n>1) log(`  part ${c}/${n}`); }
-    let out = blobs[0];
-    if(blobs.length>1){
-      pdfLib = pdfLib || await import('https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/+esm');
-      const merged = await pdfLib.PDFDocument.create();
-      for(const b of blobs){ const d = await pdfLib.PDFDocument.load(await b.arrayBuffer()); (await merged.copyPages(d, d.getPageIndices())).forEach(p=>merged.addPage(p)); }
-      out = new Blob([await merged.save()],{type:'application/pdf'}); log('✓ Merged into one PDF','ok');
-    }
-    const url = URL.createObjectURL(out);
-    const a = document.createElement('a'); a.href=url; a.download=`${grn}-labels.pdf`; document.body.appendChild(a); a.click(); a.remove();
-    window.open(url,'_blank');
-    log(`✓ ${grn}-labels.pdf downloaded and opened for printing`,'ok'); step('lbl','done');
-  }catch(e){ step('lbl','fail'); throw e; }
-}
-function disarm(){ $('run').dataset.armed=''; $('run').textContent='Run inward'; $('run').classList.remove('arm'); }
-const busy = b => ['run','resume','reprint'].forEach(k=>$(k).disabled = b || (k==='run' && !(S.get('a_tok')&&S.get('v_tok'))));
-
-$('run').onclick = async () => {
-  const {lines, errs} = preview();
-  if(errs.length || !lines.length){ log(errs.length?'Fix the errors in the table first.':'Paste at least one item.','bad'); return; }
-  const hubName=$('hub').selectedOptions[0].text, vName=$('vendor').selectedOptions[0].text, tot=lines.reduce((s,l)=>s+l.quantity,0);
-  const sig = JSON.stringify([lines,$('hub').value,$('vendor').value,$('gst').value,$('lbl').value]);
-  if($('run').dataset.armed!==sig){ $('run').dataset.armed=sig; $('run').textContent=`Confirm: ${tot} pcs → ${hubName}`; $('run').classList.add('arm'); log(`Check the table, then press again to inward ${tot} pcs (${lines.length} item(s)) to ${hubName} from ${vName}.`); return; }
-  disarm(); busy(true); resetSteps(); let po;
-  try{
-    step('po','on');
-    const p = await api('POST','/purchase-orders/adhoc',{vendorCode:$('vendor').value, deliveryHubId:$('hub').value,
-      lines:lines.map(l=>({itemCode:l.itemCode, quantity:l.quantity, rate:l.rate, gstRate:Number($('gst').value)||0}))}).catch(e=>{ step('po','fail'); throw e; });
-    po = p.poNumber; log(`✓ ${po} raised (₹${p.totalAmount})`,'ok'); step('po','done');
-    addHist({po, hub:hubName, pcs:tot, at:Date.now(), status:'PO raised'});
-    step('ap','on');
-    const ap = await api('POST',`/purchase-orders/${enc(po)}/approve`,{actorRole: adminUser().role || 'Ops+inventory'}).catch(e=>{ step('ap','fail'); throw e; });
-    log(`✓ ${po} ${ap && ap.status ? ap.status.toLowerCase() : 'approved'}`,'ok'); step('ap','done');
-    await vendorSteps(po, lines);
-    const grn = await grnStep(po, lines);
-    addHist({po, grn, hub:hubName, pcs:tot, at:Date.now(), status:'Done'});
-    await labels(grn);
-    log(`DONE — ${po} → ${grn}`,'ok');
-  }catch(e){
-    log('✗ '+e.message,'bad');
-    if(po){ log(`Nothing is lost. Fix the issue, keep these items pasted, type ${po} below and press Resume PO.`); $('ref').value = po; addHist({po, hub:hubName, pcs:tot, at:Date.now(), status:'Stopped — resume'}); }
+  const meta = await api('GET',`/grns/${enc(grn)}/labels/print-meta`);
+  const n = meta.mode==='SYNC' ? 1 : (meta.chunkCount||1);
+  log(`Fetching ${meta.labelsCreated} label(s)${n>1?` in ${n} parts`:''}…`);
+  const blobs=[];
+  for(let c=1;c<=n;c++){ blobs.push(await api('GET',`/grns/${enc(grn)}/labels/pdf`+(n>1?`${Q}chunk=${c}`:''),null,'admin',true)); if(n>1) log(`  part ${c}/${n}`); }
+  let out = blobs[0];
+  if(blobs.length>1){
+    pdfLib = pdfLib || await import('https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/+esm');
+    const merged = await pdfLib.PDFDocument.create();
+    for(const b of blobs){ const d = await pdfLib.PDFDocument.load(await b.arrayBuffer()); (await merged.copyPages(d, d.getPageIndices())).forEach(p=>merged.addPage(p)); }
+    out = new Blob([await merged.save()],{type:'application/pdf'}); log('✓ Merged into one PDF','ok');
   }
-  busy(false);
+  const url = URL.createObjectURL(out);
+  const a = document.createElement('a'); a.href=url; a.download=`${grn}-labels.pdf`; document.body.appendChild(a); a.click(); a.remove();
+  window.open(url,'_blank');
+  log(`✓ ${grn}-labels.pdf downloaded and opened for printing`,'ok');
+}
+
+/* ================= run / resume ================= */
+let BUSY = false;
+function busy(b){ BUSY=b; $('run').disabled = b || !(S.get('a_tok')&&S.get('v_tok')&&M); $('reprint').disabled=b; document.querySelectorAll('#hist button').forEach(x=>x.disabled=b); }
+function disarm(){ $('run').dataset.armed=''; $('run').textContent='Run'; $('run').classList.remove('arm'); }
+
+async function execute(R){
+  busy(true); resetSteps(); $('result').innerHTML='';
+  try{ await runFlow(R); }
+  catch(e){
+    const cur = document.querySelector('#steps span.on'); if(cur) cur.className='fail';
+    R.err = e.message; saveRun(R);
+    log('✗ '+e.message,'bad');
+    log('Nothing is lost — everything done so far is saved. Fix the issue, then press Resume on this run (Runs, left).','warn');
+  }
+  showResult(R); busy(false);
+}
+$('run').onclick = async () => {
+  const {groups, errs} = preview();
+  if(errs.length || !groups.length){ log(errs.length?'Fix the errors under the table first.':'Add at least one item.','bad'); return; }
+  const pcs = groups.reduce((s,g)=>s+g.lines.reduce((a,l)=>a+l.quantity,0),0);
+  const sig = JSON.stringify([groups, $('vendor').value, $('gst').value, $('lbl').value]);
+  if($('run').dataset.armed!==sig){
+    $('run').dataset.armed=sig; $('run').textContent=`Confirm: ${groups.length} MR(s), ${pcs} pcs`; $('run').classList.add('arm');
+    log(`Check the rows, then press again. This raises ${groups.length} MR(s), buys from ${$('vendor').selectedOptions[0].text}, receives ${pcs} pcs at ${MOTHER.name} and raises transfers to the other hubs.`);
+    return;
+  }
+  disarm();
+  const rates = {}; groups.forEach(g=>g.lines.forEach(l=>rates[l.itemCode]=rateFor(l.itemCode)));
+  const R = {id:'R'+Date.now(), at:Date.now(), base:base(), vendorCode:$('vendor').value, vendorName:$('vendor').selectedOptions[0].text,
+    gst:Number($('gst').value)||0, lbl:$('lbl').value, motherId:hubId(MOTHER), motherName:MOTHER.name, rates, groups};
+  saveRun(R);
+  await execute(R);
 };
 
-$('resume').onclick = async () => {
-  const po = $('ref').value.trim().toUpperCase(); if(!/^PO-/.test(po)){ log('Type the PO number first.','bad'); return; }
-  const {lines, errs} = preview(); if(errs.length || !lines.length){ log('Add the same items and quantities as that PO above first.','bad'); return; }
-  busy(true); resetSteps(); step('po','done');
-  try{
-    try{ await api('POST',`/purchase-orders/${enc(po)}/approve`,{actorRole: adminUser().role || 'Ops+inventory'}); log(`✓ ${po} approved`,'ok'); }
-    catch(e){ log('· Approve skipped: '+e.message.slice(0,90)); }
-    step('ap','done');
-    await vendorSteps(po, lines);
-    const grn = await grnStep(po, lines);
-    addHist({po, grn, hub:$('hub').selectedOptions[0].text, pcs:lines.reduce((s,l)=>s+l.quantity,0), at:Date.now(), status:'Done'});
-    await labels(grn);
-    log(`DONE — ${po} → ${grn}`,'ok');
-  }catch(e){ log('✗ '+e.message,'bad'); }
-  busy(false);
+function showResult(R){
+  $('result').innerHTML = `<table><tr><th>Hub</th><th>MR</th><th>Route</th><th class="n">Pcs</th><th>Transfer</th></tr>${R.groups.map(g=>`<tr>
+    <td>${esc(g.hubName)}</td><td class="mono">${esc(g.mr?g.mr.no:'—')}</td>
+    <td>${g.skip?`<span class="pill no" title="${esc(g.skip)}">skipped</span>`:g.route?`<span class="pill info">${esc(g.route.route)}</span>`:'—'}</td>
+    <td class="n">${g.lines.reduce((a,l)=>a+l.quantity,0)}</td>
+    <td class="mono">${g.hubId===R.motherId?'<span class="muted">stays at mother hub</span>':esc((g.transfer&&g.transfer.no)||(g.route&&g.route.transfer)||'—')}</td></tr>`).join('')}</table>
+    <div class="muted" style="margin-top:6px">${[R.rfq,R.quote,R.awr,R.po,R.inv&&R.inv!=='existing'?R.inv:null,R.grn].filter(Boolean).map(esc).join(' → ')}</div>`;
+}
+
+/* ================= runs list ================= */
+function renderHist(){
+  const rs = getRuns(); if(!rs.length){ $('hist').textContent='None yet.'; return; }
+  $('hist').innerHTML = `<table>${rs.slice(0,12).map(R=>{
+    const pcs = R.groups.reduce((s,g)=>s+g.lines.reduce((a,l)=>a+l.quantity,0),0);
+    const st = R.done ? '<span class="pill ok">done</span>' : R.err ? '<span class="pill no">stopped</span>' : '<span class="pill wait">in progress</span>';
+    return `<tr><td><div>${st} <span class="muted">${new Date(R.at).toLocaleString('en-IN',{dateStyle:'short',timeStyle:'short'})}</span></div>
+      <div class="muted">${R.groups.length} hub(s) · ${pcs} pcs${R.po?' · '+esc(R.po):''}${R.grn?' · '+esc(R.grn):''}</div>
+      ${R.err?`<div class="err" style="font-size:12px">${esc(R.err.replace(/\s+\[.*\]$/,'').slice(0,140))}</div>`:''}</td>
+      <td style="white-space:nowrap">${!R.done?`<button class="btn sm" data-res="${R.id}">Resume</button>`:''}${R.grn?` <button class="btn sm" data-lbl="${esc(R.grn)}">Labels</button>`:''} <button class="btn sm" data-show="${R.id}">View</button></td></tr>`;
+  }).join('')}</table>`;
+  $('hist').querySelectorAll('[data-res]').forEach(b=>b.onclick=()=>{ const R=getRuns().find(x=>x.id===b.dataset.res); if(R){ if(R.base && R.base!==base()){ log('This run was made on '+R.base+' — switch the server first.','bad'); return; } log('Resuming run from '+new Date(R.at).toLocaleString('en-IN')+'…'); execute(R); } });
+  $('hist').querySelectorAll('[data-lbl]').forEach(b=>b.onclick=async()=>{ busy(true); try{ await labels(b.dataset.lbl); }catch(e){ log('✗ '+e.message,'bad'); } busy(false); });
+  $('hist').querySelectorAll('[data-show]').forEach(b=>b.onclick=()=>{ const R=getRuns().find(x=>x.id===b.dataset.show); if(R) showResult(R); });
+}
+
+/* ================= transfers tracker ================= */
+const TR_STATUS = {APPROVED:['wait','waiting for dispatch scan'], PROPOSED:['wait','proposed'], DISPATCHED:['info','in transit — waiting for receive scan'], IN_TRANSIT:['info','in transit'],
+  RECEIVED:['ok','received'], RECEIVED_WITH_DISCREPANCY:['no','received short'], REVERSED:['no','reversed'], CANCELLED:['no','cancelled']};
+function allTransfers(){
+  const out=[];
+  getRuns().forEach(R=>R.groups.forEach(g=>{
+    const n = (g.transfer&&g.transfer.no) || (g.route&&g.route.transfer); if(!n) return;
+    out.push({n, hub:g.hubName, pcs:g.lines.reduce((a,l)=>a+l.quantity,0), status:(g.transfer&&g.transfer.status)||'APPROVED', run:R.id, at:R.at, base:R.base});
+  }));
+  return out;
+}
+function renderTransfers(){
+  const ts = allTransfers().filter(t=>!t.base || t.base===base());
+  if(!ts.length){ $('trList').textContent='Transfers raised by this page appear here with their live status.'; return; }
+  $('trList').innerHTML = `<table><tr><th>Transfer</th><th>To hub</th><th class="n">Pcs</th><th>Status</th></tr>${ts.slice(0,40).map(t=>{
+    const [c,txt] = TR_STATUS[t.status] || ['info', t.status];
+    return `<tr><td class="mono">${esc(t.n)}</td><td>${esc(t.hub)}</td><td class="n">${t.pcs}</td><td><span class="pill ${c}">${esc(txt)}</span></td></tr>`;
+  }).join('')}</table>`;
+}
+$('refreshTr').onclick = async () => {
+  if(!S.get('a_tok')){ log('Sign in to the console to refresh transfer status.','bad'); return; }
+  const rs = getRuns(); let n=0;
+  for(const R of rs){ if(R.base && R.base!==base()) continue;
+    for(const g of R.groups){
+      const no = (g.transfer&&g.transfer.no) || (g.route&&g.route.transfer); if(!no) continue;
+      if(g.transfer && /^(RECEIVED|REVERSED|CANCELLED)$/.test(g.transfer.status)) continue;
+      try{ const t = await api('GET',`/transfers/${enc(no)}`); g.transfer = {no, status:t.status}; n++; }catch(e){}
+    }
+  }
+  S.set('runs', JSON.stringify(rs)); renderTransfers(); log(`Refreshed ${n} transfer status(es).`,'ok');
 };
+
+/* ================= reprint ================= */
 $('reprint').onclick = async () => {
   const grn = $('ref').value.trim().toUpperCase(); if(!/^GRN-/.test(grn)){ log('Type the GRN number first.','bad'); return; }
-  busy(true); resetSteps(); try{ await labels(grn); }catch(e){ log('✗ '+e.message,'bad'); } busy(false);
+  busy(true); try{ await labels(grn); }catch(e){ log('✗ '+e.message,'bad'); } busy(false);
 };
 
-/* ===== history ===== */
-function getHist(){ return jparse(S.get('hist')) || []; }
-function addHist(r){ const h = getHist().filter(x=>x.po!==r.po); h.unshift(r); S.set('hist', JSON.stringify(h.slice(0,30))); renderHist(); }
-function renderHist(){
-  const h = getHist(); if(!h.length){ $('hist').textContent='None yet.'; return; }
-  $('hist').innerHTML = `<table><tr><th>PO / GRN</th><th class="n">Pcs</th><th></th></tr>${h.slice(0,12).map(r=>`<tr>
-    <td><div>${esc(r.po)}</div><div class="muted">${esc(r.grn||r.status)} · ${esc(r.hub)} · ${new Date(r.at).toLocaleDateString('en-IN')}</div></td>
-    <td class="n">${r.pcs}</td>
-    <td>${r.grn?`<button class="btn" data-g="${esc(r.grn)}">Labels</button>`:`<button class="btn" data-p="${esc(r.po)}">Resume</button>`}</td></tr>`).join('')}</table>`;
-  $('hist').querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>{ $('ref').value=b.dataset.g; $('reprint').click(); });
-  $('hist').querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>{ $('ref').value=b.dataset.p; log('Add the same items and qty as '+b.dataset.p+' above, then press Resume PO.'); });
-}
-
-renderHist(); refreshUI();
+renderHist(); renderTransfers(); refreshUI();
 </script>
 </body>
 </html>
