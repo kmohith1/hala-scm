@@ -86,7 +86,7 @@ html[data-theme="light"] .log .ok{color:#087a08} html[data-theme="light"] .log .
     <div class="card" id="cardAdmin">
       <h2>Console login <span class="pill no" id="adminPill">signed out</span></h2>
       <div id="adminIn" class="hide"><div class="who" id="adminWho"></div><div class="btns"><button class="btn" id="adminOut">Sign out</button></div></div>
-      <form id="adminForm">
+      <form id="aForm">
         <label>Email</label><input id="aEmail" type="email" autocomplete="username" required>
         <label>Password</label><input id="aPass" type="password" autocomplete="current-password" required>
         <div id="aOtpBox" class="hide"><label>OTP <span id="aHint" class="muted"></span></label><input id="aOtp" inputmode="numeric" autocomplete="one-time-code"></div>
@@ -98,7 +98,7 @@ html[data-theme="light"] .log .ok{color:#087a08} html[data-theme="light"] .log .
     <div class="card" id="cardVendor">
       <h2>Vendor portal login <span class="pill no" id="vendorPill">signed out</span></h2>
       <div id="vendorIn" class="hide"><div class="who" id="vendorWho"></div><div class="btns"><button class="btn" id="vendorOut">Sign out</button></div></div>
-      <form id="vendorForm">
+      <form id="vForm">
         <div class="muted">Sign in as the vendor that "supplies" old stock (OLD STOCK).</div>
         <label>Email</label><input id="vEmail" type="email" autocomplete="username" required>
         <label>Password</label><input id="vPass" type="password" autocomplete="current-password" required>
@@ -278,8 +278,8 @@ function refreshUI(){
   const a = !!S.get('a_tok'), v = !!S.get('v_tok');
   $('adminPill').className = 'pill '+(a?'ok':'no'); $('adminPill').textContent = a?'signed in':'signed out';
   $('vendorPill').className = 'pill '+(v?'ok':'no'); $('vendorPill').textContent = v?'signed in':'signed out';
-  $('adminIn').classList.toggle('hide',!a); $('adminForm').classList.toggle('hide',a);
-  $('vendorIn').classList.toggle('hide',!v); $('vendorForm').classList.toggle('hide',v);
+  $('adminIn').classList.toggle('hide',!a); $('aForm').classList.toggle('hide',a);
+  $('vendorIn').classList.toggle('hide',!v); $('vForm').classList.toggle('hide',v);
   const au = adminUser(), vu = vendorUser();
   $('adminWho').innerHTML = a ? `<b>${esc(au.fullName||au.email||'')}</b> <span class="muted">${esc(au.roleName||au.role||'')}</span>` : '';
   let warn = '';
