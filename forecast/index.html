@@ -1896,7 +1896,8 @@ function rfqWorkbook(m) {
 // RFQ rows: parts that are one and the same part on several models get a single row (model column lists them).
 // To add one: copy a line, change the part name (as on the dashboard) and the Cercle OS models it is shared by.
 const RFQ_SHARED = [
-  { part: 'FRONT PANEL', models: ['SPRINTO HS SUN', 'HALA GEMOPAI RYDER', 'RILOX SPARK', 'AMO SUN', 'HALA CKD', 'VARCAS FALCON', 'SPRINTO HS', 'RYDER PRO', 'HALA GEMOPAI NEW', 'EVTRIC', 'RYDER SUPERMAX PRO', 'RYDER SUPERMAX'] },   // 19 Nov 2026
+  // also: other dashboard part names that are this same part on these models
+  { part: 'FRONT PANEL', also: ['FRONT PANEL-ESPRINTO HS', 'FRONT PANEL REF'], models: ['SPRINTO HS SUN', 'HALA GEMOPAI RYDER', 'RILOX SPARK', 'AMO SUN', 'HALA CKD', 'VARCAS FALCON', 'SPRINTO HS', 'RYDER PRO', 'HALA GEMOPAI NEW', 'EVTRIC', 'RYDER SUPERMAX PRO', 'RYDER SUPERMAX'] },   // 19 Nov 2026
 ];
 // Models left out of the RFQ's model-specific rows (19 Nov 2026: Quantum removed)
 const RFQ_SKIP_MODELS = ['QUANTUM'];
@@ -1915,21 +1916,23 @@ function rfqWorkbookModel() {
   // units fitted per month by city (the part breakdown's last six months), Vijayawada and no-city hubs under Hyderabad
   let consMs = null;
   const consOf = (B, kids) => { consMs = consMs || B.ms; const o = {}; for (const c of CITIES) o[c] = B.ms.map(() => 0); for (const x of kids) { const c = toCity(x.n); x.u.forEach((v, j) => o[c][j] += v); } return o; };
-  const rows = [];
+  const rows = [], shared = new Map();   // shared part -> { main part row, groups from every name it goes by }
   for (const r of fcPartRows()) {
     if (!r.fc) continue;
     const common = commonPartId(r.k);
     if (common) { if (r.buy > 0) { const B = bd(r.k, 'city'); rows.push({ id: common, name: r.n, model: 'All models (common part)', cat: r.c, tyre: isTyrePart(r.n), fc: Math.round(r.buy), q: spread(r.buy, B.groups.map(g => [g.n, g.buy])), used: consOf(B, B.groups), price: r.net }); } continue; }
-    const B = bd(r.k, 'model'), sh = RFQ_SHARED.find(x => partNameKey(x.part) === partNameKey(r.n)), shG = [];
+    const B = bd(r.k, 'model'), sh = RFQ_SHARED.find(x => [x.part, ...(x.also || [])].some(n => partNameKey(n) === partNameKey(r.n))), shG = [];
     for (const g of B.groups) {
       if (g.buy <= 0 || RFQ_SKIP_MODELS.includes(g.n)) continue;
       if (sh && sh.models.includes(g.n)) { shG.push(g); continue; }
       rows.push({ id: forecastPartId(r.k, g.n), name: r.n, model: g.n, cat: r.c, tyre: isTyrePart(r.n), fc: Math.round(g.buy), q: spread(g.buy, g.kids.map(x => [x.n, x.buy])), used: consOf(B, g.kids), price: r.net });
     }
-    if (shG.length) {   // one row for a part that is the same on several models: forecasts, city splits and consumption added up
-      const buy = shG.reduce((t, g) => t + g.buy, 0), kids = shG.flatMap(g => g.kids), ids = [...new Set(shG.map(g => forecastPartId(r.k, g.n)).filter(x => x && x !== 'Model-specific IDs'))];
-      rows.push({ id: ids.length === 1 ? ids[0] : '', name: r.n, model: 'Shared: ' + sh.models.filter(mo => shG.some(g => g.n === mo)).join(', '), cat: r.c, tyre: isTyrePart(r.n), fc: Math.round(buy), q: spread(buy, kids.map(x => [x.n, x.buy])), used: consOf(B, kids), price: r.net });
-    }
+    if (shG.length) { let o = shared.get(sh); if (!o) shared.set(sh, o = { main: null, any: r, gs: [], B }); if (partNameKey(r.n) === partNameKey(sh.part)) o.main = r; for (const g of shG) o.gs.push({ g, k: r.k }); }
+  }
+  for (const [sh, o] of shared) {   // one row for a part that is the same on several models (and under several names): forecasts, city splits and consumption added up
+    const r = o.main || o.any, buy = o.gs.reduce((t, x) => t + x.g.buy, 0), kids = o.gs.flatMap(x => x.g.kids);
+    const ids = [...new Set(o.gs.map(x => forecastPartId(x.k, x.g.n)).filter(x => x && x !== 'Model-specific IDs'))];
+    rows.push({ id: ids.length === 1 ? ids[0] : '', name: sh.part, model: 'Shared: ' + sh.models.filter(mo => o.gs.some(x => x.g.n === mo)).join(', '), cat: r.c, tyre: isTyrePart(sh.part), fc: Math.round(buy), q: spread(buy, kids.map(x => [x.n, x.buy])), used: consOf(o.B, kids), price: r.net });
   }
   rows.sort((a, b) => (Number.isFinite(b.price) ? b.price * b.fc : -1) - (Number.isFinite(a.price) ? a.price * a.fc : -1) || a.name.localeCompare(b.name));
   const used = new Set(); let nid = 0;
