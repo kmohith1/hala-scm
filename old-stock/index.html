@@ -279,8 +279,9 @@ async function loadMasters(){
     M = await api('GET','/masters');
     ITEMS = new Map(M.items.map(i=>[String(i.itemCode).toUpperCase(), i]));
     const active = M.hubs.filter(h=>h.status!=='INACTIVE');
-    let hubs = active.filter(h=>h.hubType==='MOTHER_HUB');
+    let hubs = active.filter(h=>/JEEDIMETLA/i.test(h.name) && h.hubType==='MOTHER_HUB');
     if(!hubs.length) hubs = active.filter(h=>/JEEDIMETLA/i.test(h.name));
+    if(!hubs.length) hubs = active.filter(h=>h.hubType==='MOTHER_HUB');
     if(!hubs.length) hubs = active;
     hubs.sort((a,b)=>a.name.localeCompare(b.name));
     $('hub').innerHTML = hubs.map(h=>`<option value="${esc(h.id||h.hubId)}">${esc(h.name)}</option>`).join('');
