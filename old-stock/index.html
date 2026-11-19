@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Old Stock Inward — Hala SCM</title>
+<style>
+:root{
+  color-scheme:dark;
+  --surface-1:#1a1a19; --plane:#0d0d0d; --surface-2:#222220; --surface-3:#2a2a28;
+  --ink:#ffffff; --ink-2:#c3c2b7; --ink-mute:#898781;
+  --border:rgba(255,255,255,.10);
+  --s1:#3987e5; --s3:#199e70;
+  --good:#0ca30c; --warn:#fab219; --crit:#d03b3b;
+  --r:10px; --rs:7px;
+  --sans:system-ui,-apple-system,"Segoe UI",sans-serif; --mono:ui-monospace,Consolas,monospace;
+}
+html[data-theme="light"]{
+  color-scheme:light;
+  --surface-1:#fcfcfb; --plane:#f9f9f7; --surface-2:#f2f1ee; --surface-3:#e8e7e2;
+  --ink:#0b0b0b; --ink-2:#52514e; --ink-mute:#898781; --border:rgba(11,11,11,.10);
+  --s1:#2a78d6; --s3:#1baf7a;
+}
+*{margin:0;padding:0;box-sizing:border-box;font-family:var(--sans)}
+body{background:var(--plane);color:var(--ink);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+a{color:var(--s1)}
+.top{display:flex;align-items:center;gap:12px;padding:14px 24px;border-bottom:1px solid var(--border);background:var(--surface-1);position:sticky;top:0;z-index:5}
+.top h1{font-size:17px;font-weight:650}
+.top .sub{color:var(--ink-mute);font-size:12px}
+.sp{flex:1}
+.wrap{max-width:1180px;margin:0 auto;padding:20px 24px 60px;display:grid;grid-template-columns:340px 1fr;gap:18px}
+@media(max-width:900px){.wrap{grid-template-columns:1fr}}
+.card{background:var(--surface-1);border:1px solid var(--border);border-radius:var(--r);padding:16px}
+.card h2{font-size:13px;font-weight:650;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-2);margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.stack{display:flex;flex-direction:column;gap:18px}
+label{display:block;font-size:11px;font-weight:600;color:var(--ink-mute);margin:10px 0 4px;text-transform:uppercase;letter-spacing:.04em}
+input,select,textarea{width:100%;background:var(--surface-2);color:var(--ink);border:1px solid var(--border);border-radius:var(--rs);padding:8px 10px;font-size:14px}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--s1);outline-offset:-1px}
+textarea{height:170px;font-family:var(--mono);font-size:13px;resize:vertical}
+.row{display:flex;gap:10px}.row>*{flex:1}
+.btn{border:1px solid var(--border);background:var(--surface-3);color:var(--ink);border-radius:var(--rs);padding:8px 14px;font-weight:600;font-size:13px;cursor:pointer;white-space:nowrap}
+.btn:hover{filter:brightness(1.15)}
+.btn.p{background:var(--s3);border-color:transparent;color:#fff}
+.btn.arm{background:var(--warn);color:#111}
+.btn:disabled{opacity:.45;cursor:default;filter:none}
+.btns{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.pill{font-size:11px;padding:2px 8px;border-radius:999px;font-weight:600;text-transform:none;letter-spacing:0}
+.pill.ok{background:rgba(12,163,12,.18);color:#5ad35a}.pill.no{background:rgba(208,59,59,.18);color:#f07a7a}
+html[data-theme="light"] .pill.ok{color:#087a08} html[data-theme="light"] .pill.no{color:#b02a2a}
+.muted{color:var(--ink-mute);font-size:12px}
+.hide{display:none!important}
+table{width:100%;border-collapse:collapse;margin-top:10px;font-size:13px}
+th,td{padding:6px 8px;border-bottom:1px solid var(--border);text-align:left}
+th{color:var(--ink-mute);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+.err{color:#f07a7a;font-size:13px;margin-top:4px} html[data-theme="light"] .err{color:#b02a2a}
+.log{margin-top:14px;background:var(--surface-2);border-radius:var(--rs);padding:10px 12px;font-family:var(--mono);font-size:12px;max-height:300px;overflow:auto;white-space:pre-wrap}
+.log .ok{color:#5ad35a}.log .bad{color:#f07a7a}
+html[data-theme="light"] .log .ok{color:#087a08} html[data-theme="light"] .log .bad{color:#b02a2a}
+.steps{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.steps span{font-size:11px;padding:3px 8px;border-radius:999px;background:var(--surface-3);color:var(--ink-mute)}
+.steps span.on{background:var(--s1);color:#fff}.steps span.done{background:var(--s3);color:#fff}.steps span.fail{background:var(--crit);color:#fff}
+.who{font-size:13px;margin-top:4px}
+</style>
+</head>
+<body>
+<div class="top">
+  <div><h1>⚡ Old Stock Inward</h1><div class="sub">Put shelf stock into Cercle SCM with barcode labels — ad-hoc PO → approve → vendor invoice → GRN → labels</div></div>
+  <div class="sp"></div>
+  <a class="muted" href="../">← SCM Command Centre</a>
+  <button class="btn" id="themeBtn" title="Theme">◐</button>
+</div>
+
+<div class="wrap">
+  <!-- LEFT: connection -->
+  <div class="stack">
+    <div class="card">
+      <h2>Server</h2>
+      <select id="env">
+        <option value="https://test.cercleos.io/api/v1">Test — test.cercleos.io</option>
+        <option value="custom">Custom API URL…</option>
+      </select>
+      <input id="envCustom" class="hide" placeholder="https://…/api/v1" style="margin-top:8px">
+    </div>
+
+    <div class="card" id="cardAdmin">
+      <h2>Console login <span class="pill no" id="adminPill">signed out</span></h2>
+      <div id="adminIn" class="hide"><div class="who" id="adminWho"></div><div class="btns"><button class="btn" id="adminOut">Sign out</button></div></div>
+      <form id="adminForm">
+        <label>Email</label><input id="aEmail" type="email" autocomplete="username" required>
+        <label>Password</label><input id="aPass" type="password" autocomplete="current-password" required>
+        <div id="aOtpBox" class="hide"><label>OTP <span id="aHint" class="muted"></span></label><input id="aOtp" inputmode="numeric" autocomplete="one-time-code"></div>
+        <div class="err" id="aErr"></div>
+        <div class="btns"><button class="btn p" id="aBtn">Sign in</button></div>
+      </form>
+    </div>
+
+    <div class="card" id="cardVendor">
+      <h2>Vendor portal login <span class="pill no" id="vendorPill">signed out</span></h2>
+      <div id="vendorIn" class="hide"><div class="who" id="vendorWho"></div><div class="btns"><button class="btn" id="vendorOut">Sign out</button></div></div>
+      <form id="vendorForm">
+        <div class="muted">Sign in as the vendor that "supplies" old stock (OLD STOCK).</div>
+        <label>Email</label><input id="vEmail" type="email" autocomplete="username" required>
+        <label>Password</label><input id="vPass" type="password" autocomplete="current-password" required>
+        <div id="vOtpBox" class="hide"><label>OTP <span id="vHint" class="muted"></span></label><input id="vOtp" inputmode="numeric" autocomplete="one-time-code"></div>
+        <div class="err" id="vErr"></div>
+        <div class="btns"><button class="btn p" id="vBtn">Sign in</button></div>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>Recent runs</h2>
+      <div id="hist" class="muted">None yet.</div>
+    </div>
+  </div>
+
+  <!-- RIGHT: inward -->
+  <div class="stack">
+    <div class="card">
+      <h2>Inward old stock</h2>
+      <div class="row">
+        <div><label>Deliver to hub</label><select id="hub"><option>Sign in to load…</option></select></div>
+        <div><label>Vendor</label><select id="vendor"></select></div>
+      </div>
+      <div class="row">
+        <div><label>GST %</label><input id="gst" type="number" value="18" min="0" max="28"></div>
+        <div><label>Labels</label><select id="lbl"><option value="unit">One per piece</option><option value="one">One per line (box)</option></select></div>
+      </div>
+      <label>Items — paste from Excel: item code · qty · (optional rate)</label>
+      <textarea id="items" placeholder="HM-CM-E-0011	20&#10;HM-CM-M-0001	150	160&#10;HM-CM-P-0001	12"></textarea>
+      <div id="preview"></div>
+      <div class="btns"><button class="btn p" id="run" disabled>Run inward</button></div>
+      <div class="steps" id="steps">
+        <span data-s="po">PO</span><span data-s="ap">Approve</span><span data-s="ack">Vendor ack</span><span data-s="inv">Invoice</span><span data-s="grn">GRN</span><span data-s="lbl">Labels</span>
+      </div>
+      <div class="log" id="log">Sign in to both on the left to start.</div>
+    </div>
+
+    <div class="card">
+      <h2>Resume a PO · Reprint labels</h2>
+      <div class="row">
+        <input id="ref" placeholder="PO-26-11-00009 or GRN-26-11-00010">
+        <div style="flex:0 0 auto;display:flex;gap:8px"><button class="btn" id="resume">Resume PO</button><button class="btn" id="reprint">Reprint labels</button></div>
+      </div>
+      <div class="muted" style="margin-top:8px">Resume finishes a run that stopped halfway (e.g. vendor login expired) — keep the same items pasted above. Reprint fetches all labels of a GRN as one PDF.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===== storage (tokens only; passwords are never stored) ===== */
+const K = 'hala_osi_';
+const S = { get:k=>localStorage.getItem(K+k), set:(k,v)=>v==null?localStorage.removeItem(K+k):localStorage.setItem(K+k,v) };
+const $ = id => document.getElementById(id);
+const esc = s => String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const Q = String.fromCharCode(63);
+
+/* ===== theme ===== */
+const applyTheme = t => document.documentElement.setAttribute('data-theme', t);
+applyTheme(S.get('theme') || 'dark');
+$('themeBtn').onclick = () => { const t = document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark'; applyTheme(t); S.set('theme',t); };
+
+/* ===== server ===== */
+function base(){ return $('env').value==='custom' ? $('envCustom').value.trim().replace(/\/+$/,'') : $('env').value; }
+(function initEnv(){
+  const saved = S.get('base');
+  if(saved && ![...$('env').options].some(o=>o.value===saved)){ $('env').value='custom'; $('envCustom').value=saved; $('envCustom').classList.remove('hide'); }
+  else if(saved) $('env').value = saved;
+  $('env').onchange = () => { $('envCustom').classList.toggle('hide', $('env').value!=='custom'); onEnvChange(); };
+  $('envCustom').onchange = onEnvChange;
+})();
+function onEnvChange(){ S.set('base', base()); ['a_tok','a_ref','a_user','v_tok','v_user'].forEach(k=>S.set(k,null)); M=null; refreshUI(); }
+
+/* ===== API ===== */
+async function rawFetch(method, path, body, tok){
+  const h = {'Content-Type':'application/json'}; if(tok) h.Authorization = 'Bearer '+tok;
+  let r;
+  try{ r = await fetch(base()+path, {method, headers:h, body: body?JSON.stringify(body):undefined}); }
+  catch(e){ throw new Error('Cannot reach '+base()+' — check the server URL / your connection.'); }
+  return r;
+}
+async function asJson(r, method, path){
+  const t = await r.text(); let j; try{ j = JSON.parse(t); }catch(e){ j = {message:t}; }
+  if(!r.ok || j.status===false){
+    const msg = j.message || j.detail || (Array.isArray(j.errors)? j.errors.map(e=>e.message||e).join('; ') : '') || ('HTTP '+r.status);
+    const e = new Error(msg+'  ['+method+' '+path.split(Q)[0]+']'); e.status = r.status; throw e;
+  }
+  return j.data !== undefined ? j.data : j;
+}
+async function refreshAdmin(){
+  const ref = S.get('a_ref'); if(!ref) return false;
+  const r = await rawFetch('POST','/auth/refresh-token',{refreshToken:ref});
+  const j = await r.json().catch(()=>({}));
+  const at = j && j.data && j.data.accessToken; if(!at) return false;
+  S.set('a_tok', at); if(j.data.refreshToken) S.set('a_ref', j.data.refreshToken); return true;
+}
+async function api(method, path, body, who='admin', blob=false){
+  const tok = S.get(who==='vendor'?'v_tok':'a_tok');
+  if(!tok) throw new Error(who==='vendor'?'Vendor portal is not signed in (left panel).':'Console is not signed in (left panel).');
+  let r = await rawFetch(method, path, body, tok);
+  if(r.status===401){
+    if(who==='admin' && await refreshAdmin()) r = await rawFetch(method, path, body, S.get('a_tok'));
+    else { S.set(who==='vendor'?'v_tok':'a_tok', null); refreshUI(); throw new Error((who==='vendor'?'Vendor':'Console')+' session expired — sign in again on the left, then use Resume PO.'); }
+  }
+  if(blob){ if(!r.ok) throw new Error(method+' '+path.split(Q)[0]+' → '+r.status+' '+(await r.text()).slice(0,200)); return r.blob(); }
+  return asJson(r, method, path);
+}
+
+/* ===== logins (email + password → OTP) ===== */
+function wireLogin(p, who){
+  const st = {stage:'pw', challenge:null};
+  $(p+'Form').onsubmit = async ev => {
+    ev.preventDefault(); $(p+'Err').textContent=''; $(p+'Btn').disabled = true;
+    const email = $(p+'Email').value.trim(), pass = $(p+'Pass').value;
+    try{
+      if(st.stage==='pw'){
+        const path = who==='admin' ? '/auth/login' : '/vendor-auth/login';
+        const d = await asJson(await rawFetch('POST', path, {email, password:pass}), 'POST', path);
+        if(d && d.accessToken){ await finish(d, email); }
+        else {
+          st.stage='otp'; st.challenge = d && d.challengeToken;
+          $(p+'OtpBox').classList.remove('hide'); $(p+'Hint').textContent = d && d.otpHint ? '— sent to '+d.otpHint : '';
+          $(p+'Btn').textContent='Verify OTP'; $(p+'Otp').focus();
+        }
+      } else {
+        const otp = $(p+'Otp').value.replace(/\D/g,''); if(!otp) throw new Error('Enter the OTP.');
+        const path = who==='admin' ? '/auth/verify-otp' : '/vendor-auth/verify-otp';
+        const body = who==='admin' ? {email, otp:Number(otp)} : {email, otp, challengeToken: st.challenge};
+        const d = await asJson(await rawFetch('POST', path, body), 'POST', path);
+        if(!d || !d.accessToken) throw new Error('OTP verification failed.');
+        await finish(d, email);
+      }
+    }catch(e){ $(p+'Err').textContent = e.message.replace(/\s+\[.*\]$/,''); }
+    $(p+'Btn').disabled = false;
+  };
+  async function finish(d, email){
+    if(who==='admin'){
+      S.set('a_tok', d.accessToken); if(d.refreshToken) S.set('a_ref', d.refreshToken);
+      let me = d.user; try{ me = await api('GET','/me'); }catch(e){}
+      S.set('a_user', JSON.stringify(me||{email}));
+    } else {
+      S.set('v_tok', d.accessToken);
+      let v = d.vendor; try{ const m = await api('GET','/vendor-auth/me',null,'vendor'); v = (m && m.vendor) || m || v; }catch(e){}
+      S.set('v_user', JSON.stringify(v||{email}));
+    }
+    st.stage='pw'; $(p+'Pass').value=''; $(p+'Otp').value=''; $(p+'OtpBox').classList.add('hide'); $(p+'Btn').textContent='Sign in';
+    refreshUI();
+  }
+}
+wireLogin('a','admin'); wireLogin('v','vendor');
+$('adminOut').onclick = () => { ['a_tok','a_ref','a_user'].forEach(k=>S.set(k,null)); refreshUI(); };
+$('vendorOut').onclick = () => { ['v_tok','v_user'].forEach(k=>S.set(k,null)); refreshUI(); };
+
+const jparse = s => { try{ return JSON.parse(s||'null'); }catch(e){ return null; } };
+const adminUser = () => jparse(S.get('a_user')) || {};
+const vendorUser = () => jparse(S.get('v_user')) || {};
+
+/* ===== masters ===== */
+let M = null, ITEMS = new Map();
+async function loadMasters(){
+  if(M || !S.get('a_tok')) return;
+  try{
+    M = await api('GET','/masters');
+    ITEMS = new Map(M.items.map(i=>[String(i.itemCode).toUpperCase(), i]));
+    const hubs = M.hubs.filter(h=>h.status!=='INACTIVE').sort((a,b)=>a.name.localeCompare(b.name));
+    $('hub').innerHTML = hubs.map(h=>`<option value="${esc(h.id||h.hubId)}">${esc(h.name)}</option>`).join('');
+    const pref = S.get('hub') || (hubs.find(h=>/JEEDIMETLA/i.test(h.name))||{}).id; if(pref) $('hub').value = pref;
+    $('vendor').innerHTML = M.vendors.map(v=>`<option value="${esc(v.vendorCode)}">${esc(v.vendorName)}</option>`).join('');
+    const old = M.vendors.find(v=>/OLD\s*STOCK/i.test(v.vendorName)); $('vendor').value = S.get('vendor') || (old && old.vendorCode) || $('vendor').value;
+    log(`Loaded ${ITEMS.size} items, ${hubs.length} hubs, ${M.vendors.length} vendors.`, 'ok');
+    preview();
+  }catch(e){ log('Could not load masters: '+e.message, 'bad'); }
+}
+$('hub').onchange = () => S.set('hub', $('hub').value);
+$('vendor').onchange = () => { S.set('vendor', $('vendor').value); refreshUI(); };
+
+function refreshUI(){
+  const a = !!S.get('a_tok'), v = !!S.get('v_tok');
+  $('adminPill').className = 'pill '+(a?'ok':'no'); $('adminPill').textContent = a?'signed in':'signed out';
+  $('vendorPill').className = 'pill '+(v?'ok':'no'); $('vendorPill').textContent = v?'signed in':'signed out';
+  $('adminIn').classList.toggle('hide',!a); $('adminForm').classList.toggle('hide',a);
+  $('vendorIn').classList.toggle('hide',!v); $('vendorForm').classList.toggle('hide',v);
+  const au = adminUser(), vu = vendorUser();
+  $('adminWho').innerHTML = a ? `<b>${esc(au.fullName||au.email||'')}</b> <span class="muted">${esc(au.roleName||au.role||'')}</span>` : '';
+  let warn = '';
+  if(v && vu.vendorCode && $('vendor').value && vu.vendorCode !== $('vendor').value) warn = `<div class="err">Signed in as a different vendor than the one selected.</div>`;
+  $('vendorWho').innerHTML = v ? `<b>${esc(vu.vendorName||vu.email||'')}</b> <span class="muted">${esc(vu.vendorCode||'')}</span>${warn}` : '';
+  $('run').disabled = !(a && v);
+  if(a) loadMasters();
+}
+
+/* ===== items ===== */
+function parse(){
+  const out=[], errs=[];
+  $('items').value.split(/\r?\n/).map(l=>l.trim()).filter(Boolean).forEach((l,n)=>{
+    const c = l.split(/\t|,|;|\s+/).filter(Boolean);
+    if(n===0 && /item|code/i.test(c[0])) return;
+    const code=(c[0]||'').toUpperCase(), qty=Number(c[1]), rate = c[2]!==undefined ? Number(String(c[2]).replace(/[₹,]/g,'')) : undefined;
+    const it = ITEMS.get(code);
+    if(!it) errs.push(`Line ${n+1}: unknown item “${code}”`);
+    else if(!(qty>0) || !Number.isInteger(qty)) errs.push(`Line ${n+1}: bad quantity for ${code}`);
+    else {
+      const r = rate!==undefined && rate>=0 ? rate : (it.standardPurchasePrice || it.purchasePrice || 0);
+      const ex = out.find(o=>o.itemCode===it.itemCode);
+      if(ex) ex.quantity += qty; else out.push({itemCode:it.itemCode, name:it.itemName, quantity:qty, rate:r});
+    }
+  });
+  out.forEach(o=>{ if(!(o.rate>0)) errs.push(`${o.itemCode}: no rate in item master — add a rate column`); });
+  return {lines:out, errs};
+}
+function preview(){
+  if(!M){ $('preview').innerHTML=''; return {lines:[],errs:['Sign in first']}; }
+  const {lines, errs} = parse();
+  const tot = lines.reduce((s,l)=>s+l.quantity,0), val = lines.reduce((s,l)=>s+l.quantity*l.rate,0);
+  $('preview').innerHTML = (lines.length ? `<table><tr><th>Item</th><th>Name</th><th class="n">Qty</th><th class="n">Rate</th><th class="n">Value</th></tr>${
+    lines.map(l=>`<tr><td>${esc(l.itemCode)}</td><td>${esc(l.name)}</td><td class="n">${l.quantity}</td><td class="n">₹${l.rate}</td><td class="n">₹${(l.quantity*l.rate).toLocaleString('en-IN')}</td></tr>`).join('')
+  }<tr><th colspan="2">${lines.length} item(s)</th><th class="n">${tot}</th><th></th><th class="n">₹${val.toLocaleString('en-IN')} + GST</th></tr></table>` : '') + errs.map(e=>`<div class="err">${esc(e)}</div>`).join('');
+  return {lines, errs};
+}
+$('items').addEventListener('input', ()=>{ preview(); disarm(); });
+
+/* ===== log + steps ===== */
+function log(m, cls){
+  const box=$('log'); if(box.dataset.fresh!=='0'){ box.textContent=''; box.dataset.fresh='0'; }
+  const d=document.createElement('div'); if(cls) d.className=cls; d.textContent = new Date().toLocaleTimeString('en-IN',{hour12:false})+'  '+m; box.appendChild(d); box.scrollTop=1e9;
+}
+function step(s, state){ const e=document.querySelector(`#steps [data-s="${s}"]`); if(e){ e.className=state||''; } }
+function resetSteps(){ document.querySelectorAll('#steps span').forEach(e=>e.className=''); }
+
+/* ===== placeholder invoice PDF ===== */
+function notePdfBase64(lines){
+  const clean = s => String(s).replace(/[()\\]/g,'').replace(/[^\x20-\x7E]/g,'');
+  let y=800, txt='';
+  lines.forEach((l,i)=>{ txt += `BT /F1 ${i?10:14} Tf 50 ${y} Td (${clean(l)}) Tj ET\n`; y -= i?14:24; });
+  const objs=['<< /Type /Catalog /Pages 2 0 R >>','<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>', `<< /Length ${txt.length} >>\nstream\n${txt}endstream`];
+  let pdf='%PDF-1.4\n'; const off=[];
+  objs.forEach((o,i)=>{ off.push(pdf.length); pdf += `${i+1} 0 obj\n${o}\nendobj\n`; });
+  const x=pdf.length;
+  pdf += `xref\n0 ${objs.length+1}\n0000000000 65535 f \n` + off.map(n=>String(n).padStart(10,'0')+' 00000 n \n').join('') + `trailer\n<< /Size ${objs.length+1} /Root 1 0 R >>\nstartxref\n${x}\n%%EOF`;
+  return btoa(pdf);
+}
+
+/* ===== workflow ===== */
+const enc = encodeURIComponent;
+async function vendorSteps(po, lines){
+  const vu = vendorUser();
+  if(vu.vendorCode && vu.vendorCode !== $('vendor').value) throw new Error(`Vendor portal is signed in as ${vu.vendorName||vu.vendorCode}, not the selected vendor.`);
+  step('ack','on');
+  try{ await api('POST',`/vendor-portal/purchase-orders/${enc(po)}/acknowledge`,{},'vendor'); log('✓ Vendor acknowledged '+po,'ok'); }
+  catch(e){ if(/already|acknowledg/i.test(e.message)) log('· Already acknowledged'); else { step('ack','fail'); throw e; } }
+  step('ack','done'); step('inv','on');
+  const pdf = notePdfBase64(['Old stock opening - no purchase', 'PO '+po, 'Hub: '+$('hub').selectedOptions[0].text,
+    'Created by Old Stock Inward on '+new Date().toLocaleString('en-IN'), ...lines.map(l=>`${l.itemCode}  x ${l.quantity}`)]);
+  try{
+    const inv = await api('POST',`/vendor-portal/purchase-orders/${enc(po)}/invoices`,
+      {vendorInvoiceRef:'OLDSTOCK-'+po, invoicePdf:pdf, invoicePdfName:'old-stock-'+po+'.pdf', lines:lines.map(l=>({itemCode:l.itemCode, quantity:l.quantity}))}, 'vendor');
+    log(`✓ Invoice ${inv.invoiceNumber} submitted`,'ok');
+  }catch(e){ if(/exceed|already|nothing|open quantity/i.test(e.message)) log('· Invoice already submitted ('+e.message.slice(0,90)+')'); else { step('inv','fail'); throw e; } }
+  step('inv','done');
+}
+async function grnStep(po, lines){
+  step('grn','on');
+  const perUnit = $('lbl').value==='unit';
+  const g = await api('POST','/grns',{poNumber:po, lines:lines.map(l=>({itemCode:l.itemCode, receivedQuantity:l.quantity, acceptedQuantity:l.quantity,
+    damagedQuantity:0, qualityRejectedQuantity:0, shortageQuantity:0, packageCount: perUnit?l.quantity:1}))}).catch(e=>{ step('grn','fail'); throw e; });
+  log(`✓ ${g.grnNumber} posted · ${g.labelsCreated} label(s) minted · ${g.receiptStatus}`,'ok'); step('grn','done');
+  return g.grnNumber;
+}
+let pdfLib;
+async function labels(grn){
+  step('lbl','on');
+  try{
+    const meta = await api('GET',`/grns/${enc(grn)}/labels/print-meta`);
+    const n = meta.mode==='SYNC' ? 1 : (meta.chunkCount||1);
+    log(`Fetching ${meta.labelsCreated} label(s)${n>1?` in ${n} parts`:''}…`);
+    const blobs=[];
+    for(let c=1;c<=n;c++){ blobs.push(await api('GET',`/grns/${enc(grn)}/labels/pdf`+(n>1?`${Q}chunk=${c}`:''),null,'admin',true)); if(n>1) log(`  part ${c}/${n}`); }
+    let out = blobs[0];
+    if(blobs.length>1){
+      pdfLib = pdfLib || await import('https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/+esm');
+      const merged = await pdfLib.PDFDocument.create();
+      for(const b of blobs){ const d = await pdfLib.PDFDocument.load(await b.arrayBuffer()); (await merged.copyPages(d, d.getPageIndices())).forEach(p=>merged.addPage(p)); }
+      out = new Blob([await merged.save()],{type:'application/pdf'}); log('✓ Merged into one PDF','ok');
+    }
+    const url = URL.createObjectURL(out);
+    const a = document.createElement('a'); a.href=url; a.download=`${grn}-labels.pdf`; document.body.appendChild(a); a.click(); a.remove();
+    window.open(url,'_blank');
+    log(`✓ ${grn}-labels.pdf downloaded and opened for printing`,'ok'); step('lbl','done');
+  }catch(e){ step('lbl','fail'); throw e; }
+}
+function disarm(){ $('run').dataset.armed=''; $('run').textContent='Run inward'; $('run').classList.remove('arm'); }
+const busy = b => ['run','resume','reprint'].forEach(k=>$(k).disabled = b || (k==='run' && !(S.get('a_tok')&&S.get('v_tok'))));
+
+$('run').onclick = async () => {
+  const {lines, errs} = preview();
+  if(errs.length || !lines.length){ log(errs.length?'Fix the errors in the table first.':'Paste at least one item.','bad'); return; }
+  const hubName=$('hub').selectedOptions[0].text, vName=$('vendor').selectedOptions[0].text, tot=lines.reduce((s,l)=>s+l.quantity,0);
+  const sig = JSON.stringify([lines,$('hub').value,$('vendor').value,$('gst').value,$('lbl').value]);
+  if($('run').dataset.armed!==sig){ $('run').dataset.armed=sig; $('run').textContent=`Confirm: ${tot} pcs → ${hubName}`; $('run').classList.add('arm'); log(`Check the table, then press again to inward ${tot} pcs (${lines.length} item(s)) to ${hubName} from ${vName}.`); return; }
+  disarm(); busy(true); resetSteps(); let po;
+  try{
+    step('po','on');
+    const p = await api('POST','/purchase-orders/adhoc',{vendorCode:$('vendor').value, deliveryHubId:$('hub').value,
+      lines:lines.map(l=>({itemCode:l.itemCode, quantity:l.quantity, rate:l.rate, gstRate:Number($('gst').value)||0}))}).catch(e=>{ step('po','fail'); throw e; });
+    po = p.poNumber; log(`✓ ${po} raised (₹${p.totalAmount})`,'ok'); step('po','done');
+    addHist({po, hub:hubName, pcs:tot, at:Date.now(), status:'PO raised'});
+    step('ap','on');
+    const ap = await api('POST',`/purchase-orders/${enc(po)}/approve`,{actorRole: adminUser().role || 'Ops+inventory'}).catch(e=>{ step('ap','fail'); throw e; });
+    log(`✓ ${po} ${ap && ap.status ? ap.status.toLowerCase() : 'approved'}`,'ok'); step('ap','done');
+    await vendorSteps(po, lines);
+    const grn = await grnStep(po, lines);
+    addHist({po, grn, hub:hubName, pcs:tot, at:Date.now(), status:'Done'});
+    await labels(grn);
+    log(`DONE — ${po} → ${grn}`,'ok');
+  }catch(e){
+    log('✗ '+e.message,'bad');
+    if(po){ log(`Nothing is lost. Fix the issue, keep these items pasted, type ${po} below and press Resume PO.`); $('ref').value = po; addHist({po, hub:hubName, pcs:tot, at:Date.now(), status:'Stopped — resume'}); }
+  }
+  busy(false);
+};
+
+$('resume').onclick = async () => {
+  const po = $('ref').value.trim().toUpperCase(); if(!/^PO-/.test(po)){ log('Type the PO number first.','bad'); return; }
+  const {lines, errs} = preview(); if(errs.length || !lines.length){ log('Paste the same items and quantities as that PO first.','bad'); return; }
+  busy(true); resetSteps(); step('po','done');
+  try{
+    try{ await api('POST',`/purchase-orders/${enc(po)}/approve`,{actorRole: adminUser().role || 'Ops+inventory'}); log(`✓ ${po} approved`,'ok'); }
+    catch(e){ log('· Approve skipped: '+e.message.slice(0,90)); }
+    step('ap','done');
+    await vendorSteps(po, lines);
+    const grn = await grnStep(po, lines);
+    addHist({po, grn, hub:$('hub').selectedOptions[0].text, pcs:lines.reduce((s,l)=>s+l.quantity,0), at:Date.now(), status:'Done'});
+    await labels(grn);
+    log(`DONE — ${po} → ${grn}`,'ok');
+  }catch(e){ log('✗ '+e.message,'bad'); }
+  busy(false);
+};
+$('reprint').onclick = async () => {
+  const grn = $('ref').value.trim().toUpperCase(); if(!/^GRN-/.test(grn)){ log('Type the GRN number first.','bad'); return; }
+  busy(true); resetSteps(); try{ await labels(grn); }catch(e){ log('✗ '+e.message,'bad'); } busy(false);
+};
+
+/* ===== history ===== */
+function getHist(){ return jparse(S.get('hist')) || []; }
+function addHist(r){ const h = getHist().filter(x=>x.po!==r.po); h.unshift(r); S.set('hist', JSON.stringify(h.slice(0,30))); renderHist(); }
+function renderHist(){
+  const h = getHist(); if(!h.length){ $('hist').textContent='None yet.'; return; }
+  $('hist').innerHTML = `<table><tr><th>PO / GRN</th><th class="n">Pcs</th><th></th></tr>${h.slice(0,12).map(r=>`<tr>
+    <td><div>${esc(r.po)}</div><div class="muted">${esc(r.grn||r.status)} · ${esc(r.hub)} · ${new Date(r.at).toLocaleDateString('en-IN')}</div></td>
+    <td class="n">${r.pcs}</td>
+    <td>${r.grn?`<button class="btn" data-g="${esc(r.grn)}">Labels</button>`:`<button class="btn" data-p="${esc(r.po)}">Resume</button>`}</td></tr>`).join('')}</table>`;
+  $('hist').querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>{ $('ref').value=b.dataset.g; $('reprint').click(); });
+  $('hist').querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>{ $('ref').value=b.dataset.p; log('Paste the items of '+b.dataset.p+' above, then press Resume PO.'); });
+}
+
+renderHist(); refreshUI();
+</script>
+</body>
+</html>
