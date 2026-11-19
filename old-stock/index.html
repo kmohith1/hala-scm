@@ -61,6 +61,14 @@ html[data-theme="light"] .log .ok{color:#087a08} html[data-theme="light"] .log .
 .steps span{font-size:11px;padding:3px 8px;border-radius:999px;background:var(--surface-3);color:var(--ink-mute)}
 .steps span.on{background:var(--s1);color:#fff}.steps span.done{background:var(--s3);color:#fff}.steps span.fail{background:var(--crit);color:#fff}
 .who{font-size:13px;margin-top:4px}
+table.rows td{padding:4px 4px}
+table.rows input{padding:6px 8px}
+table.rows input.n{text-align:right}
+table.rows .x{background:none;border:0;color:var(--ink-mute);font-size:18px;cursor:pointer;padding:0 6px}
+table.rows .x:hover{color:var(--crit)}
+table.rows .nm{font-size:11px;color:var(--ink-mute);padding-left:2px}
+table.rows input.bad{outline:2px solid var(--crit);outline-offset:-1px}
+select:disabled{opacity:.85}
 </style>
 </head>
 <body>
@@ -119,15 +127,23 @@ html[data-theme="light"] .log .ok{color:#087a08} html[data-theme="light"] .log .
     <div class="card">
       <h2>Inward old stock</h2>
       <div class="row">
-        <div><label>Deliver to hub</label><select id="hub"><option>Sign in to load…</option></select></div>
+        <div><label>Deliver to (mother hub)</label><select id="hub"><option>Sign in to load…</option></select></div>
         <div><label>Vendor</label><select id="vendor"></select></div>
       </div>
       <div class="row">
         <div><label>GST %</label><input id="gst" type="number" value="18" min="0" max="28"></div>
         <div><label>Labels</label><select id="lbl"><option value="unit">One per piece</option><option value="one">One per line (box)</option></select></div>
       </div>
-      <label>Items — paste from Excel: item code · qty · (optional rate)</label>
-      <textarea id="items" placeholder="HM-CM-E-0011	20&#10;HM-CM-M-0001	150	160&#10;HM-CM-P-0001	12"></textarea>
+      <div class="muted" style="margin-top:6px">All old stock lands at the mother hub. Move it on to other hubs with Stock Transfer in Cercle.</div>
+      <label>Items</label>
+      <table class="rows"><thead><tr><th style="width:58%">Item (type code or name)</th><th class="n" style="width:16%">Qty</th><th class="n" style="width:16%">Vendor rate</th><th></th></tr></thead><tbody id="rows"></tbody></table>
+      <datalist id="itemList"></datalist>
+      <div class="btns" style="margin-top:8px"><button class="btn" id="addRow" type="button">+ Add item</button><button class="btn" id="pasteToggle" type="button">Paste from Excel</button><button class="btn" id="clearRows" type="button">Clear all</button></div>
+      <div id="pasteBox" class="hide">
+        <label>Paste: item code · qty (one per line)</label>
+        <textarea id="items" style="height:110px" placeholder="HM-CM-E-0011	20&#10;HM-CM-M-0001	150"></textarea>
+        <div class="btns"><button class="btn p" id="pasteAdd" type="button">Add pasted lines</button></div>
+      </div>
       <div id="preview"></div>
       <div class="btns"><button class="btn p" id="run" disabled>Run inward</button></div>
       <div class="steps" id="steps">
@@ -262,9 +278,16 @@ async function loadMasters(){
   try{
     M = await api('GET','/masters');
     ITEMS = new Map(M.items.map(i=>[String(i.itemCode).toUpperCase(), i]));
-    const hubs = M.hubs.filter(h=>h.status!=='INACTIVE').sort((a,b)=>a.name.localeCompare(b.name));
+    const active = M.hubs.filter(h=>h.status!=='INACTIVE');
+    let hubs = active.filter(h=>h.hubType==='MOTHER_HUB');
+    if(!hubs.length) hubs = active.filter(h=>/JEEDIMETLA/i.test(h.name));
+    if(!hubs.length) hubs = active;
+    hubs.sort((a,b)=>a.name.localeCompare(b.name));
     $('hub').innerHTML = hubs.map(h=>`<option value="${esc(h.id||h.hubId)}">${esc(h.name)}</option>`).join('');
-    const pref = S.get('hub') || (hubs.find(h=>/JEEDIMETLA/i.test(h.name))||{}).id; if(pref) $('hub').value = pref;
+    const jee = hubs.find(h=>/JEEDIMETLA/i.test(h.name)); if(jee) $('hub').value = jee.id||jee.hubId;
+    $('hub').disabled = hubs.length===1;
+    $('itemList').innerHTML = M.items.map(i=>`<option value="${esc(i.itemCode)} — ${esc(i.itemName)}">`).join('');
+    if(!ROWS.length) addRow();
     $('vendor').innerHTML = M.vendors.map(v=>`<option value="${esc(v.vendorCode)}">${esc(v.vendorName)}</option>`).join('');
     const old = M.vendors.find(v=>/OLD\s*STOCK/i.test(v.vendorName)); $('vendor').value = S.get('vendor') || (old && old.vendorCode) || $('vendor').value;
     log(`Loaded ${ITEMS.size} items, ${hubs.length} hubs, ${M.vendors.length} vendors.`, 'ok');
@@ -290,34 +313,73 @@ function refreshUI(){
 }
 
 /* ===== items ===== */
+/* rows: {code, qty, rate}. Vendor rate is a random whole number 1–99, fixed once per item. */
+let ROWS = [];
+const RATES = {};
+const rndRate = () => 1 + Math.floor(Math.random()*99);
+const rateFor = code => RATES[code] || (RATES[code] = rndRate());
+function codeOf(txt){
+  const raw = String(txt||'').trim(); if(!raw) return '';
+  const c = raw.split(/\s+—\s+|\s+-\s+/)[0].trim().toUpperCase();
+  if(ITEMS.has(c)) return c;
+  const low = raw.toLowerCase(); // allow picking by exact name
+  const byName = [...ITEMS.values()].filter(i=>String(i.itemName).toLowerCase()===low);
+  return byName.length===1 ? String(byName[0].itemCode).toUpperCase() : c;
+}
+function addRow(code='', qty=''){ ROWS.push({code, qty:String(qty)}); renderRows(); const ins=$('rows').querySelectorAll('input.it'); if(!code && ins.length) ins[ins.length-1].focus(); }
+function renderRows(){
+  $('rows').innerHTML = ROWS.map((r,i)=>{
+    const it = ITEMS.get(r.code);
+    const shown = it ? `${it.itemCode} — ${it.itemName}` : r.code;
+    return `<tr data-i="${i}">
+      <td><input class="it${r.code&&!it?' bad':''}" list="itemList" value="${esc(shown)}" placeholder="e.g. HORN or HM-CM-E-0011"></td>
+      <td><input class="q n${r.qty!==''&&!(Number(r.qty)>0&&Number.isInteger(Number(r.qty)))?' bad':''}" type="number" min="1" step="1" value="${esc(r.qty)}" placeholder="0"></td>
+      <td class="n">${it?'₹'+rateFor(it.itemCode):'—'}</td>
+      <td><button class="x" type="button" title="Remove">×</button></td></tr>`;
+  }).join('');
+  $('rows').querySelectorAll('tr').forEach(tr=>{
+    const i = +tr.dataset.i;
+    const itIn = tr.querySelector('input.it'), qIn = tr.querySelector('input.q');
+    itIn.onchange = () => { ROWS[i].code = codeOf(itIn.value); renderRows(); const q=$('rows').querySelectorAll('input.q')[i]; if(q && ITEMS.has(ROWS[i].code)) q.focus(); };
+    qIn.oninput = () => { ROWS[i].qty = qIn.value; preview(); disarm(); };
+    qIn.onchange = () => renderRows();
+    qIn.onkeydown = e => { if(e.key==='Enter'){ e.preventDefault(); addRow(); } };
+    tr.querySelector('.x').onclick = () => { ROWS.splice(i,1); if(!ROWS.length) ROWS.push({code:'',qty:''}); renderRows(); };
+  });
+  preview(); disarm();
+}
+$('addRow').onclick = () => addRow();
+$('clearRows').onclick = () => { ROWS=[{code:'',qty:''}]; renderRows(); };
+$('pasteToggle').onclick = () => { $('pasteBox').classList.toggle('hide'); if(!$('pasteBox').classList.contains('hide')) $('items').focus(); };
+$('pasteAdd').onclick = () => {
+  const lines = $('items').value.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+  ROWS = ROWS.filter(r=>r.code||r.qty);
+  lines.forEach((l,n)=>{ const c=l.split(/\t|,|;|\s+/).filter(Boolean); if(n===0 && /item|code/i.test(c[0])) return; ROWS.push({code:codeOf(c[0]), qty:String(c[1]||'')}); });
+  if(!ROWS.length) ROWS.push({code:'',qty:''});
+  $('items').value=''; $('pasteBox').classList.add('hide'); renderRows();
+};
+
 function parse(){
   const out=[], errs=[];
-  $('items').value.split(/\r?\n/).map(l=>l.trim()).filter(Boolean).forEach((l,n)=>{
-    const c = l.split(/\t|,|;|\s+/).filter(Boolean);
-    if(n===0 && /item|code/i.test(c[0])) return;
-    const code=(c[0]||'').toUpperCase(), qty=Number(c[1]), rate = c[2]!==undefined ? Number(String(c[2]).replace(/[₹,]/g,'')) : undefined;
-    const it = ITEMS.get(code);
-    if(!it) errs.push(`Line ${n+1}: unknown item “${code}”`);
-    else if(!(qty>0) || !Number.isInteger(qty)) errs.push(`Line ${n+1}: bad quantity for ${code}`);
+  ROWS.forEach((r,n)=>{
+    if(!r.code && r.qty==='') return;
+    const it = ITEMS.get(r.code), qty = Number(r.qty);
+    if(!it) errs.push(`Row ${n+1}: pick an item from the list`);
+    else if(!(qty>0) || !Number.isInteger(qty)) errs.push(`Row ${n+1}: enter a whole quantity for ${it.itemName}`);
     else {
-      const r = rate!==undefined && rate>=0 ? rate : (it.standardPurchasePrice || it.purchasePrice || 0);
       const ex = out.find(o=>o.itemCode===it.itemCode);
-      if(ex) ex.quantity += qty; else out.push({itemCode:it.itemCode, name:it.itemName, quantity:qty, rate:r});
+      if(ex) ex.quantity += qty; else out.push({itemCode:it.itemCode, name:it.itemName, quantity:qty, rate:rateFor(it.itemCode)});
     }
   });
-  out.forEach(o=>{ if(!(o.rate>0)) errs.push(`${o.itemCode}: no rate in item master — add a rate column`); });
   return {lines:out, errs};
 }
 function preview(){
   if(!M){ $('preview').innerHTML=''; return {lines:[],errs:['Sign in first']}; }
   const {lines, errs} = parse();
   const tot = lines.reduce((s,l)=>s+l.quantity,0), val = lines.reduce((s,l)=>s+l.quantity*l.rate,0);
-  $('preview').innerHTML = (lines.length ? `<table><tr><th>Item</th><th>Name</th><th class="n">Qty</th><th class="n">Rate</th><th class="n">Value</th></tr>${
-    lines.map(l=>`<tr><td>${esc(l.itemCode)}</td><td>${esc(l.name)}</td><td class="n">${l.quantity}</td><td class="n">₹${l.rate}</td><td class="n">₹${(l.quantity*l.rate).toLocaleString('en-IN')}</td></tr>`).join('')
-  }<tr><th colspan="2">${lines.length} item(s)</th><th class="n">${tot}</th><th></th><th class="n">₹${val.toLocaleString('en-IN')} + GST</th></tr></table>` : '') + errs.map(e=>`<div class="err">${esc(e)}</div>`).join('');
+  $('preview').innerHTML = (lines.length ? `<div class="muted" style="margin-top:8px"><b style="color:var(--ink)">${lines.length} item(s) · ${tot} pcs</b> · vendor value ₹${val.toLocaleString('en-IN')} + GST</div>` : '') + errs.map(e=>`<div class="err">${esc(e)}</div>`).join('');
   return {lines, errs};
 }
-$('items').addEventListener('input', ()=>{ preview(); disarm(); });
 
 /* ===== log + steps ===== */
 function log(m, cls){
@@ -423,7 +485,7 @@ $('run').onclick = async () => {
 
 $('resume').onclick = async () => {
   const po = $('ref').value.trim().toUpperCase(); if(!/^PO-/.test(po)){ log('Type the PO number first.','bad'); return; }
-  const {lines, errs} = preview(); if(errs.length || !lines.length){ log('Paste the same items and quantities as that PO first.','bad'); return; }
+  const {lines, errs} = preview(); if(errs.length || !lines.length){ log('Add the same items and quantities as that PO above first.','bad'); return; }
   busy(true); resetSteps(); step('po','done');
   try{
     try{ await api('POST',`/purchase-orders/${enc(po)}/approve`,{actorRole: adminUser().role || 'Ops+inventory'}); log(`✓ ${po} approved`,'ok'); }
@@ -452,7 +514,7 @@ function renderHist(){
     <td class="n">${r.pcs}</td>
     <td>${r.grn?`<button class="btn" data-g="${esc(r.grn)}">Labels</button>`:`<button class="btn" data-p="${esc(r.po)}">Resume</button>`}</td></tr>`).join('')}</table>`;
   $('hist').querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>{ $('ref').value=b.dataset.g; $('reprint').click(); });
-  $('hist').querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>{ $('ref').value=b.dataset.p; log('Paste the items of '+b.dataset.p+' above, then press Resume PO.'); });
+  $('hist').querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>{ $('ref').value=b.dataset.p; log('Add the same items and qty as '+b.dataset.p+' above, then press Resume PO.'); });
 }
 
 renderHist(); refreshUI();
