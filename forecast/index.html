@@ -1789,19 +1789,20 @@ function rfqWorkbook(m) {
   // ---- city tabs
   const lay = {}, sheets = [];
   for (const city of CITIES) {
-    const vs = VEND[city], cut = vs.indexOf('Baluka') + 1, L = { vendors: [], qty: 6 }; let c = 7;
+    const vs = VEND[city], cut = vs.indexOf('Baluka') + 1, nU = (m.consMonths || []).length, L = { vendors: [], qty: 6, used: 7, nU }; let c = 7 + nU;
     vs.forEach((v, i) => { if (i === cut) { L.fc = c++; L.extra = c++; } L.vendors.push({ name: v, unit: c, tot: c + 1, lead: c + 2 }); c += 3; });
     L.ref = c++; L.est = c++; L.low = c++; L.lowV = c++; lay[city] = L;
-    const rows = [[{ v: city + ' - ' + m.label + ' spares requirement', s: S.title }], [{ v: 'Edit the shaded quantity for ' + city + ' and enter vendor quotes (unit price, lead time). City Split picks both up. Dashboard price is the reference until quotes come in.', s: S.note }], [], []];
+    const rows = [[{ v: city + ' - ' + m.label + ' spares requirement', s: S.title }], [{ v: 'Edit the shaded quantity for ' + city + ' and enter vendor quotes (unit price, lead time). City Split picks both up. Dashboard price is the reference until quotes come in.' + (m.consMonths && m.consMonths.length ? ' Consumed per month = units fitted in ' + city + ' (2W fleet, Vijayawada counted in Hyderabad), as on the forecast page.' : ''), s: S.note }], [], []];
     const vr = rows[2], hr = rows[3];
     ['S.No', 'HALA Part ID', 'Part description', 'Vehicle model', 'Category', 'UOM', 'Qty for ' + city + '\n(' + m.label + ')'].forEach((h, i) => hr[i] = { v: h, s: S.hdr });
     for (const v of L.vendors) { vr[v.tot] = { v: v.name, s: S.vend }; hr[v.unit] = { v: 'Unit Basic Price', s: S.hdrB }; hr[v.tot] = { v: 'Total Basic Price', s: S.hdrB }; hr[v.lead] = { v: 'Supply Delivery Lead Time', s: S.hdrB }; }
+    if (nU) { vr[L.used] = { v: 'Consumed per month - ' + city + ' (forecast page)', s: S.vend }; for (let j = 1; j < nU; j++) vr[L.used + j] = { v: null, s: S.vend }; m.consMonths.forEach((t, j) => hr[L.used + j] = { v: t, s: S.hdrB }); }
     hr[L.fc] = { v: city + ' forecast\n' + m.label, s: S.hdrY }; hr[L.extra] = { v: 'Extra above\nforecast', s: S.hdrY }; hr[L.ref] = { v: 'Dashboard price\nexcl. GST (₹)', s: S.hdr }; hr[L.est] = { v: 'Est. value\nexcl. GST (₹)', s: S.hdr }; hr[L.low] = { v: 'Lowest Basic Price', s: S.hdr }; hr[L.lowV] = { v: 'Lowest Vendor', s: S.hdr };
     m.rows.forEach((r, i) => {
       const rn = first - 1 + i + 1, row = [];   // sheet row number = 5 + i
       const R = first + i;
       row[0] = i + 1; row[1] = r.key; row[2] = r.name; row[3] = r.model; row[4] = r.cat; row[5] = 'Nos';
-      row[L.qty] = { v: r.q[city], s: S.inp }; row[L.fc] = { v: r.q[city], s: S.int }; row[L.extra] = { f: colName(L.qty) + R + '-' + colName(L.fc) + R, s: S.neg };
+      row[L.qty] = { v: r.q[city], s: S.inp }; for (let j = 0; j < L.nU; j++) row[L.used + j] = { v: Math.round(((r.used || {})[city] || [])[j] || 0), s: S.oct }; row[L.fc] = { v: r.q[city], s: S.int }; row[L.extra] = { f: colName(L.qty) + R + '-' + colName(L.fc) + R, s: S.neg };
       for (const v of L.vendors) { row[v.unit] = { v: null, s: S.inpDec }; row[v.tot] = { f: colName(v.unit) + R + '*' + colName(L.qty) + R, s: S.int }; row[v.lead] = { v: null, s: S.inpTxt }; }
       row[L.ref] = Number.isFinite(r.price) ? { v: Math.round(r.price * 100) / 100, s: S.dec } : null;
       row[L.est] = { f: 'IF(ISNUMBER(' + colName(L.ref) + R + '),' + colName(L.ref) + R + '*' + colName(L.qty) + R + ',0)', s: S.int };
@@ -1810,8 +1811,8 @@ function rfqWorkbook(m) {
       row[L.lowV] = { f: 'IF(ISNUMBER(' + lw + '),MID(' + L.vendors.map(v => 'IF(' + colName(v.unit) + R + '=' + lw + ',", "&TRIM($' + colName(v.tot) + '$3),"")').join('&') + ',3,200),"No quote")' };
       rows.push(row);
     });
-    const widths = [6, 14, 32, 24, 20, 6, 13]; for (let k = 7; k <= L.lowV; k++) widths[k] = k === L.lowV ? 22 : 12;
-    sheets.push({ name: city, rows, widths, freeze: [3, 4], heights: { 3: 34 }, merges: [] });
+    const widths = [6, 14, 32, 24, 20, 6, 13]; for (let k = 7; k <= L.lowV; k++) widths[k] = k < 7 + L.nU ? 10 : k === L.lowV ? 22 : 12;
+    sheets.push({ name: city, rows, widths, freeze: [3, 4], heights: { 3: 34 }, merges: L.nU ? [colName(L.used) + '3:' + colName(L.used + L.nU - 1) + '3'] : [] });
   }
   // ---- City Split
   const cs = [[], [], [], []], R = (col) => "'City Split'!$" + col + '$' + first + ':$' + col + '$' + last;
@@ -1904,12 +1905,16 @@ function rfqWorkbookModel() {
     const diff = total - CITIES.reduce((s, c) => s + q[c], 0); if (diff) q[CITIES.reduce((a, c) => q[c] > q[a] ? c : a, 'Hyderabad')] += diff;
     return q;
   };
+  // units fitted per month by city (the part breakdown's last six months), Vijayawada and no-city hubs under Hyderabad
+  let consMs = null;
+  const consOf = (B, kids) => { consMs = consMs || B.ms; const o = {}; for (const c of CITIES) o[c] = B.ms.map(() => 0); for (const x of kids) { const c = toCity(x.n); x.u.forEach((v, j) => o[c][j] += v); } return o; };
   const rows = [];
   for (const r of fcPartRows()) {
     if (!r.fc) continue;
     const common = commonPartId(r.k);
-    if (common) { if (r.buy > 0) rows.push({ id: common, name: r.n, model: 'All models (common part)', cat: r.c, tyre: isTyrePart(r.n), fc: Math.round(r.buy), q: spread(r.buy, bd(r.k, 'city').groups.map(g => [g.n, g.buy])), price: r.net }); continue; }
-    for (const g of bd(r.k, 'model').groups) if (g.buy > 0) rows.push({ id: forecastPartId(r.k, g.n), name: r.n, model: g.n, cat: r.c, tyre: isTyrePart(r.n), fc: Math.round(g.buy), q: spread(g.buy, g.kids.map(x => [x.n, x.buy])), price: r.net });
+    if (common) { if (r.buy > 0) { const B = bd(r.k, 'city'); rows.push({ id: common, name: r.n, model: 'All models (common part)', cat: r.c, tyre: isTyrePart(r.n), fc: Math.round(r.buy), q: spread(r.buy, B.groups.map(g => [g.n, g.buy])), used: consOf(B, B.groups), price: r.net }); } continue; }
+    const B = bd(r.k, 'model');
+    for (const g of B.groups) if (g.buy > 0) rows.push({ id: forecastPartId(r.k, g.n), name: r.n, model: g.n, cat: r.c, tyre: isTyrePart(r.n), fc: Math.round(g.buy), q: spread(g.buy, g.kids.map(x => [x.n, x.buy])), used: consOf(B, g.kids), price: r.net });
   }
   rows.sort((a, b) => (Number.isFinite(b.price) ? b.price * b.fc : -1) - (Number.isFinite(a.price) ? a.price * a.fc : -1) || a.name.localeCompare(b.name));
   const used = new Set(); let nid = 0;
@@ -1928,7 +1933,8 @@ function rfqWorkbookModel() {
         how: poCityTag(gl.part) ? 'City tag in part name' : poCityTag(inv.invoice) ? 'City tag in invoice number' : 'No city tag - assumed Hyderabad', id: hit ? hit.key : '', matched: hit ? hit.name + (poModelNorm(hit.model) ? ' (' + hit.model + ')' : '') : '', note });
     }
   }
-  return { label, prev, prevShort, rows, purchases };
+  const consMonths = (consMs || []).map(i => D.months[i].partial ? D.months[i].label + '\n(1–' + D.months[i].upto + ' ' + D.months[i].label.slice(0, 3) + ')' : D.months[i].label);
+  return { label, prev, prevShort, rows, purchases, consMonths };
 }
 function rfqExportRows() { return rfqRows().map(r=>[r.id || 'Not mapped', r.part, r.model, Number.isFinite(r.price) ? r.price.toFixed(2) : '', r.buy]); }
 function renderModelRequirementTable() {
