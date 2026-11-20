@@ -1895,9 +1895,11 @@ function rfqWorkbook(m) {
 // ---------- RFQ workbook data: every part and model, split by city the way the dashboard splits the forecast
 // RFQ rows: parts that are one and the same part on several models get a single row (model column lists them).
 // To add one: copy a line, change the part name (as on the dashboard) and the Cercle OS models it is shared by.
+// all: true = the part is the same on every model (every model except RFQ_SKIP_MODELS joins the row, so a model that starts fitting it later is included too); id = the HALA part ID to print on that row.
 const RFQ_SHARED = [
   // also: other dashboard part names that are this same part on these models
   { part: 'FRONT PANEL', also: ['FRONT PANEL-ESPRINTO HS', 'FRONT PANEL REF'], models: ['SPRINTO HS SUN', 'HALA GEMOPAI RYDER', 'RILOX SPARK', 'AMO SUN', 'HALA CKD', 'VARCAS FALCON', 'SPRINTO HS', 'RYDER PRO', 'HALA GEMOPAI NEW', 'EVTRIC', 'RYDER SUPERMAX PRO', 'RYDER SUPERMAX'] },   // 19 Nov 2026
+  { part: 'FRONT FENDER', all: true, id: 'HM-CM-P-0002' },   // 20 Nov 2026: Front Fender is the same on all vehicles, one row (HM-CM-P-0002 = Common Front Fender)
 ];
 // Models left out of the RFQ's model-specific rows (19 Nov 2026: Quantum removed)
 const RFQ_SKIP_MODELS = ['QUANTUM'];
@@ -1924,7 +1926,7 @@ function rfqWorkbookModel() {
     const B = bd(r.k, 'model'), sh = RFQ_SHARED.find(x => [x.part, ...(x.also || [])].some(n => partNameKey(n) === partNameKey(r.n))), shG = [];
     for (const g of B.groups) {
       if (g.buy <= 0 || RFQ_SKIP_MODELS.includes(g.n)) continue;
-      if (sh && sh.models.includes(g.n)) { shG.push(g); continue; }
+      if (sh && (sh.all || sh.models.includes(g.n))) { shG.push(g); continue; }
       rows.push({ id: forecastPartId(r.k, g.n), name: r.n, model: g.n, cat: r.c, tyre: isTyrePart(r.n), fc: Math.round(g.buy), q: spread(g.buy, g.kids.map(x => [x.n, x.buy])), used: consOf(B, g.kids), price: r.net });
     }
     if (shG.length) { let o = shared.get(sh); if (!o) shared.set(sh, o = { main: null, any: r, gs: [], B }); if (partNameKey(r.n) === partNameKey(sh.part)) o.main = r; for (const g of shG) o.gs.push({ g, k: r.k }); }
@@ -1932,7 +1934,7 @@ function rfqWorkbookModel() {
   for (const [sh, o] of shared) {   // one row for a part that is the same on several models (and under several names): forecasts, city splits and consumption added up
     const r = o.main || o.any, buy = o.gs.reduce((t, x) => t + x.g.buy, 0), kids = o.gs.flatMap(x => x.g.kids);
     const ids = [...new Set(o.gs.map(x => forecastPartId(x.k, x.g.n)).filter(x => x && x !== 'Model-specific IDs'))];
-    rows.push({ id: ids.length === 1 ? ids[0] : '', name: sh.part, model: 'Shared: ' + sh.models.filter(mo => o.gs.some(x => x.g.n === mo)).join(', '), cat: r.c, tyre: isTyrePart(sh.part), fc: Math.round(buy), q: spread(buy, kids.map(x => [x.n, x.buy])), used: consOf(o.B, kids), price: r.net });
+    rows.push({ id: sh.id || (ids.length === 1 ? ids[0] : ''), name: sh.part, model: sh.all ? 'All models (common part)' : 'Shared: ' + sh.models.filter(mo => o.gs.some(x => x.g.n === mo)).join(', '), cat: r.c, tyre: isTyrePart(sh.part), fc: Math.round(buy), q: spread(buy, kids.map(x => [x.n, x.buy])), used: consOf(o.B, kids), price: r.net });
   }
   rows.sort((a, b) => (Number.isFinite(b.price) ? b.price * b.fc : -1) - (Number.isFinite(a.price) ? a.price * a.fc : -1) || a.name.localeCompare(b.name));
   const used = new Set(); let nid = 0;
