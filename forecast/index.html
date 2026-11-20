@@ -1901,6 +1901,7 @@ const RFQ_SHARED = [
   { part: 'FRONT PANEL', also: ['FRONT PANEL-ESPRINTO HS', 'FRONT PANEL REF'], models: ['SPRINTO HS SUN', 'HALA GEMOPAI RYDER', 'RILOX SPARK', 'AMO SUN', 'HALA CKD', 'VARCAS FALCON', 'SPRINTO HS', 'RYDER PRO', 'HALA GEMOPAI NEW', 'EVTRIC', 'RYDER SUPERMAX PRO', 'RYDER SUPERMAX'] },   // 19 Nov 2026
   { part: 'FRONT FENDER', all: true, id: 'HM-CM-P-0002' },   // 20 Nov 2026: Front Fender is the same on all vehicles, one row (HM-CM-P-0002 = Common Front Fender)
   { part: 'KEYFOB SUN MOBILITY', all: true, id: 'HM-CM-E-0001' },   // 20 Nov 2026: Keyfob is the same on all vehicles, one row (HM-CM-E-0001 = Common KEYFOB (Sun Mobility))
+  { part: 'T FORK STEM', also: ['T FORK STEM-30MM', 'T FORK STEM 17 INCHE', 'T FORK', 'T FORK - 17 INCH'], all: true, id: 'HM-CM-M-0002' },   // 20 Nov 2026: every T Fork name is the T Fork Stem 30 mm, one row (HM-CM-M-0002)
 ];
 // Models left out of the RFQ's model-specific rows (19 Nov 2026: Quantum removed)
 const RFQ_SKIP_MODELS = ['QUANTUM'];
@@ -1920,27 +1921,28 @@ function rfqWorkbookModel() {
   let consMs = null;
   const consOf = (B, kids) => { consMs = consMs || B.ms; const o = {}; for (const c of CITIES) o[c] = B.ms.map(() => 0); for (const x of kids) { const c = toCity(x.n); x.u.forEach((v, j) => o[c][j] += v); } return o; };
   const rows = [], shared = new Map();   // shared part -> { main part row, groups from every name it goes by }
+  const addShared = (sh, r, g, B) => { let o = shared.get(sh); if (!o) shared.set(sh, o = { main: null, any: r, gs: [], B }); if (partNameKey(r.n) === partNameKey(sh.part)) o.main = r; o.gs.push({ g, k: r.k }); };
   for (const r of fcPartRows()) {
     if (!r.fc) continue;
-    const common = commonPartId(r.k);
-    if (common) { if (r.buy > 0) { const B = bd(r.k, 'city'); rows.push({ id: common, name: r.n, model: 'All models (common part)', cat: r.c, tyre: isTyrePart(r.n), fc: Math.round(r.buy), q: spread(r.buy, B.groups.map(g => [g.n, g.buy])), used: consOf(B, B.groups), price: r.net }); } continue; }
+    const common = commonPartId(r.k), shAll = RFQ_SHARED.find(x => x.all && [x.part, ...(x.also || [])].some(n => partNameKey(n) === partNameKey(r.n)));
+    if (common) { if (r.buy > 0) { const B = bd(r.k, 'city'); if (shAll) { addShared(shAll, r, { n: 'COMMON', buy: r.buy, kids: B.groups }, B); continue; } rows.push({ id: common, name: r.n, model: 'All models (common part)', cat: r.c, tyre: isTyrePart(r.n), fc: Math.round(r.buy), q: spread(r.buy, B.groups.map(g => [g.n, g.buy])), used: consOf(B, B.groups), price: r.net }); } continue; }
     const B = bd(r.k, 'model'), sh = RFQ_SHARED.find(x => [x.part, ...(x.also || [])].some(n => partNameKey(n) === partNameKey(r.n))), shG = [];
     for (const g of B.groups) {
       if (g.buy <= 0 || RFQ_SKIP_MODELS.includes(g.n)) continue;
       if (sh && (sh.all || sh.models.includes(g.n))) { shG.push(g); continue; }
       rows.push({ id: forecastPartId(r.k, g.n), name: r.n, model: g.n, cat: r.c, tyre: isTyrePart(r.n), fc: Math.round(g.buy), q: spread(g.buy, g.kids.map(x => [x.n, x.buy])), used: consOf(B, g.kids), price: r.net });
     }
-    if (shG.length) { let o = shared.get(sh); if (!o) shared.set(sh, o = { main: null, any: r, gs: [], B }); if (partNameKey(r.n) === partNameKey(sh.part)) o.main = r; for (const g of shG) o.gs.push({ g, k: r.k }); }
+    for (const g of shG) addShared(sh, r, g, B);
   }
   for (const [sh, o] of shared) {   // one row for a part that is the same on several models (and under several names): forecasts, city splits and consumption added up
     const r = o.main || o.any, buy = o.gs.reduce((t, x) => t + x.g.buy, 0), kids = o.gs.flatMap(x => x.g.kids);
     const ids = [...new Set(o.gs.map(x => forecastPartId(x.k, x.g.n)).filter(x => x && x !== 'Model-specific IDs'))];
-    rows.push({ id: sh.id || (ids.length === 1 ? ids[0] : ''), name: sh.part, model: sh.all ? 'All models (common part)' : 'Shared: ' + sh.models.filter(mo => o.gs.some(x => x.g.n === mo)).join(', '), cat: r.c, tyre: isTyrePart(sh.part), fc: Math.round(buy), q: spread(buy, kids.map(x => [x.n, x.buy])), used: consOf(o.B, kids), price: r.net });
+    rows.push({ id: sh.id || (ids.length === 1 ? ids[0] : ''), name: sh.part, model: sh.all ? 'All models (common part)' : 'Shared: ' + sh.models.filter(mo => o.gs.some(x => x.g.n === mo)).join(', '), cat: r.c, tyre: isTyrePart(sh.part), fc: Math.round(buy), q: spread(buy, kids.map(x => [x.n, x.buy])), used: consOf(o.B, kids), price: r.net, alias: sh.all ? [sh.part, ...(sh.also || [])] : null });
   }
   rows.sort((a, b) => (Number.isFinite(b.price) ? b.price * b.fc : -1) - (Number.isFinite(a.price) ? a.price * a.fc : -1) || a.name.localeCompare(b.name));
   const used = new Set(); let nid = 0;
   for (const r of rows) { let k = r.id && r.id !== 'Model-specific IDs' ? r.id : 'NOID-' + String(++nid).padStart(3, '0'); while (used.has(k)) k += '*'; used.add(k); r.key = k; }
-  const byName = new Map(); for (const r of rows) { const k = gstPartKey(r.name); if (!byName.has(k)) byName.set(k, []); byName.get(k).push(r); }
+  const byName = new Map(); for (const r of rows) for (const k of new Set((r.alias || [r.name]).map(gstPartKey))) { if (!byName.has(k)) byName.set(k, []); byName.get(k).push(r); }
   const purchases = [], ddmmmyy = d => d.slice(8, 10) + '-' + MON[+d.slice(5, 7) - 1] + '-' + d.slice(2, 4);
   for (const inv of [...GRN.records].sort((a, b) => a.date.localeCompare(b.date) || a.record - b.record)) {
     if (inv.date.slice(0, 7) !== prevYm || GRN_IGNORE_INVOICES.has(poKey(inv.invoice))) continue;
