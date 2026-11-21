@@ -1839,9 +1839,10 @@ function rfqWorkbook(m) {
       row[c + (city === 'Hyderabad' ? 2 : 1)] = { f: 'SUMIFS(' + pq + '!$F$2:$F$' + (m.purchases.length + 1) + ',' + pq + '!$K$2:$K$' + (m.purchases.length + 1) + ',$B' + q + ',' + pq + '!$I$2:$I$' + (m.purchases.length + 1) + ',"' + city + '")', s: S.oct };
     }
     row[10] = { f: 'J' + q, s: S.inp };
-    const hq = colName(H1.low), mm = mt('Hyderabad');
-    row[18] = { f: 'IFERROR(IF(ISNUMBER(INDEX(Hyderabad!$' + hq + ':$' + hq + ',' + mm + ')),INDEX(Hyderabad!$' + colName(H1.lowV) + ':$' + colName(H1.lowV) + ',' + mm + '),""),"")' };
-    row[19] = { f: 'IFERROR(IF(ISNUMBER(INDEX(Hyderabad!$' + hq + ':$' + hq + ',' + mm + ')),INDEX(Hyderabad!$' + hq + ':$' + hq + ',' + mm + '),IF(INDEX(Hyderabad!$' + colName(H1.ref) + ':$' + colName(H1.ref) + ',' + mm + ')>0,INDEX(Hyderabad!$' + colName(H1.ref) + ':$' + colName(H1.ref) + ',' + mm + '),"")),"")', s: S.dec };
+    const pc = r.q.Hyderabad > 0 ? 'Hyderabad' : CITIES.find(c => r.q[c] > 0) || 'Hyderabad', PL = lay[pc];   // quotes and price from Hyderabad, or the first city that needs the part (city tabs list only their own parts)
+    const hq = colName(PL.low), mm = mt(pc);
+    row[18] = { f: 'IFERROR(IF(ISNUMBER(INDEX(' + pc + '!$' + hq + ':$' + hq + ',' + mm + ')),INDEX(' + pc + '!$' + colName(PL.lowV) + ':$' + colName(PL.lowV) + ',' + mm + '),""),"")' };
+    row[19] = { f: 'IFERROR(IF(ISNUMBER(INDEX(' + pc + '!$' + hq + ':$' + hq + ',' + mm + ')),INDEX(' + pc + '!$' + hq + ':$' + hq + ',' + mm + '),IF(INDEX(' + pc + '!$' + colName(PL.ref) + ':$' + colName(PL.ref) + ',' + mm + ')>0,INDEX(' + pc + '!$' + colName(PL.ref) + ':$' + colName(PL.ref) + ',' + mm + '),"")),"")', s: S.dec };
     row[20] = { f: 'IF(ISNUMBER(T' + q + '),T' + q + '*G' + q + ',0)', s: S.int }; row[21] = { f: 'K' + q + '+M' + q + '+O' + q + '+Q' + q, s: S.int }; row[22] = { f: 'IF(ISNUMBER(T' + q + '),T' + q + '*V' + q + ',0)', s: S.int };
     row[23] = r.tyre ? 'Tyre' : 'Spare';
     cs.push(row);
