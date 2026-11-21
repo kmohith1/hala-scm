@@ -1798,7 +1798,7 @@ function rfqWorkbook(m) {
     for (const v of L.vendors) { vr[v.tot] = { v: v.name, s: S.vend }; hr[v.unit] = { v: 'Unit Basic Price', s: S.hdrB }; hr[v.tot] = { v: 'Total Basic Price', s: S.hdrB }; hr[v.lead] = { v: 'Supply Delivery Lead Time', s: S.hdrB }; }
     if (nU) { vr[L.used] = { v: 'Consumed per month - ' + city + ' (forecast page)', s: S.vend }; for (let j = 1; j < nU; j++) vr[L.used + j] = { v: null, s: S.vend }; m.consMonths.forEach((t, j) => hr[L.used + j] = { v: t, s: S.hdrB }); }
     hr[L.fc] = { v: city + ' forecast\n' + m.label, s: S.hdrY }; hr[L.extra] = { v: 'Extra above\nforecast', s: S.hdrY }; hr[L.ref] = { v: 'Dashboard price\nexcl. GST (₹)', s: S.hdr }; hr[L.est] = { v: 'Est. value\nexcl. GST (₹)', s: S.hdr }; hr[L.low] = { v: 'Lowest Basic Price', s: S.hdr }; hr[L.lowV] = { v: 'Lowest Vendor', s: S.hdr };
-    m.rows.forEach((r, i) => {
+    m.rows.filter(r => r.q[city] > 0).forEach((r, i) => {   // only the parts this city needs
       const rn = first - 1 + i + 1, row = [];   // sheet row number = 5 + i
       const R = first + i;
       row[0] = i + 1; row[1] = r.key; row[2] = r.name; row[3] = r.model; row[4] = r.cat; row[5] = 'Nos';
@@ -1818,7 +1818,7 @@ function rfqWorkbook(m) {
   const cs = [[], [], [], []], R = (col) => "'City Split'!$" + col + '$' + first + ':$' + col + '$' + last;
   cs[0][0] = { v: 'City split of the ' + m.label + ' RFQ quantities', s: S.title };
   cs[0][20] = { f: 'SUM(U' + first + ':U' + last + ')', s: S.int }; cs[0][22] = { f: 'SUM(W' + first + ':W' + last + ')', s: S.int };
-  cs[1][9] = { v: 'Forecasted Order Qty  |  ' + m.prevShort + ' procured = qty bought in ' + m.prev + ' (Cercle OS > Inventory > Purchases)', s: S.note };
+  cs[1][9] = { v: 'Forecasted Order Qty  |  ' + m.prevShort + ' procured = qty bought in ' + m.prev + ' (Cercle OS > Inventory > Purchases)' + (m.dropped && m.dropped.lines ? '  |  ' + m.dropped.lines + ' lines under ' + RFQ_MIN_QTY + ' pcs for the month left out (' + m.dropped.qty + ' pcs)' : ''), s: S.note };
   const H = ['S.No', 'HALA Part ID', 'Part description', 'Vehicle model', 'Category', 'UOM', 'Total qty\n(' + m.label + ')', 'Dashboard\nrequired qty ' + m.label, 'RFQ above\nforecast'];
   H.forEach((h, i) => cs[2][i] = { v: h, s: S.hdr });
   const cityCols = { Hyderabad: 9, Bengaluru: 12, Delhi: 14, Mumbai: 16 };
@@ -1899,13 +1899,156 @@ function rfqWorkbook(m) {
 const RFQ_SHARED = [
   // also: other dashboard part names that are this same part on these models
   { part: 'FRONT PANEL', also: ['FRONT PANEL-ESPRINTO HS', 'FRONT PANEL REF'], models: ['SPRINTO HS SUN', 'HALA GEMOPAI RYDER', 'RILOX SPARK', 'AMO SUN', 'HALA CKD', 'VARCAS FALCON', 'SPRINTO HS', 'RYDER PRO', 'HALA GEMOPAI NEW', 'EVTRIC', 'RYDER SUPERMAX PRO', 'RYDER SUPERMAX'] },   // 19 Nov 2026
-  { part: 'FRONT FENDER', all: true, id: 'HM-CM-P-0002' },   // 20 Nov 2026: Front Fender is the same on all vehicles, one row (HM-CM-P-0002 = Common Front Fender)
+  { part: 'FRONT FENDER', also: ['FRONT MUDGUARD'], all: true, id: 'HM-CM-P-0002' },   // 20 Nov 2026: Front Fender is the same on all vehicles, one row (HM-CM-P-0002 = Common Front Fender)
   { part: 'KEYFOB SUN MOBILITY', all: true, id: 'HM-CM-E-0001' },   // 20 Nov 2026: Keyfob is the same on all vehicles, one row (HM-CM-E-0001 = Common KEYFOB (Sun Mobility))
   { part: 'T FORK STEM', also: ['T FORK STEM-30MM', 'T FORK STEM 17 INCHE', 'T FORK', 'T FORK - 17 INCH'], all: true, id: 'HM-CM-M-0002' },   // 20 Nov 2026: every T Fork name is the T Fork Stem 30 mm, one row (HM-CM-M-0002)
   { part: '6204 BEARING', all: true },   // 20 Nov 2026: 6204 bearing is the same on all vehicles, one row (no HALA part ID in the part master yet)
+  // 21 Nov 2026: the parts Mohith merged by hand into one 'All models' row in the Dec 2026 RFQ
+  { part: 'BODY CONNECTION', also: ['BODY CENTER COVER', 'BODY REAR CENTER COVER'], all: true },
+  { part: 'BRAKE LEVER SPRING', all: true },
+  { part: 'CENTRE / MAIN STAND', all: true },
+  { part: 'CHARGING PANEL COVER', all: true },
+  { part: 'CONE KIT', all: true },
+  { part: 'DC CONVERTER', all: true },
+  { part: 'DIPPER SWITCH', all: true },
+  { part: 'DISC BRAKE LEFT LEVER', all: true },
+  { part: 'DISC BRAKE RIGHT LEVER', all: true },
+  { part: 'DISC CALIPER', all: true },
+  { part: 'DISC OIL', all: true },
+  { part: 'DISC PAD PATTI', all: true },
+  { part: 'DRUM PLATE ASSEMBLY WITH SHOE', also: ['DRUM PLATE'], all: true },
+  { part: 'FLASHER', also: ['FLASHER 2 PIN'], all: true },
+  { part: 'FOOT BOARD', also: ['FLOOR MAT'], all: true },
+  { part: 'FORK BALL BEARING', also: ['FORK BALL BEARING BIG'], all: true },
+  { part: 'FRONT BRAKE CABLE 52 INCHES', also: ['FRONT BRAKE CABLE'], all: true },
+  { part: 'FRONT DISC PLATE', all: true },
+  { part: 'FRONT SHOCKERS LH AND RH', also: ['FRONT SHOCKER', 'FRONT SHOCKER LEFT', 'FRONT SHOCKER RIGHT', 'FRONT SUSPENSION'], all: true },
+  { part: 'FRONT WHEEL', all: true },
 ];
 // Models left out of the RFQ's model-specific rows (19 Nov 2026: Quantum removed)
 const RFQ_SKIP_MODELS = ['QUANTUM'];
+// RFQ vehicle families (as in the Nov 2026 RFQ): HYFY, SNAP, and SINGLE LIGHT = every other model (Quantum is skipped)
+const rfqFamily = m => /HYFY/i.test(m) ? 'ODYSSE HYFY SUN' : /SNAP/i.test(m) ? 'ODYSSE SNAP SUN' : 'SINGLE LIGHT';
+const RFQ_FAMILY_HALA = { 'SINGLE LIGHT': ['Roamy SL', 'Sprinto HS', 'Common'], 'ODYSSE HYFY SUN': ['HYFY'], 'ODYSSE SNAP SUN': ['SNAP'], 'COMMON': ['Common', 'Roamy SL'] };
+const RFQ_MIN_QTY = 20;   // RFQ lines below this for the whole month are left out (21 Nov 2026)
+// HALA part IDs used in the Nov 2026 RFQ, by family | part name; checked before the part master
+const RFQ_FAMILY_IDS = {
+  "COMMON|BRAKE SHOE 110MM WITH SPRINGS": "HM-CM-M-0003",
+  "COMMON|DISC PADS": "HM-CM-M-0004",
+  "COMMON|FOOT BOARD": "HM-CM-P-0013",
+  "COMMON|FORK BALL BEARING": "HM-CM-M-0020",
+  "COMMON|FRONT FENDER": "HM-CM-P-0002",
+  "COMMON|FRONT SHOCKER LEFT": "HM-CM-M-0006",
+  "COMMON|FRONT SHOCKER RIGHT": "HM-CM-M-0007",
+  "COMMON|HORN": "HM-CM-E-0011",
+  "COMMON|KEYFOB SUN MOBILITY": "HM-CM-E-0001",
+  "COMMON|LEFT BRAKE LEVER WITH YOKE": "HM-CM-M-0021",
+  "COMMON|LOCKSET": "HM-CM-M-0001",
+  "COMMON|MOTOR WIRE WITHOUT COUPLER": "HM-CM-E-0012",
+  "COMMON|REAR BRAKE CABLE 82 INCH": "HM-CM-M-0009",
+  "COMMON|REAR FENDER": "HM-RS-P-0021",
+  "COMMON|REAR FENDER INNER COVER": "HM-CM-P-0016",
+  "COMMON|REAR SHOCK ABSORBER": "HM-CM-M-0013",
+  "COMMON|SEAT RING": "HM-CM-M-0012",
+  "COMMON|T FORK - 15 INCH": "HM-CM-M-0002",
+  "COMMON|TAIL LIGHT ASSEMBLY": "HM-CM-E-0008",
+  "COMMON|THROTTLE": "HM-CM-E-0003",
+  "COMMON|TYRES - 3.00 * 10.00": "HM-CM-R-0001",
+  "COMMON|WHEEL BEARINGS 6201": "HM-CM-M-0008",
+  "ODYSSE HYFY SUN|FOOT BOARD LOWER COVER": "HM-HY-P-0030",
+  "ODYSSE HYFY SUN|FRONT BRAKE CABLE": "HM-HY-M-0027",
+  "ODYSSE HYFY SUN|FRONT INNER MUDGUARD": "HM-HY-P-0007",
+  "ODYSSE HYFY SUN|FRONT PANEL": "HM-HY-P-0029",
+  "ODYSSE HYFY SUN|HEAD COVER": "HM-HY-P-0022",
+  "ODYSSE HYFY SUN|HEAD LIGHT ASSEMBLY": "HM-HY-E-0017",
+  "ODYSSE HYFY SUN|HORN SWITCH": "HM-HY-E-0011",
+  "ODYSSE HYFY SUN|INDICATOR ASSEMBLY": "HM-HY-E-0009",
+  "ODYSSE HYFY SUN|INDICATOR SWITCH": "HM-HY-E-0026",
+  "ODYSSE HYFY SUN|LEFT FOOT SIDE PANEL": "HM-HY-P-0031",
+  "ODYSSE HYFY SUN|LEFT WHEEL PROTECTOR": "HM-HY-P-0032",
+  "ODYSSE HYFY SUN|NOSE COVER": "HM-HY-P-0033",
+  "ODYSSE HYFY SUN|RIGHT FOOT SIDE PANEL": "HM-HY-P-0034",
+  "ODYSSE HYFY SUN|RIGHT WHEEL PROTECTOR": "HM-HY-P-0035",
+  "ODYSSE HYFY SUN|SEAT BUCKET": "HM-HY-P-0019",
+  "ODYSSE HYFY SUN|SEAT COVER": "HM-HY-M-0028",
+  "ODYSSE HYFY SUN|SIDE STAND ASSY": "HM-HY-M-0005",
+  "ODYSSE HYFY SUN|SPEEDOMETER": "HM-HY-P-0009",
+  "ODYSSE HYFY SUN|T FORK - 17 INCH": "HM-HY-M-0012",
+  "ODYSSE HYFY SUN|TOOL BOX": "HM-HY-P-0016",
+  "ODYSSE HYFY SUN|WIRING HARNESS": "HM-HY-E-0021",
+  "SINGLE LIGHT|6204 BEARING": "HM-RS-M-0027",
+  "SINGLE LIGHT|BODY CONNECTION": "HM-RS-P-0039",
+  "SINGLE LIGHT|CENTRE / MAIN STAND": "HM-RS-M-0003",
+  "SINGLE LIGHT|CHARGING PANEL COVER": "HM-RS-P-0040",
+  "SINGLE LIGHT|CONE KIT": "HM-RS-M-0019",
+  "SINGLE LIGHT|DC CONVERTER": "HM-RS-E-0004",
+  "SINGLE LIGHT|DISC CALIPER": "HM-RS-M-0017",
+  "SINGLE LIGHT|DISC PAD PATTI": "HM-RS-M-0030",
+  "SINGLE LIGHT|DRUM PLATE ASSEMBLY WITH SHOE": "HM-RS-M-0031",
+  "SINGLE LIGHT|FLASHER": "HM-RS-E-0006",
+  "SINGLE LIGHT|FOOT BOARD LOWER COVER": "HM-RS-P-0041",
+  "SINGLE LIGHT|FRONT DISC PLATE": "HM-RS-M-0023",
+  "SINGLE LIGHT|FRONT INNER MUDGUARD": "HM-RS-P-0025",
+  "SINGLE LIGHT|FRONT PANEL": "HM-CM-P-0001",
+  "SINGLE LIGHT|FRONT WHEEL": "HM-RS-M-0012",
+  "SINGLE LIGHT|HANDLE BAR": "HM-RS-M-0005",
+  "SINGLE LIGHT|HEAD COVER": "HM-CM-P-0007",
+  "SINGLE LIGHT|HEAD LIGHT ASSEMBLY": "HM-RS-E-0020",
+  "SINGLE LIGHT|HEAD LIGHT HOLDER ASSY": "HM-RS-E-0024",
+  "SINGLE LIGHT|HEAD LIGHT LED BULB": "HM-RS-E-0025",
+  "SINGLE LIGHT|HEAD LIGHT SWITCH": "HM-RS-E-0009",
+  "SINGLE LIGHT|HORN SWITCH": "HM-RS-E-0008",
+  "SINGLE LIGHT|HOSE PIPE FRONT": "HM-RS-M-0032",
+  "SINGLE LIGHT|INDICATOR ASSEMBLY": "HM-RS-E-0021",
+  "SINGLE LIGHT|INDICATOR BULB": "HM-RS-E-0026",
+  "SINGLE LIGHT|INDICATOR SWITCH": "HM-RS-E-0010",
+  "SINGLE LIGHT|LEFT BRAKE SENSOR": "HM-RS-E-0027",
+  "SINGLE LIGHT|LEFT FOOT SIDE PANEL": "HM-CM-P-0009",
+  "SINGLE LIGHT|LEFT SIDE PANEL": "HM-CM-P-0014",
+  "SINGLE LIGHT|LEFT WHEEL PROTECTOR": "HM-CM-P-0012",
+  "SINGLE LIGHT|MAIN STAND SPRING": "HM-RS-M-0008",
+  "SINGLE LIGHT|MCB": "HM-RS-E-0017",
+  "SINGLE LIGHT|NOSE COVER": "HM-CM-P-0008",
+  "SINGLE LIGHT|REAR HOSE PIPE": "HM-RS-M-0033",
+  "SINGLE LIGHT|RIGHT BRAKE LEVER": "HM-RS-M-0034",
+  "SINGLE LIGHT|RIGHT BRAKE SENSOR": "HM-RS-E-0029",
+  "SINGLE LIGHT|RIGHT FOOT SIDE PANEL": "HM-CM-P-0005",
+  "SINGLE LIGHT|RIGHT MASTER CYLINDER": "HM-RS-M-0035",
+  "SINGLE LIGHT|RIGHT SIDE PANEL": "HM-CM-P-0011",
+  "SINGLE LIGHT|RIGHT WHEEL PROTECTOR": "HM-CM-P-0006",
+  "SINGLE LIGHT|SEAT BUCKET": "HM-RS-P-0042",
+  "SINGLE LIGHT|SEAT COVER": "HM-RS-M-0036",
+  "SINGLE LIGHT|SEAT LATCH": "HM-RS-M-0006",
+  "SINGLE LIGHT|SEAT LOCK CABLE": "HM-RS-M-0015",
+  "SINGLE LIGHT|SEAT LOCK HOOK": "HM-RS-M-0037",
+  "SINGLE LIGHT|SIDE STAND ASSY": "HM-RS-M-0004",
+  "SINGLE LIGHT|SPEEDOMETER": "HM-RS-E-0007",
+  "SINGLE LIGHT|SPEEDOMETER CHROME": "HM-RS-P-0043",
+  "SINGLE LIGHT|SWING ARM": "HM-RS-M-0002",
+  "SINGLE LIGHT|TAIL LIGHT BULB": "HM-RS-E-0023",
+  "SINGLE LIGHT|TAIL LIGHT BULB HOLDER": "HM-RS-E-0031",
+  "SINGLE LIGHT|TOOL BOX": "HM-RS-P-0015",
+  "SINGLE LIGHT|TOOL BOX POCKET": "HM-RS-P-0046",
+  "SINGLE LIGHT|TYRE AIR VALVE - STRAIGHT": "HM-RS-R-0004",
+  "SINGLE LIGHT|UPPER DIPPER SWITCH": "HM-RS-E-0011",
+  "SINGLE LIGHT|WIRING HARNESS": "HM-RS-E-0013",
+  "ODYSSE SNAP SUN|FOOT BOARD LOWER COVER": "HM-SN-P-0031",
+  "ODYSSE SNAP SUN|FRONT PANEL": "HM-SN-P-0032",
+  "ODYSSE SNAP SUN|HEAD COVER": "HM-SN-P-0024",
+  "ODYSSE SNAP SUN|HEAD LIGHT ASSEMBLY": "HM-SN-E-0008",
+  "ODYSSE SNAP SUN|INDICATOR ASSEMBLY": "HM-SN-E-0009",
+  "ODYSSE SNAP SUN|LEFT SIDE PANEL": "HM-SN-P-0033",
+  "ODYSSE SNAP SUN|NOSE COVER": "HM-SN-P-0034",
+  "ODYSSE SNAP SUN|RIGHT SIDE PANEL": "HM-SN-P-0035",
+  "ODYSSE SNAP SUN|SPEEDOMETER COVER": "HM-SN-P-0009"
+};
+function rfqFamilyId(name, fam) {
+  const n = String(name).toUpperCase().trim(), hit = RFQ_FAMILY_IDS[fam + '|' + n] || (fam !== 'COMMON' ? '' : RFQ_FAMILY_IDS['SINGLE LIGHT|' + n]);
+  if (hit) return hit;
+  const ps = halaPartsByName.get(partNameKey(name)) || [];
+  for (const mo of RFQ_FAMILY_HALA[fam] || []) { const x = ps.find(p => partNameKey(p.model) === partNameKey(mo)); if (x) return x.id; }
+  return '';
+}
 function rfqWorkbookModel() {
   const CITIES = ['Hyderabad', 'Bengaluru', 'Delhi', 'Mumbai'], MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const label = F.tm.label, mi = MON.findIndex(x => label.startsWith(x)), yr = +label.slice(-4), pd = new Date(Date.UTC(yr, mi - 1, 1));
@@ -1927,19 +2070,26 @@ function rfqWorkbookModel() {
     if (!r.fc) continue;
     const common = commonPartId(r.k), shAll = RFQ_SHARED.find(x => x.all && [x.part, ...(x.also || [])].some(n => partNameKey(n) === partNameKey(r.n)));
     if (common) { if (r.buy > 0) { const B = bd(r.k, 'city'); if (shAll) { addShared(shAll, r, { n: 'COMMON', buy: r.buy, kids: B.groups }, B); continue; } rows.push({ id: common, name: r.n, model: 'All models (common part)', cat: r.c, tyre: isTyrePart(r.n), fc: Math.round(r.buy), q: spread(r.buy, B.groups.map(g => [g.n, g.buy])), used: consOf(B, B.groups), price: r.net }); } continue; }
-    const B = bd(r.k, 'model'), sh = RFQ_SHARED.find(x => [x.part, ...(x.also || [])].some(n => partNameKey(n) === partNameKey(r.n))), shG = [];
+    const B = bd(r.k, 'model'), sh = RFQ_SHARED.find(x => [x.part, ...(x.also || [])].some(n => partNameKey(n) === partNameKey(r.n))), shG = [], fams = new Map();
     for (const g of B.groups) {
       if (g.buy <= 0 || RFQ_SKIP_MODELS.includes(g.n)) continue;
       if (sh && (sh.all || sh.models.includes(g.n))) { shG.push(g); continue; }
-      rows.push({ id: forecastPartId(r.k, g.n), name: r.n, model: g.n, cat: r.c, tyre: isTyrePart(r.n), fc: Math.round(g.buy), q: spread(g.buy, g.kids.map(x => [x.n, x.buy])), used: consOf(B, g.kids), price: r.net });
+      const f = rfqFamily(g.n); if (!fams.has(f)) fams.set(f, []); fams.get(f).push(g);
+    }
+    for (const [f, gs] of fams) {   // one row per vehicle family: the models' forecasts, city splits and consumption added up
+      const buy = gs.reduce((t, g) => t + g.buy, 0), kids = gs.flatMap(g => g.kids);
+      rows.push({ id: rfqFamilyId(r.n, f), name: r.n, model: f, cat: r.c, tyre: isTyrePart(r.n), fc: Math.round(buy), q: spread(buy, kids.map(x => [x.n, x.buy])), used: consOf(B, kids), price: r.net });
     }
     for (const g of shG) addShared(sh, r, g, B);
   }
   for (const [sh, o] of shared) {   // one row for a part that is the same on several models (and under several names): forecasts, city splits and consumption added up
     const r = o.main || o.any, buy = o.gs.reduce((t, x) => t + x.g.buy, 0), kids = o.gs.flatMap(x => x.g.kids);
     const ids = [...new Set(o.gs.map(x => forecastPartId(x.k, x.g.n)).filter(x => x && x !== 'Model-specific IDs'))];
-    rows.push({ id: sh.id || (ids.length === 1 ? ids[0] : ''), name: sh.part, model: sh.all ? 'All models (common part)' : 'Shared: ' + sh.models.filter(mo => o.gs.some(x => x.g.n === mo)).join(', '), cat: r.c, tyre: isTyrePart(sh.part), fc: Math.round(buy), q: spread(buy, kids.map(x => [x.n, x.buy])), used: consOf(o.B, kids), price: r.net, alias: sh.all ? [sh.part, ...(sh.also || [])] : null });
+    const fam = !sh.all && sh.models.every(mo => rfqFamily(mo) === 'SINGLE LIGHT') ? 'SINGLE LIGHT' : '';
+    rows.push({ id: sh.id || rfqFamilyId(sh.part, fam || 'COMMON') || (ids.length === 1 ? ids[0] : ''), name: sh.part, model: sh.all ? 'All models (common part)' : fam || 'Shared: ' + sh.models.filter(mo => o.gs.some(x => x.g.n === mo)).join(', '), cat: r.c, tyre: isTyrePart(sh.part), fc: Math.round(buy), q: spread(buy, kids.map(x => [x.n, x.buy])), used: consOf(o.B, kids), price: r.net, alias: sh.all ? [sh.part, ...(sh.also || [])] : null });
   }
+  const small = rows.filter(r => r.fc < RFQ_MIN_QTY), dropped = { lines: small.length, qty: small.reduce((t, r) => t + r.fc, 0) };
+  for (let i = rows.length - 1; i >= 0; i--) if (rows[i].fc < RFQ_MIN_QTY) rows.splice(i, 1);
   rows.sort((a, b) => (Number.isFinite(b.price) ? b.price * b.fc : -1) - (Number.isFinite(a.price) ? a.price * a.fc : -1) || a.name.localeCompare(b.name));
   const used = new Set(); let nid = 0;
   for (const r of rows) { let k = r.id && r.id !== 'Model-specific IDs' ? r.id : 'NOID-' + String(++nid).padStart(3, '0'); while (used.has(k)) k += '*'; used.add(k); r.key = k; }
@@ -1952,13 +2102,14 @@ function rfqWorkbookModel() {
       const al = poGrnAlias(inv, gl), base = al ? al.part : grnBasePart(gl.part), mdl = al ? poModelNorm(al.model) : (poModelNorm(gl.model) || poModelHint(gl.part));
       const c = byName.get(gstPartKey(base)) || []; let hit = null, note = '';
       if (!c.length) note = 'Not in RFQ'; else if (c.length === 1) hit = c[0];
-      else { hit = c.find(x => poModelNorm(x.model) === mdl) || c.find(x => !poModelNorm(x.model)) || null; if (!hit) note = 'Several models in the RFQ and the GRN does not say which'; }
+      else { hit = c.find(x => poModelNorm(x.model) === mdl) || c.find(x => !poModelNorm(x.model)) || (!mdl ? c.find(x => poModelNorm(x.model) === 'SL') : null) || null;   // a '-Common' GRN line with no model is the Single Light part, as in the Nov RFQ
+      if (!hit) note = 'Several models in the RFQ and the GRN does not say which'; }
       purchases.push({ date: ddmmmyy(inv.date), inv: inv.invoice, vendor: inv.vendor, part: gl.part, model: gl.model || '', qty, unit: Number.isFinite(gl.paid) ? gl.paid : 0, city: poCityName(grnCityOf(inv, gl)),
         how: poCityTag(gl.part) ? 'City tag in part name' : poCityTag(inv.invoice) ? 'City tag in invoice number' : 'No city tag - assumed Hyderabad', id: hit ? hit.key : '', matched: hit ? hit.name + (poModelNorm(hit.model) ? ' (' + hit.model + ')' : '') : '', note });
     }
   }
   const consMonths = (consMs || []).map(i => D.months[i].partial ? D.months[i].label + '\n(1–' + D.months[i].upto + ' ' + D.months[i].label.slice(0, 3) + ')' : D.months[i].label);
-  return { label, prev, prevShort, rows, purchases, consMonths };
+  return { label, prev, prevShort, rows, purchases, consMonths, dropped };
 }
 function rfqExportRows() { return rfqRows().map(r=>[r.id || 'Not mapped', r.part, r.model, Number.isFinite(r.price) ? r.price.toFixed(2) : '', r.buy]); }
 function renderModelRequirementTable() {
