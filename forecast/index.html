@@ -3122,7 +3122,7 @@ function poCalc(po) {
     // Procurement Tracker's taxable value; supplies typed by hand with no GRN behind them stay at the PO rate
     const paidVal = (q, paid) => { if (!Number.isFinite(paid)) return val(q); const gross = Math.round(q * paid * 100); return basis === 'excl' ? grnExGst(gross) : gross; };
     let used = 0;
-    if (a) for (const it of a.items) used += paidVal(it.qty, it.gl.paid);
+    if (a) for (const it of a.items) used += paidVal(it.qty * (it.pair || 1), it.gl.paid);   // a pair line holds two GRN pieces per part, each at the GRN price
     for (const r of po.receipts) if (r.grn && r.line === l.id) used += paidVal(r.qty, grnPaid.get(r.grn));
     if (handQty > autoQty) used += val(handQty - autoQty);
     const atPo = val(supplied);   // the same quantity at the PO rate
@@ -3424,11 +3424,12 @@ function poAuto() {
     const ivk = poVendorKey(inv.vendor);
     (inv.lines || []).forEach((gl, i) => {
       const key = inv.record + ':' + i;
-      let left = ((gl.quantity > 0 ? gl.quantity : 0) - (linked.get(key) || 0)) / ((poGrnAlias(inv, gl) || {}).pair || 1); if (left <= 1e-9) return;   // pair: one left + one right = one part
+      const pair = (poGrnAlias(inv, gl) || {}).pair || 1;   // GRN pieces per part
+      let left = ((gl.quantity > 0 ? gl.quantity : 0) - (linked.get(key) || 0)) / pair; if (left <= 1e-9) return;   // pair: one left + one right = one part
       const city = grnCityOf(inv, gl), add = (s, q, extra) => {
         let m = map.get(s.po.id); if (!m) map.set(s.po.id, m = new Map());
         let x = m.get(s.l.id); if (!x) m.set(s.l.id, x = { qty: 0, items: [] });
-        x.qty += q; x.items.push({ inv, i, gl, qty: q, key, extra });
+        x.qty += q; x.items.push({ inv, i, gl, qty: q, key, extra, pair });
       };
       let last = null;
       for (const s of slots) {
@@ -3440,7 +3441,7 @@ function poAuto() {
       if (left > 1e-9 && last) add(last, left, true);   // supplied beyond the PO: counted in full, shown as extra
       else if (left > 1e-9 && inv.date.slice(0, 7) >= firstMonth && !['Helmets', 'Printing'].includes(grnLineCat(gl, inv.vendor)) && !/^TRANSPORT(ATION)?\b/i.test(poNorm(gl.part))) {   // freight is not a spare
         const paid = Number.isFinite(gl.paid) ? gl.paid : 0;
-        map.noPo.push({ inv, gl, i, key, qty: left, city: poCityName(city), part: poNorm(grnBasePart(gl.part)), vendor: inv.vendor, ym: inv.date.slice(0, 7), grossPaise: Math.round(left * paid * 100), tyre: poOwnBudget(gl.part) === 'tyres' });
+        map.noPo.push({ inv, gl, i, key, qty: left, city: poCityName(city), part: poNorm(grnBasePart(gl.part)), vendor: inv.vendor, ym: inv.date.slice(0, 7), grossPaise: Math.round(left * pair * paid * 100), tyre: poOwnBudget(gl.part) === 'tyres' });
       }
     });
   }
