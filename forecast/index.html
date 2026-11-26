@@ -3102,20 +3102,38 @@ async function poRun(fn, done) {
 }
 
 // ---------- figures
+// Cercle OS GRN Paid Price (per item, incl. GST) by GRN line key "record:line", for supplies linked to a GRN line by hand
+let poGrnPaidMemo = { grn: null, map: new Map() };
+function poGrnPaidMap() {
+  if (poGrnPaidMemo.grn === GRN) return poGrnPaidMemo.map;
+  const map = new Map();
+  if (GRN) for (const inv of GRN.records) (inv.lines || []).forEach((gl, i) => { if (Number.isFinite(gl.paid)) map.set(inv.record + ':' + i, gl.paid); });
+  poGrnPaidMemo = { grn: GRN, map };
+  return map;
+}
 function poCalc(po) {
   const basis = poState.settings.basis, live = po.status === 'Open', hand = new Map(), linked = new Map(), auto = poAuto().get(po.id) || new Map();
   for (const r of po.receipts) { const m = r.grn ? linked : hand; m.set(r.line, (m.get(r.line) || 0) + r.qty); }
+  const grnPaid = poGrnPaidMap();
   const lines = po.lines.map(l => {
     // a supply typed by hand and the same goods arriving in GRN are one delivery: count the larger of the two
-    const a = auto.get(l.id), autoQty = a ? a.qty : 0, supplied = (linked.get(l.id) || 0) + Math.max(hand.get(l.id) || 0, autoQty), val = q => { const ex = Math.round(q * l.ratePaise); return basis === 'excl' ? ex : Math.round(ex * (100 + l.gst) / 100); };
-    const pending = live ? Math.max(0, l.qty - supplied) : 0, ordered = val(l.qty), used = val(supplied), committed = val(live ? Math.max(l.qty, supplied) : supplied);
-    const out = { ...l, supplied, autoQty, autoItems: a ? a.items : [], pending, excess: Math.max(0, supplied - l.qty), ordered, used, committed, pendingVal: committed - used };
+    const a = auto.get(l.id), autoQty = a ? a.qty : 0, handQty = hand.get(l.id) || 0, linkedQty = linked.get(l.id) || 0, supplied = linkedQty + Math.max(handQty, autoQty), val = q => { const ex = Math.round(q * l.ratePaise); return basis === 'excl' ? ex : Math.round(ex * (100 + l.gst) / 100); };
+    // utilised = what was actually paid for the goods (Cercle OS GRN Paid Price, GST taken out for the excl. basis), so it agrees with the
+    // Procurement Tracker's taxable value; supplies typed by hand with no GRN behind them stay at the PO rate
+    const paidVal = (q, paid) => { if (!Number.isFinite(paid)) return val(q); const gross = Math.round(q * paid * 100); return basis === 'excl' ? grnExGst(gross) : gross; };
+    let used = 0;
+    if (a) for (const it of a.items) used += paidVal(it.qty, it.gl.paid);
+    for (const r of po.receipts) if (r.grn && r.line === l.id) used += paidVal(r.qty, grnPaid.get(r.grn));
+    if (handQty > autoQty) used += val(handQty - autoQty);
+    const atPo = val(supplied);   // the same quantity at the PO rate
+    const pending = live ? Math.max(0, l.qty - supplied) : 0, ordered = val(l.qty), pendingVal = val(pending), committed = used + pendingVal;
+    const out = { ...l, supplied, autoQty, autoItems: a ? a.items : [], pending, excess: Math.max(0, supplied - l.qty), ordered, used, atPo, overPo: used - atPo, committed, pendingVal };
     // tyres have their own budget: a tyre line stays on the PO (quantities, supplies) but carries no PO value, utilised or pending value; the real figures are kept in `own` for the tyre note
-    if (poOwnBudget(l.part) === 'tyres') { out.own = { ordered, used, pendingVal: committed - used }; out.ordered = out.used = out.committed = out.pendingVal = 0; out.tyre = true; }
+    if (poOwnBudget(l.part) === 'tyres') { out.own = { ordered, used, pendingVal }; out.ordered = out.used = out.committed = out.pendingVal = out.atPo = out.overPo = 0; out.tyre = true; }
     return out;
   });
-  const t = { lines, ordered: 0, used: 0, committed: 0, pendingVal: 0, qty: 0, supplied: 0, pending: 0 };
-  for (const l of lines) { t.ordered += l.ordered; t.used += l.used; t.committed += l.committed; t.pendingVal += l.pendingVal; t.qty += l.qty; t.supplied += l.supplied; t.pending += l.pending; }
+  const t = { lines, ordered: 0, used: 0, overPo: 0, committed: 0, pendingVal: 0, qty: 0, supplied: 0, pending: 0 };
+  for (const l of lines) { t.ordered += l.ordered; t.used += l.used; t.overPo += l.overPo; t.committed += l.committed; t.pendingVal += l.pendingVal; t.qty += l.qty; t.supplied += l.supplied; t.pending += l.pending; }
   t.excess = lines.reduce((n, l) => n + l.excess, 0);
   t.untraced = live && !po.receipts.length && !lines.some(l => l.autoQty > 0);
   t.overdue = !!(live && t.pending > 0 && po.due && po.due < shipToday());
@@ -3146,11 +3164,11 @@ function poBudget() {
   const s = poState.settings, month = s.scope === 'month' ? (poState.month || poCurMonth()) : '';
   const rows = poState.rows.filter(po => !month || po.date.startsWith(month));
   // tyres and keyfobs have their own budgets: their PO lines and GRN are left out of the spares budget and shown separately
-  let used = 0, committed = 0, pendingVal = 0; const ty = { used: 0, pendingVal: 0, kinds: new Set() };
-  for (const po of rows) for (const l of poC(po).lines) { const own = poOwnBudget(l.part); if (own) { ty.kinds.add(own); ty.used += l.own ? l.own.used : l.used; ty.pendingVal += l.own ? l.own.pendingVal : l.pendingVal; continue; } used += l.used; committed += l.committed; pendingVal += l.pendingVal; }
+  let used = 0, committed = 0, pendingVal = 0, overPo = 0; const ty = { used: 0, pendingVal: 0, kinds: new Set() };
+  for (const po of rows) for (const l of poC(po).lines) { const own = poOwnBudget(l.part); if (own) { ty.kinds.add(own); ty.used += l.own ? l.own.used : l.used; ty.pendingVal += l.own ? l.own.pendingVal : l.pendingVal; continue; } used += l.used; overPo += l.overPo || 0; committed += l.committed; pendingVal += l.pendingVal; }
   let noPo = 0; for (const x of (poAuto().noPo || []).filter(x => !month || x.ym === month)) { const own = poOwnBudget(x.gl.part) || (grnLineCat(x.gl, x.inv.vendor) === 'Keyfob' ? 'keyfobs' : ''); if (own) { ty.kinds.add(own); ty.used += poNoPoVal(x); } else noPo += poNoPoVal(x); }
   const transit = poInTransit();
-  return { transit, transitPaise: transit.reduce((a, t) => a + t.taxablePaise, 0), budget: s.budgetPaise, used: used + noPo, noPo, committed: committed + noPo, pendingVal, month, n: rows.length, tyres: ty };
+  return { transit, transitPaise: transit.reduce((a, t) => a + t.taxablePaise, 0), budget: s.budgetPaise, used: used + noPo, noPo, overPo, committed: committed + noPo, pendingVal, month, n: rows.length, tyres: ty };
 }
 function poMatchQ(po, l, q) { return !q || [po.po, po.vendor, po.note, l.part, l.model, l.city].join(' ').toUpperCase().includes(q); }
 function poFiltered() {
@@ -3476,7 +3494,7 @@ function renderPo() {
   $('#po-budget-label').textContent = 'Spares budget ' + poRs(B.budget) + (s.scope === 'month' ? ' a month' : '') + ' · ' + poBasisLabel() + ' · excl. tyres and keyfobs';
   const neg = v => v < 0 ? ' class="num neg"' : ' class="num"';
   $('#po-run').innerHTML = '<div><b class="num">' + poRs(B.budget) + '</b><span>Budget</span><small>' + esc(scope) + ' · ' + poBasisLabel() + '</small></div>' +
-    '<div><b class="num">' + poRs(B.used) + '</b><span>Utilised</span><small>parts supplied · ' + pct(poPct(B.used, B.budget)) + ' of budget' + (B.noPo ? ' · incl. ' + poRs(B.noPo) + ' GRN without PO' : '') + (B.tyres.used || B.tyres.pendingVal ? ' · ' + [...B.tyres.kinds].sort().reverse().join(' and ') + ' excluded (own budget): ' + poRs(B.tyres.used) + ' supplied, ' + poRs(B.tyres.pendingVal) + ' pending' : '') + '</small></div>' +
+    '<div><b class="num">' + poRs(B.used) + '</b><span>Utilised</span><small>parts supplied · ' + pct(poPct(B.used, B.budget)) + ' of budget' + (B.noPo ? ' · incl. ' + poRs(B.noPo) + ' GRN without PO' : '') + (Math.abs(B.overPo) >= 100 ? ' · billed ' + poRs(Math.abs(B.overPo)) + (B.overPo > 0 ? ' above' : ' below') + ' PO rates' : '') + (B.tyres.used || B.tyres.pendingVal ? ' · ' + [...B.tyres.kinds].sort().reverse().join(' and ') + ' excluded (own budget): ' + poRs(B.tyres.used) + ' supplied, ' + poRs(B.tyres.pendingVal) + ' pending' : '') + '</small></div>' +
     '<div><b' + neg(bal) + '>' + poRs(bal) + '</b><span>Balance budget</span><small>budget − utilised</small></div>' +
     '<div><b class="num">' + poRs(B.pendingVal) + '</b><span>Pending supply</span><small>on open POs, not yet supplied</small></div>' +
     (B.transit.length ? '<div><b class="num">' + poRs(B.transitPaise) + '</b><span>In transit</span><small>' + B.transit.length + ' invoices, GRN not received · taxable value, not in utilised' + (PO_IN_TRANSIT_AT ? ' · tracker read ' + new Date(PO_IN_TRANSIT_AT).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' }) : '') + '</small></div>' : '') +
@@ -3939,7 +3957,7 @@ function bindPo() {
       '<tr><td style="padding:12px 24px 4px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>' + tile('#eaf1fb', '#4a6285', '#10243E', '#6b7f9e', 'Budget', poRs(B.budget), 'all POs together') + tile('#e6f5ec', '#2f6b4a', '#176b3f', '#4d8a69', 'Utilised', poRs(B.used), n1(u) + '% of budget') + tile(bal < 0 ? '#fdecea' : '#fff4e0', '#8a5a00', bal < 0 ? '#c0392b' : '#a86500', '#a8803a', 'Balance', poRs(bal), '&nbsp;') + '</tr></table></td></tr>' +
       '<tr><td style="padding:14px 28px 4px;"><div style="font-size:12px;color:#4a5a70;margin-bottom:6px;font-weight:600;">Budget used</div><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#e3e8ef;"><tr>' + bar(u, '#1e9e5a') + bar(pn, '#f2b84b') + bar(fr, '#cfd6e0') + '</tr></table><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:6px;font-size:11px;color:#4a5a70;"><tr><td><span style="color:#1e9e5a;">■</span> Utilised ' + poRs(B.used) + '</td><td align="center"><span style="color:#f2b84b;">■</span> Pending supply ' + poRs(B.pendingVal) + '</td><td align="right"><span style="color:#cfd6e0;">■</span> Free ' + poRs(Math.max(0, free)) + '</td></tr></table></td></tr>' +
       '<tr><td style="padding:18px 28px 6px;font-size:15px;font-weight:600;color:#10243E;">PO commitments</td></tr><tr><td style="padding:0 28px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;border-collapse:collapse;"><tr><td bgcolor="#D6E4F7" style="background:#D6E4F7;padding:9px 12px;color:#10243E;"><font color="#10243E"><b>Item</b></font></td><td align="right" bgcolor="#D6E4F7" style="background:#D6E4F7;padding:9px 12px;color:#10243E;"><font color="#10243E"><b>Value</b></font></td></tr>' +
-      row('Open POs (' + open + ') – total PO value', poRs(openVal), 'font-weight:600;', false) + row('Utilised – parts supplied', poRs(B.used), 'color:#176b3f;font-weight:600;', true) + (B.noPo ? row('&nbsp;&nbsp;of which GRN received without a PO line', poRs(B.noPo), '', false) : '') + row('Pending supply on open POs', poRs(B.pendingVal), 'color:#a86500;font-weight:600;', true) + (B.transit.length ? row('In transit – invoiced, GRN not yet received', poRs(B.transitPaise), 'color:#1f5fbf;font-weight:600;', false) : '') + row(free < 0 ? 'Over-committed' : 'Free to put on new POs', poRs(free), 'color:' + (free < B.budget * 0.05 ? '#c0392b' : '#176b3f') + ';font-weight:700;', false) +
+      row('Open POs (' + open + ') – total PO value', poRs(openVal), 'font-weight:600;', false) + row('Utilised – parts supplied', poRs(B.used), 'color:#176b3f;font-weight:600;', true) + (B.noPo ? row('&nbsp;&nbsp;of which GRN received without a PO line', poRs(B.noPo), '', false) : '') + (Math.abs(B.overPo) >= 100 ? row('&nbsp;&nbsp;of which billed ' + (B.overPo > 0 ? 'above' : 'below') + ' PO rates', poRs(Math.abs(B.overPo)), 'color:' + (B.overPo > 0 ? '#c0392b' : '#176b3f') + ';', false) : '') + row('Pending supply on open POs', poRs(B.pendingVal), 'color:#a86500;font-weight:600;', true) + (B.transit.length ? row('In transit – invoiced, GRN not yet received', poRs(B.transitPaise), 'color:#1f5fbf;font-weight:600;', false) : '') + row(free < 0 ? 'Over-committed' : 'Free to put on new POs', poRs(free), 'color:' + (free < B.budget * 0.05 ? '#c0392b' : '#176b3f') + ';font-weight:700;', false) +
       '</table></td></tr>' +
       '<tr><td style="padding:16px 28px 8px;"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td bgcolor="#D6E4F7" style="background:#D6E4F7;padding:10px 18px;border:1px solid #10243E;"><a href="https://kmohith1.github.io/hala-scm/forecast/#po" style="color:#10243E;font-weight:600;font-size:13px;"><font color="#10243E"><b>Open live PO &amp; budget dashboard</b></font></a></td></tr></table></td></tr>' +
       '<tr><td style="padding:14px 28px 24px;font-size:14px;line-height:1.5;">Regards,<br><b>Mohith</b><br><span style="color:#6b7f9e;font-size:12px;">HALA Mobility · Supply Chain</span></td></tr></table></td></tr></table>';
@@ -4773,7 +4791,7 @@ function defs() {
     ['Safety target', 'The forecast plus 1.28 × √(forecast + (0.3 × forecast)²). Historical coverage is shown in the accuracy table. A shared margin is not a calibrated guarantee for every part or supplier lead time.'],
     ['Hub', 'Parts count at the hub on the ticket (where they were fitted). Vehicles count at the hub they were last deployed from in the month. A hub\'s forecast is its share of each part fitted in the last 30 days. S3 locations are shown together as RSA technicians.'],
     ['Part groups', 'Consumables (wear parts) = brakes, tyres and wheels, fasteners. Plastic = body and panels. Electrical = electricals, lighting and mirrors. Mechanical = suspension and chassis, other parts. Motor and controller = motor and drivetrain. Names follow the monthly spare parts plan.'],
-    ['Purchase orders', 'POs given to vendors, saved as one file per PO in Hala Fleet Ops SharePoint › Documents › Purchase Orders (same Microsoft sign-in as Shipment tracking). Each PO line has a city, part, quantity, rate excluding GST and GST %. Supplied = quantities recorded against a line by hand, from a CSV or by linking a Cercle OS GRN line. Utilised = supplied quantity × PO rate; it comes off the budget (₹60 lakh pre-GST unless changed in Budget settings). Pending = ordered but not yet supplied on open POs. Free to put on new POs = budget − utilised − pending. A short-closed or cancelled PO releases its pending quantity. Values follow the budget setting (including or excluding GST).'],
+    ['Purchase orders', 'POs given to vendors, saved as one file per PO in Hala Fleet Ops SharePoint › Documents › Purchase Orders (same Microsoft sign-in as Shipment tracking). Each PO line has a city, part, quantity, rate excluding GST and GST %. Supplied = quantities recorded against a line by hand, from a CSV or by linking a Cercle OS GRN line. Utilised = what was actually billed for the supplied parts (Cercle OS GRN Paid Price, GST taken out), so it matches the Procurement Tracker taxable value; a supply typed by hand with no GRN behind it is valued at the PO rate. The budget panel also shows how much was billed above (or below) the PO rates. Utilised comes off the budget (₹60 lakh pre-GST unless changed in Budget settings). Pending = ordered but not yet supplied on open POs. Free to put on new POs = budget − utilised − pending. A short-closed or cancelled PO releases its pending quantity. Values follow the budget setting (including or excluding GST).'],
     ['Procurement', 'Lines of the “Procurement vendor wise data” sheet of the Spares Master Report. Spend = quantity × unit cost, excluding GST; freight is shown apart. Repeated header rows and totals are skipped; an invoice keyed twice, a day and month typed the wrong way round, and a cost that is the line total are corrected and listed under Lines to check.']];
   $('#defs').innerHTML = items.map(([a, b]) => '<dt>' + esc(a) + '</dt><dd>' + esc(b) + '</dd>').join('');
   const c = D.chk;
